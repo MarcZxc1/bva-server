@@ -1,0 +1,40 @@
+# Core FastAPI dependencies
+fastapi==0.115.5
+uvicorn[standard]==0.32.1
+pydantic==2.10.3
+pydantic-settings==2.6.1
+
+# Data processing and ML
+pandas==2.2.3
+numpy==2.1.3
+scikit-learn==1.5.2
+xgboost==2.1.3
+statsmodels==0.14.4
+# prophet==1.1.5  # Optional - uncomment if needed (requires pystan)
+
+# Task queue and caching
+celery==5.4.0
+redis==5.2.0
+joblib==1.4.2
+
+# HTTP client for callbacks
+httpx==0.28.1
+
+# Environment and config
+python-dotenv==1.0.1
+
+# Logging
+structlog==24.4.0
+
+# Testing
+pytest==8.3.4
+pytest-asyncio==0.24.0
+pytest-cov==6.0.0
+
+# Optional: Monitoring and metrics
+# prometheus-client==0.21.0
+
+# Development tools
+black==24.10.0
+ruff==0.8.4
+mypy==1.13.0

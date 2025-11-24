@@ -1,0 +1,157 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+// -------------------------------------
+// DATASOURCE
+// -------------------------------------
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// -------------------------------------
+// ENUMS
+// -------------------------------------
+
+enum Role {
+  ADMIN
+  SELLER
+  ANALYST
+}
+
+enum Platform {
+  SHOPEE
+  LAZADA
+  TIKTOK
+  OTHER
+}
+
+enum CampaignStatus {
+  DRAFT
+  SCHEDULED
+  PUBLISHED
+  ARCHIVED
+}
+
+// -------------------------------------
+// MODELS
+// -------------------------------------
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  name      String?
+  role      Role     @default(SELLER)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  shops     Shop[]
+}
+
+model Shop {
+  id        String   @id @default(uuid())
+  name      String
+  owner     User     @relation(fields: [ownerId], references: [id])
+  ownerId   String
+  createdAt DateTime @default(now())
+
+  products     Product[]
+  sales        Sale[]
+  campaigns    Campaign[]
+  integrations Integration[]
+}
+
+model Product {
+  id          String   @id @default(uuid())
+  shop        Shop     @relation(fields: [shopId], references: [id])
+  shopId      String
+  sku         String
+  name        String
+  description String?
+  price       Float
+  cost        Float?
+  expiryDate  DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  inventories Inventory[]
+  forecasts   Forecast[]
+
+  @@unique([shopId, sku])
+}
+
+model Inventory {
+  id        String         @id @default(uuid())
+  product   Product        @relation(fields: [productId], references: [id])
+  productId String
+  quantity  Int            @default(0)
+  location  String?
+  updatedAt DateTime       @updatedAt
+
+  logs InventoryLog[]
+}
+
+model InventoryLog {
+  id           String     @id @default(uuid())
+  inventory    Inventory  @relation(fields: [inventoryId], references: [id])
+  inventoryId  String
+  delta        Int
+  reason       String?
+  timestamp    DateTime   @default(now())
+}
+
+model Sale {
+  id               String    @id @default(uuid())
+  shop             Shop      @relation(fields: [shopId], references: [id])
+  shopId           String
+  platform         Platform
+  platformOrderId  String?
+  items            Json
+  total            Float
+  createdAt        DateTime  @default(now())
+
+  @@unique([platform, platformOrderId])
+}
+
+model Forecast {
+  id         String   @id @default(uuid())
+  product    Product  @relation(fields: [productId], references: [id])
+  productId  String
+  date       DateTime
+  predicted  Int
+  method     String
+  createdAt  DateTime @default(now())
+
+  @@unique([productId, date, method])
+}
+
+model Campaign {
+  id          String          @id @default(uuid())
+  shop        Shop            @relation(fields: [shopId], references: [id])
+  shopId      String
+  name        String
+  content     Json
+  status      CampaignStatus  @default(DRAFT)
+  scheduledAt DateTime?
+  createdAt   DateTime        @default(now())
+}
+
+model Integration {
+  id        String    @id @default(uuid())
+  shop      Shop      @relation(fields: [shopId], references: [id])
+  shopId    String
+  platform  Platform
+  settings  Json
+  createdAt DateTime  @default(now())
+
+  @@unique([shopId, platform])
+}

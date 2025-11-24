@@ -1,0 +1,240 @@
+{
+  "info": {
+    "_postman_id": "bva-ad-generation-001",
+    "name": "BVA - Ad Generation API",
+    "description": "Complete collection for testing all ad generation endpoints including the new data-driven features.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Original Endpoints",
+      "item": [
+        {
+          "name": "Generate Ad Copy (Text)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"product_name\": \"Lucky Me Pancit Canton\",\n  \"playbook\": \"Flash Sale\",\n  \"discount\": \"20% off\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/ads/generate-ad",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "ads", "generate-ad"]
+            },
+            "description": "Generates marketing ad copy (text) based on a product and playbook."
+          },
+          "response": []
+        },
+        {
+          "name": "Generate Ad Image (Playbook)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"product_name\": \"Coca-Cola 1.5L\",\n  \"playbook\": \"New Arrival\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/ads/generate-ad-image",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "ads", "generate-ad-image"]
+            },
+            "description": "Generates marketing ad image based on a product and playbook."
+          },
+          "response": []
+        }
+      ],
+      "description": "Original ad generation endpoints with fixed playbook templates."
+    },
+    {
+      "name": "New Data-Driven Endpoints",
+      "item": [
+        {
+          "name": "Generate Bestseller Ad",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": ""
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/ads/generate-bestseller",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "ads", "generate-bestseller"]
+            },
+            "description": "Automatically generates an ad for the #1 bestselling product. No request body needed - fully automatic!"
+          },
+          "response": []
+        },
+        {
+          "name": "Generate Bundle Ad",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"main_product\": \"Phone Case - Old Model\",\n  \"bundle_item\": \"Premium Phone Charger\",\n  \"final_price\": 350.00\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/ads/generate-bundle",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "ads", "generate-bundle"]
+            },
+            "description": "Generates a 'Bundle Up & Save' promotional ad showing both products and the bundle price."
+          },
+          "response": []
+        },
+        {
+          "name": "Generate Dynamic Ad - Professional Style",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"product_data\": {\n    \"name\": \"SkyFlakes Crackers\",\n    \"price\": 50,\n    \"category\": \"Snacks\",\n    \"brand\": \"Monde Nissin\"\n  },\n  \"user_prompt\": \"Make it look professional and modern with blue and gold tones. Target young professionals.\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/ads/generate-dynamic-image",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "ads", "generate-dynamic-image"]
+            },
+            "description": "Generates a custom ad with professional style using user's creative direction."
+          },
+          "response": []
+        },
+        {
+          "name": "Generate Dynamic Ad - Energetic Style",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"product_data\": {\n    \"name\": \"Energy Drink Max\",\n    \"price\": 75,\n    \"category\": \"Beverages\"\n  },\n  \"user_prompt\": \"Use exciting, bold colors like red and yellow. Make it energetic and dynamic for sports enthusiasts.\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/ads/generate-dynamic-image",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "ads", "generate-dynamic-image"]
+            },
+            "description": "Generates a custom ad with energetic, bold style."
+          },
+          "response": []
+        },
+        {
+          "name": "Generate Dynamic Ad - Minimalist Style",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"product_data\": {\n    \"name\": \"Organic Green Tea\",\n    \"price\": 120,\n    \"category\": \"Health & Wellness\",\n    \"features\": \"100% Natural, No Sugar\"\n  },\n  \"user_prompt\": \"Create a clean, minimalist design with green and white colors. Emphasize natural and healthy lifestyle.\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/ads/generate-dynamic-image",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "ads", "generate-dynamic-image"]
+            },
+            "description": "Generates a custom ad with clean, minimalist style."
+          },
+          "response": []
+        }
+      ],
+      "description": "New data-driven ad generation endpoints with intelligent automation and custom prompts."
+    },
+    {
+      "name": "Health Check",
+      "item": [
+        {
+          "name": "Root Endpoint",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/",
+              "host": ["{{base_url}}"],
+              "path": [""]
+            },
+            "description": "Check if the server is running."
+          },
+          "response": []
+        },
+        {
+          "name": "API Documentation",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/docs",
+              "host": ["{{base_url}}"],
+              "path": ["docs"]
+            },
+            "description": "Open Swagger UI interactive documentation."
+          },
+          "response": []
+        }
+      ],
+      "description": "Health check and documentation endpoints."
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [""]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [""]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8000",
+      "type": "string"
+    }
+  ]
+}

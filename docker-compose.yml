@@ -1,0 +1,133 @@
+# docker-compose.yml
+# Full stack: Main Server + ML Service + PostgreSQL + Redis
+
+version: "3.8"
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: vba-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: virtual_business_assistant
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis for ML-service and caching
+  redis:
+    image: redis:7-alpine
+    container_name: vba-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Python ML Service
+  ml-service:
+    build:
+      context: ./ml-service
+      dockerfile: Dockerfile
+    container_name: vba-ml-service
+    ports:
+      - "8001:8001"
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/1
+      - MODEL_DIR=/app/models
+      - LOG_LEVEL=INFO
+      - LOG_FORMAT=json
+      - PORT=8001
+    volumes:
+      - ./ml-service/models:/app/models
+      - ./ml-service/app:/app/app # Hot reload in development
+    depends_on:
+      redis:
+        condition: service_healthy
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload
+
+  # Main Express/TypeScript Server
+  main-server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: vba-main-server
+    ports:
+      - "3000:3000"
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/virtual_business_assistant
+      - ML_SERVICE_URL=http://ml-service:8001
+      - PORT=3000
+      - NODE_ENV=development
+      - REDIS_URL=redis://redis:6379
+    volumes:
+      - ./server/src:/app/src # Hot reload in development
+    depends_on:
+      postgres:
+        condition: service_healthy
+      ml-service:
+        condition: service_started
+    command: npm run dev
+
+  # Celery Worker for ML-service background tasks (optional)
+  celery-worker:
+    build:
+      context: ./ml-service
+      dockerfile: Dockerfile
+    container_name: vba-celery-worker
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/1
+      - MODEL_DIR=/app/models
+      - LOG_LEVEL=INFO
+    volumes:
+      - ./ml-service/models:/app/models
+      - ./ml-service/app:/app/app
+    depends_on:
+      redis:
+        condition: service_healthy
+    command: celery -A app.tasks.celery_app worker --loglevel=info --concurrency=2
+
+  # Celery Beat for ML-service scheduled tasks (optional)
+  celery-beat:
+    build:
+      context: ./ml-service
+      dockerfile: Dockerfile
+    container_name: vba-celery-beat
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/1
+      - MODEL_DIR=/app/models
+      - LOG_LEVEL=INFO
+    volumes:
+      - ./ml-service/models:/app/models
+      - ./ml-service/app:/app/app
+    depends_on:
+      redis:
+        condition: service_healthy
+    command: celery -A app.tasks.celery_app beat --loglevel=info
+
+volumes:
+  postgres-data:
+  redis-data:
+
+networks:
+  default:
+    name: vba-network
