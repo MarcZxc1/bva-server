@@ -13,14 +13,15 @@ Endpoints:
 from fastapi import APIRouter, HTTPException, status
 from typing import Dict, Any
 import structlog
-from app.schemas.inventory_schema import AtRiskRequest, AtRiskResponse
+from app.schemas.inventory_schema import AtRiskRequest, AtRiskResponse, AtRiskThresholds
 from app.schemas.forecast_schema import (
     ForecastRequest,
     ForecastResponse,
     InsightsRequest,
     InsightsResponse,
     PromotionRequest,
-    PromotionResponse
+    PromotionResponse,
+    PromotionPreferences
 )
 from app.services.inventory_service import compute_risk_scores
 from app.services.forecast_service import forecast_demand, batch_forecast
@@ -52,7 +53,7 @@ async def detect_at_risk_inventory(request: AtRiskRequest) -> AtRiskResponse:
             )
         
         # Use default thresholds if not provided
-        thresholds = request.thresholds or AtRiskRequest.__fields__['thresholds'].default_factory()
+        thresholds = request.thresholds or AtRiskThresholds()
         
         # Compute risk scores
         at_risk_items = compute_risk_scores(
@@ -103,7 +104,7 @@ async def plan_promotions(request: PromotionRequest) -> PromotionResponse:
         )
         
         # Use default preferences if not provided
-        preferences = request.preferences or PromotionRequest.__fields__['preferences'].default
+        preferences = request.preferences or PromotionPreferences()
         
         # Generate promotions
         promotions = generate_promotions(
