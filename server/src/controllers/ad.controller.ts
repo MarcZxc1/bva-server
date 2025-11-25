@@ -33,4 +33,20 @@ export class AdController {
       res.status(500).json({ error: (error as Error).message });
     }
   }
+
+  public async getPromotions(req: Request, res: Response): Promise<void> {
+    try {
+      const { shopId } = req.params;
+      if (!shopId) {
+        res.status(400).json({ error: "Shop ID is required" });
+        return;
+      }
+
+      const promotions = await adService.getPromotions(shopId);
+      res.status(200).json(promotions);
+    } catch (error) {
+      console.error("Error in getPromotions:", error);
+      res.status(500).json({ error: (error as Error).message });
+    }
+  }
 }

@@ -7,6 +7,7 @@ import path from "path";
 dotenv.config({ path: path.join(__dirname, "../.env") });
 import adRouter from "./api/ads/ad.router";
 import restockRouter from "./routes/restock.routes";
+import smartShelfRouter from "./routes/smartShelf.routes";
 import userRoutes from "./routes/user.routes";
 
 const app: Application = express();
@@ -32,6 +33,9 @@ app.use("/api/v1/ads", adRouter);
 // Register AI Restocking Router
 // All routes in restockRouter will be prefixed with /api/ai
 app.use("/api/ai", restockRouter);
+
+// Register SmartShelf Router
+app.use("/api/smart-shelf", smartShelfRouter);
 
 // Register User Router
 app.use("/api/users", userRoutes);

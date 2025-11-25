@@ -1,5 +1,13 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { AdRequest } from "../api/ads/ad.types";
+import { mlClient } from "../utils/mlClient";
+import {
+  PromotionRequest,
+  PromotionResponse,
+  NearExpiryItem,
+  CalendarEvent,
+} from "../types/promotion.types";
+import prisma from "../lib/prisma";
 
 // Don't load dotenv here - it's already loaded in server.ts
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY as string);
@@ -47,5 +55,75 @@ export class AdService {
       console.error("Error calling Gemini API:", error);
       throw new Error("Sorry, I couldn't generate an ad right now.");
     }
+  }
+
+  public async getPromotions(shopId: string): Promise<PromotionResponse> {
+    // 1. Fetch near expiry items (e.g. expiring in next 60 days)
+    const now = new Date();
+    const sixtyDaysFromNow = new Date();
+    sixtyDaysFromNow.setDate(now.getDate() + 60);
+
+    const products = await prisma.product.findMany({
+      where: {
+        shopId,
+        expiryDate: {
+          gte: now,
+          lte: sixtyDaysFromNow,
+        },
+      },
+      include: {
+        inventories: { take: 1 },
+      },
+    });
+
+    const items: NearExpiryItem[] = products.map((p) => ({
+      product_id: p.id,
+      name: p.name,
+      expiry_date: p.expiryDate!.toISOString(),
+      quantity: p.inventories[0]?.quantity || 0,
+      price: p.price,
+      categories: p.description ? [p.description] : [],
+    }));
+
+    if (items.length === 0) {
+      return {
+        promotions: [],
+        meta: {
+          shop_id: shopId,
+          total_items: 0,
+          total_events: 0,
+          promotions_generated: 0,
+          analysis_date: new Date().toISOString(),
+        },
+      };
+    }
+
+    // 2. Generate dummy calendar events
+    const events: CalendarEvent[] = [
+      {
+        id: "evt_weekend",
+        date: new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000).toISOString(), // 3 days from now
+        title: "Weekend Sale",
+        event_type: "sale",
+      },
+      {
+        id: "evt_payday",
+        date: new Date(now.getFullYear(), now.getMonth() + 1, 15).toISOString(), // Next 15th (approx)
+        title: "Payday Sale",
+        event_type: "sale",
+      },
+    ];
+
+    // 3. Call ML Service
+    const request: PromotionRequest = {
+      shop_id: shopId,
+      items,
+      calendar_events: events,
+    };
+
+    return await mlClient.post<PromotionResponse>(
+      "/api/v1/smart-shelf/promotions",
+      request
+    );
   }
 }

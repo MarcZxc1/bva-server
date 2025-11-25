@@ -10,7 +10,7 @@ Key functions:
 - estimate_clear_time: Predict days to sell-through at discount rate
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import List, Dict, Any
 import pandas as pd
 import structlog
@@ -53,15 +53,23 @@ def generate_promotions(
     """
     promotions = []
     
+    # Use timezone-aware UTC now
+    now = datetime.now(timezone.utc)
+    
     for item in items:
         expiry_date = pd.to_datetime(item.expiry_date)
-        days_to_expiry = (expiry_date - datetime.utcnow()).days
+        if expiry_date.tzinfo is None:
+            expiry_date = expiry_date.tz_localize('UTC')
+        else:
+            expiry_date = expiry_date.tz_convert('UTC')
+            
+        days_to_expiry = (expiry_date - now).days
         
         if days_to_expiry <= 0:
             continue  # Already expired
         
         # Find suitable events (within expiry window)
-        suitable_events = _find_suitable_events(item, events, days_to_expiry)
+        suitable_events = _find_suitable_events(item, events, expiry_date, now)
         
         for event in suitable_events:
             # Compute discount
@@ -84,7 +92,12 @@ def generate_promotions(
             
             # Determine promotion timing
             event_date = pd.to_datetime(event.date)
-            start_date = max(datetime.utcnow(), event_date - timedelta(days=2))
+            if event_date.tzinfo is None:
+                event_date = event_date.tz_localize('UTC')
+            else:
+                event_date = event_date.tz_convert('UTC')
+                
+            start_date = max(now, event_date - timedelta(days=2))
             end_date = min(expiry_date - timedelta(days=1), event_date + timedelta(days=3))
             
             # Compute confidence
@@ -133,18 +146,21 @@ def generate_promotions(
 def _find_suitable_events(
     item: NearExpiryItem,
     events: List[CalendarEvent],
-    days_to_expiry: int
+    expiry_date: datetime,
+    now: datetime
 ) -> List[CalendarEvent]:
     """Find events within product expiry window."""
     suitable = []
-    now = datetime.utcnow()
-    expiry = now + timedelta(days=days_to_expiry)
     
     for event in events:
         event_date = pd.to_datetime(event.date)
+        if event_date.tzinfo is None:
+            event_date = event_date.tz_localize('UTC')
+        else:
+            event_date = event_date.tz_convert('UTC')
         
         # Event should be before expiry
-        if now <= event_date <= expiry:
+        if now <= event_date <= expiry_date:
             suitable.append(event)
     
     return suitable
