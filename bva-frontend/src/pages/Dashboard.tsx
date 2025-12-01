@@ -21,6 +21,7 @@ import {
 } from "recharts";
 import { PlatformStatus } from "@/components/PlatformStatus";
 import { useAtRiskInventory } from "@/hooks/useSmartShelf";
+import { useAuth } from "@/contexts/AuthContext";
 
 const salesData = [
   { month: "Jan", shopee: 4500, lazada: 3200, tiktok: 2100 },
@@ -45,8 +46,10 @@ const topProducts = [
 ];
 
 export default function Dashboard() {
+  const { user } = useAuth();
+  const shopId = user?.shops?.[0]?.id || "";
   const { data: atRiskData, isLoading: isLoadingRisk } =
-    useAtRiskInventory("SHOP-001"); // Mock Shop ID
+    useAtRiskInventory(shopId, !!shopId);
 
   return (
     <div className="space-y-6">

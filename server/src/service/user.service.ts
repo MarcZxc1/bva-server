@@ -30,7 +30,17 @@ export class UserService {
   }
 
   async login(email: string, password: string) {
-    const user = await this.findByEmail(email);
+    const user = await prisma.user.findUnique({
+      where: { email },
+      include: {
+        shops: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+    });
 
     if (!user) {
       throw new Error("User not found");

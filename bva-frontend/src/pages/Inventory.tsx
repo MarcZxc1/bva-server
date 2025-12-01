@@ -45,10 +45,10 @@ const getPlatformColor = (platform: string) => {
 
 export default function Inventory() {
   const { user } = useAuth();
-  const shopId = user?.id || "SHOP-001";
+  const shopId = user?.shops?.[0]?.id || "";
   const [searchQuery, setSearchQuery] = useState("");
   
-  const { data: atRiskData, isLoading, error, refetch } = useAtRiskInventory(shopId, true);
+  const { data: atRiskData, isLoading, error, refetch } = useAtRiskInventory(shopId, !!shopId);
 
   const atRiskItems = atRiskData?.data?.at_risk || [];
   const meta = atRiskData?.data?.meta;

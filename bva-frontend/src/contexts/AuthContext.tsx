@@ -5,12 +5,16 @@ import {
   useEffect,
   ReactNode,
 } from "react";
-import { authService } from "@/services/auth.service";
+import { AuthResponse, authService } from "@/services/auth.service";
 
 export interface User {
   id: string;
   email: string;
   name?: string;
+  shops?: Array<{
+    id: string;
+    name: string;
+  }>;
 }
 
 export interface LoginCredentials {

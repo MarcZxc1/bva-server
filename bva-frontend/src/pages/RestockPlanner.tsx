@@ -25,7 +25,8 @@ const getPriorityLabel = (priorityScore: number) => {
 
 export default function RestockPlanner() {
   const { user } = useAuth();
-  const [shopId, setShopId] = useState(user?.id || "SHOP-001");
+  const defaultShopId = user?.shops?.[0]?.id || "";
+  const [shopId, setShopId] = useState(defaultShopId);
   const [budget, setBudget] = useState("50000");
   const [goal, setGoal] = useState<"profit" | "volume" | "balanced">("balanced");
   const [restockDays, setRestockDays] = useState("14");
