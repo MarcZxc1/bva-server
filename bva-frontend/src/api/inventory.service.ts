@@ -113,6 +113,6 @@ export const inventoryService = {
   },
 
   getAtRiskInventory: async (shopId: string): Promise<AtRiskResponse> => {
-    return apiClient.get<AtRiskResponse>(`/api/smart-shelf/analyze/${shopId}`);
+    return apiClient.get<AtRiskResponse>(`/api/smart-shelf/${shopId}/at-risk`);
   },
 };
