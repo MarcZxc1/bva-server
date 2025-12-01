@@ -247,9 +247,9 @@ async function main() {
   await prisma.shop.deleteMany();
   await prisma.user.deleteMany();
 
-  // Create test user
-  console.log("👤 Creating test user...");
-  const user = await prisma.user.create({
+  // Create test users
+  console.log("👤 Creating test users...");
+  const adminUser = await prisma.user.create({
     data: {
       email: "admin@test.com",
       password: "$2b$10$rQVZw8H5R7K5B6J5B6J5Buo8E5Z6K5B6J5B6J5B6J5B6J5B6J5B6J", // "password123"
@@ -257,7 +257,19 @@ async function main() {
       role: Role.ADMIN,
     },
   });
-  console.log(`✅ Created user: ${user.email}`);
+  console.log(`✅ Created admin user: ${adminUser.email}`);
+
+  const testerUser = await prisma.user.create({
+    data: {
+      email: "tester@test.com",
+      password: "$2b$10$rQVZw8H5R7K5B6J5B6J5Buo8E5Z6K5B6J5B6J5B6J5B6J5B6J5B6J", // "password123"
+      name: "Test Seller",
+      role: Role.SELLER,
+    },
+  });
+  console.log(`✅ Created tester user: ${testerUser.email}`);
+
+  const user = adminUser; // Keep reference for backwards compatibility
 
   // Create shop
   console.log("🏪 Creating shop...");
