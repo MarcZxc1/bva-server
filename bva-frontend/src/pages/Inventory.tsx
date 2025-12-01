@@ -3,7 +3,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Search, Filter, Plus, ExternalLink, Loader2, AlertCircle } from "lucide-react";
+import {
+  Search,
+  Filter,
+  Plus,
+  ExternalLink,
+  Loader2,
+  AlertCircle,
+} from "lucide-react";
 import {
   Table,
   TableBody,
@@ -47,16 +54,22 @@ export default function Inventory() {
   const { user } = useAuth();
   const shopId = user?.shops?.[0]?.id || "";
   const [searchQuery, setSearchQuery] = useState("");
-  
-  const { data: atRiskData, isLoading, error, refetch } = useAtRiskInventory(shopId, !!shopId);
+
+  const {
+    data: atRiskData,
+    isLoading,
+    error,
+    refetch,
+  } = useAtRiskInventory(shopId, !!shopId);
 
   const atRiskItems = atRiskData?.data?.at_risk || [];
   const meta = atRiskData?.data?.meta;
 
   // Filter items based on search query
-  const filteredItems = atRiskItems.filter((item) =>
-    item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    item.sku.toLowerCase().includes(searchQuery.toLowerCase())
+  const filteredItems = atRiskItems.filter(
+    (item) =>
+      item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      item.sku.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   useEffect(() => {
@@ -69,11 +82,19 @@ export default function Inventory() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-foreground mb-2">Smart Inventory</h1>
-          <p className="text-muted-foreground">Manage and track your products across all platforms</p>
+          <h1 className="text-3xl font-bold text-foreground mb-2">
+            Smart Inventory
+          </h1>
+          <p className="text-muted-foreground">
+            Manage and track your products across all platforms
+          </p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={() => refetch()} disabled={isLoading}>
+          <Button
+            variant="outline"
+            onClick={() => refetch()}
+            disabled={isLoading}
+          >
             {isLoading ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
@@ -92,7 +113,9 @@ export default function Inventory() {
           <CardContent className="pt-6">
             <div className="flex items-center justify-center py-8">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-              <span className="ml-2 text-muted-foreground">Loading inventory data...</span>
+              <span className="ml-2 text-muted-foreground">
+                Loading inventory data...
+              </span>
             </div>
           </CardContent>
         </Card>
@@ -116,8 +139,8 @@ export default function Inventory() {
               <div className="flex items-center gap-4">
                 <div className="relative flex-1">
                   <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input 
-                    placeholder="Search products by name or SKU..." 
+                  <Input
+                    placeholder="Search products by name or SKU..."
                     className="pl-10"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
@@ -132,7 +155,9 @@ export default function Inventory() {
             <CardContent>
               {filteredItems.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
-                  {searchQuery ? "No products found matching your search." : "No at-risk inventory items found."}
+                  {searchQuery
+                    ? "No products found matching your search."
+                    : "No at-risk inventory items found."}
                 </div>
               ) : (
                 <Table>
@@ -151,14 +176,22 @@ export default function Inventory() {
                   <TableBody>
                     {filteredItems.map((item) => (
                       <TableRow key={item.product_id}>
-                        <TableCell className="font-medium">{item.name}</TableCell>
-                        <TableCell className="font-mono text-sm text-muted-foreground">{item.sku}</TableCell>
+                        <TableCell className="font-medium">
+                          {item.name}
+                        </TableCell>
+                        <TableCell className="font-mono text-sm text-muted-foreground">
+                          {item.sku}
+                        </TableCell>
                         <TableCell>
-                          <span className={`font-semibold ${
-                            item.current_quantity < 20 ? "text-destructive" :
-                            item.current_quantity < 50 ? "text-warning" :
-                            "text-success"
-                          }`}>
+                          <span
+                            className={`font-semibold ${
+                              item.current_quantity < 20
+                                ? "text-destructive"
+                                : item.current_quantity < 50
+                                ? "text-warning"
+                                : "text-success"
+                            }`}
+                          >
                             {item.current_quantity}
                           </span>
                         </TableCell>
@@ -168,28 +201,38 @@ export default function Inventory() {
                           </Badge>
                         </TableCell>
                         <TableCell>
-                          <span className={`font-semibold ${
-                            item.score >= 80 ? "text-destructive" :
-                            item.score >= 60 ? "text-warning" :
-                            "text-muted-foreground"
-                          }`}>
+                          <span
+                            className={`font-semibold ${
+                              item.score >= 80
+                                ? "text-destructive"
+                                : item.score >= 60
+                                ? "text-warning"
+                                : "text-muted-foreground"
+                            }`}
+                          >
                             {item.score}
                           </span>
                         </TableCell>
                         <TableCell className="text-sm text-muted-foreground">
-                          {item.days_to_expiry !== undefined 
+                          {item.days_to_expiry !== undefined
                             ? `${item.days_to_expiry} days`
                             : "N/A"}
                         </TableCell>
                         <TableCell className="text-sm">
                           <div className="max-w-xs">
-                            <p className="font-medium">{item.recommended_action.action_type}</p>
-                            <p className="text-xs text-muted-foreground">{item.recommended_action.reasoning}</p>
+                            <p className="font-medium">
+                              {item.recommended_action.action_type}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {item.recommended_action.reasoning}
+                            </p>
                           </div>
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-2">
-                            <Button variant="ghost" size="sm">Edit</Button>
+                            <Button variant="ghost" size="sm">
+                              Edit
+                            </Button>
                             <Button variant="ghost" size="sm">
                               <ExternalLink className="h-4 w-4" />
                             </Button>
@@ -206,35 +249,51 @@ export default function Inventory() {
           <div className="grid gap-4 md:grid-cols-3">
             <Card>
               <CardHeader>
-                <CardTitle className="text-sm font-medium text-muted-foreground">Total Products</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{meta?.total_products || 0}</div>
-                <p className="text-xs text-muted-foreground mt-1">Across all platforms</p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-sm font-medium text-muted-foreground">At-Risk Items</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-warning">{meta?.flagged_count || 0}</div>
-                <p className="text-xs text-muted-foreground mt-1">Need attention</p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-sm font-medium text-muted-foreground">Last Analysis</CardTitle>
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  Total Products
+                </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
-                  {meta?.analysis_date 
+                  {meta?.total_products || 0}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Across all platforms
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  At-Risk Items
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-warning">
+                  {meta?.flagged_count || 0}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Need attention
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  Last Analysis
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {meta?.analysis_date
                     ? new Date(meta.analysis_date).toLocaleDateString()
                     : "N/A"}
                 </div>
-                <p className="text-xs text-muted-foreground mt-1">AI-powered analysis</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  AI-powered analysis
+                </p>
               </CardContent>
             </Card>
           </div>

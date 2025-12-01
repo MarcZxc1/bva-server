@@ -48,8 +48,10 @@ const topProducts = [
 export default function Dashboard() {
   const { user } = useAuth();
   const shopId = user?.shops?.[0]?.id || "";
-  const { data: atRiskData, isLoading: isLoadingRisk } =
-    useAtRiskInventory(shopId, !!shopId);
+  const { data: atRiskData, isLoading: isLoadingRisk } = useAtRiskInventory(
+    shopId,
+    !!shopId
+  );
 
   return (
     <div className="space-y-6">

@@ -62,12 +62,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const storedUser = localStorage.getItem("user");
 
         if (storedToken && storedUser) {
+          const parsedUser = JSON.parse(storedUser);
+
+          // MIGRATION: Force re-login if user doesn't have shops array
+          // This ensures users who logged in before the shops field was added will get fresh data
+          if (!parsedUser.shops || !Array.isArray(parsedUser.shops)) {
+            console.warn("User data missing shops array - forcing re-login");
+            localStorage.removeItem("auth_token");
+            localStorage.removeItem("user");
+            setIsLoading(false);
+            return;
+          }
+
           // Optional: Validate token with backend
           // const isValid = await authService.validateToken(storedToken);
           // if (!isValid) { logout(); return; }
 
           setToken(storedToken);
-          setUser(JSON.parse(storedUser));
+          setUser(parsedUser);
         }
       } catch (error) {
         console.error("Failed to restore auth state:", error);

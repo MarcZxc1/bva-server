@@ -184,6 +184,112 @@ const SAMPLE_PRODUCTS = [
   { name: "San Mig Light 330ml", category: "Beverages", price: 45, cost: 32 },
   { name: "Red Horse Beer 500ml", category: "Beverages", price: 55, cost: 40 },
   { name: "Tang Orange 25g", category: "Beverages", price: 12, cost: 7 },
+
+  // ===== AT-RISK INVENTORY ITEMS =====
+  // These products will have specific characteristics to trigger at-risk detection
+
+  // LOW STOCK items (will be given 0-3 units)
+  {
+    name: "Fresh Milk 1L (Low Stock)",
+    category: "Dairy",
+    price: 95,
+    cost: 68,
+    lowStock: true,
+  },
+  {
+    name: "Butter Unsalted (Low Stock)",
+    category: "Dairy",
+    price: 125,
+    cost: 90,
+    lowStock: true,
+  },
+  {
+    name: "Premium Coffee 200g (Low Stock)",
+    category: "Beverages",
+    price: 185,
+    cost: 130,
+    lowStock: true,
+  },
+
+  // NEAR EXPIRY items (will get expiry dates 3-7 days from now)
+  {
+    name: "Fresh Yogurt Cup",
+    category: "Dairy",
+    price: 45,
+    cost: 28,
+    nearExpiry: true,
+  },
+  {
+    name: "Sliced Bread White",
+    category: "Bakery",
+    price: 52,
+    cost: 35,
+    nearExpiry: true,
+  },
+  {
+    name: "Fresh Orange Juice 1L",
+    category: "Beverages",
+    price: 115,
+    cost: 80,
+    nearExpiry: true,
+  },
+  {
+    name: "Deli Meat Ham 200g",
+    category: "Dairy",
+    price: 165,
+    cost: 120,
+    nearExpiry: true,
+  },
+
+  // SLOW MOVING items (will have very low sales velocity 0-1 unit/day)
+  {
+    name: "Imported Olive Oil 500ml",
+    category: "Condiments",
+    price: 385,
+    cost: 280,
+    slowMoving: true,
+  },
+  {
+    name: "Specialty Tea Bags",
+    category: "Beverages",
+    price: 195,
+    cost: 140,
+    slowMoving: true,
+  },
+  {
+    name: "Gourmet Balsamic Vinegar",
+    category: "Condiments",
+    price: 425,
+    cost: 310,
+    slowMoving: true,
+  },
+  {
+    name: "Organic Honey 250g",
+    category: "Condiments",
+    price: 295,
+    cost: 210,
+    slowMoving: true,
+  },
+
+  // COMBINATION: Low Stock + Slow Moving
+  {
+    name: "Premium Pasta Sauce",
+    category: "Condiments",
+    price: 145,
+    cost: 100,
+    lowStock: true,
+    slowMoving: true,
+  },
+
+  // COMBINATION: Near Expiry + Slow Moving (Critical!)
+  {
+    name: "Artisan Cheese 150g",
+    category: "Dairy",
+    price: 225,
+    cost: 160,
+    nearExpiry: true,
+    slowMoving: true,
+  },
 ];
 
 /**
@@ -191,15 +297,20 @@ const SAMPLE_PRODUCTS = [
  */
 function generateSalesPattern(
   productIndex: number,
-  days: number = 60
+  days: number = 60,
+  productData?: any
 ): number[] {
   const sales: number[] = [];
 
-  // Different products have different sales velocities
+  // Default base velocity
   let baseVelocity: number;
 
+  // Check for at-risk flags first
+  if (productData?.slowMoving) {
+    baseVelocity = 0.2 + Math.random() * 0.8; // 0.2-1 units/day (very slow)
+  }
   // Fast movers (20% of products)
-  if (productIndex < SAMPLE_PRODUCTS.length * 0.2) {
+  else if (productIndex < SAMPLE_PRODUCTS.length * 0.2) {
     baseVelocity = 15 + Math.random() * 10; // 15-25 units/day
   }
   // Medium movers (50% of products)
@@ -294,6 +405,15 @@ async function main() {
     const productData = SAMPLE_PRODUCTS[i]!;
     const sku = `SKU-${String(i + 1).padStart(4, "0")}`;
 
+    // Set expiry date for near-expiry items
+    let expiryDate = null;
+    if (productData.nearExpiry) {
+      expiryDate = new Date();
+      expiryDate.setDate(
+        expiryDate.getDate() + (3 + Math.floor(Math.random() * 5))
+      ); // 3-7 days from now
+    }
+
     const product = await prisma.product.create({
       data: {
         shopId: shop.id,
@@ -302,14 +422,24 @@ async function main() {
         description: `${productData.name} - ${productData.category}`,
         price: productData.price,
         cost: productData.cost,
-        expiryDate: null, // Can be set for perishables if needed
+        expiryDate,
       },
     });
 
     products.push(product);
 
-    // Create inventory with random stock level
-    const stockLevel = Math.floor(Math.random() * 31); // 0-30 units
+    // Create inventory with appropriate stock level based on risk factors
+    let stockLevel: number;
+    if (productData.lowStock) {
+      stockLevel = Math.floor(Math.random() * 4); // 0-3 units (critically low)
+    } else if (productData.nearExpiry) {
+      stockLevel = 15 + Math.floor(Math.random() * 20); // 15-34 units (need to sell fast)
+    } else if (productData.slowMoving) {
+      stockLevel = 25 + Math.floor(Math.random() * 15); // 25-39 units (overstocked)
+    } else {
+      stockLevel = Math.floor(Math.random() * 31); // 0-30 units (normal)
+    }
+
     await prisma.inventory.create({
       data: {
         productId: product.id,
@@ -336,7 +466,8 @@ async function main() {
     // Generate sales for each product
     for (let i = 0; i < products.length; i++) {
       const product = products[i]!;
-      const salesPattern = generateSalesPattern(i, salesCount);
+      const productData = SAMPLE_PRODUCTS[i]!;
+      const salesPattern = generateSalesPattern(i, salesCount, productData);
       const dailyQty = salesPattern[day]!;
 
       if (dailyQty > 0) {
