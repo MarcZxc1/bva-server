@@ -5,18 +5,29 @@ import {
   useEffect,
   ReactNode,
 } from "react";
-import { authService, AuthResponse } from "@/api/auth.service";
+import { authService } from "@/services/auth.service";
 
-interface User {
+export interface User {
   id: string;
   email: string;
   name?: string;
 }
 
+export interface LoginCredentials {
+  email: string;
+  password: string;
+}
+
+export interface AuthError {
+  code: string;
+  message: string;
+  lockoutMinutes?: number;
+}
+
 interface AuthContextType {
   user: User | null;
   token: string | null;
-  login: (email: string, password: string) => Promise<void>;
+  login: (credentials: LoginCredentials) => Promise<void>;
   register: (email: string, password: string, name?: string) => Promise<void>;
   logout: () => void;
   isAuthenticated: boolean;
@@ -25,33 +36,64 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+/**
+ * SECURITY NOTE:
+ * We are using localStorage to store the JWT token for demo purposes.
+ * For production apps, consider:
+ * 1. HttpOnly Cookies (prevents XSS attacks)
+ * 2. Short-lived access tokens + Refresh tokens
+ * 3. Storing tokens in memory (more secure but requires refresh on reload)
+ */
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Check for stored auth data on mount
-    const storedToken = localStorage.getItem("auth_token");
-    const storedUser = localStorage.getItem("user");
+    // Auto-Login: Check for stored auth data on mount
+    const initializeAuth = async () => {
+      try {
+        const storedToken = localStorage.getItem("auth_token");
+        const storedUser = localStorage.getItem("user");
 
-    if (storedToken && storedUser) {
-      setToken(storedToken);
-      setUser(JSON.parse(storedUser));
-    }
-    setIsLoading(false);
+        if (storedToken && storedUser) {
+          // Optional: Validate token with backend
+          // const isValid = await authService.validateToken(storedToken);
+          // if (!isValid) { logout(); return; }
+
+          setToken(storedToken);
+          setUser(JSON.parse(storedUser));
+        }
+      } catch (error) {
+        console.error("Failed to restore auth state:", error);
+        // Clear corrupted data
+        localStorage.removeItem("auth_token");
+        localStorage.removeItem("user");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    initializeAuth();
   }, []);
 
-  const login = async (email: string, password: string) => {
-    const response: AuthResponse = await authService.login({ email, password });
+  const login = async (credentials: LoginCredentials) => {
+    try {
+      const response = await authService.login(credentials);
 
-    if (response.success && response.token) {
-      setToken(response.token);
-      setUser(response.data);
-      localStorage.setItem("auth_token", response.token);
-      localStorage.setItem("user", JSON.stringify(response.data));
-    } else {
-      throw new Error("Login failed");
+      if (response.success && response.token) {
+        // Store token and user data
+        setToken(response.token);
+        setUser(response.data);
+        localStorage.setItem("auth_token", response.token);
+        localStorage.setItem("user", JSON.stringify(response.data));
+      } else {
+        throw new Error(response.message || "Login failed");
+      }
+    } catch (error: any) {
+      // Re-throw to let the Login component handle specific errors
+      throw error;
     }
   };
 
@@ -73,10 +115,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = () => {
+    // Clear state
     setToken(null);
     setUser(null);
+
+    // Clear storage
     localStorage.removeItem("auth_token");
     localStorage.removeItem("user");
+
+    // Optional: Call backend to invalidate token
+    authService.logout().catch((err) => {
+      console.error("Logout error:", err);
+    });
   };
 
   return (
