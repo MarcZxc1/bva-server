@@ -75,9 +75,7 @@ export default function Inventory() {
   const meta = atRiskData?.data?.meta;
 
   // Create a map of at-risk product IDs for quick lookup
-  const atRiskMap = new Map(
-    atRiskItems.map((item) => [item.product_id, item])
-  );
+  const atRiskMap = new Map(atRiskItems.map((item) => [item.product_id, item]));
 
   const isLoading = isLoadingProducts || isLoadingRisk;
 
@@ -98,22 +96,15 @@ export default function Inventory() {
     refetchProducts();
     refetchRisk();
   };
+
+  return (
+    <div className="container mx-auto p-6 space-y-6">
+      <div className="flex justify-between items-center">
+        <h1 className="text-3xl font-bold">Smart Inventory</h1>
         <div className="flex gap-2">
           <Button
             variant="outline"
             onClick={handleRefresh}
-            disabled={isLoading}
-          >
-            {isLoading ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              "Refresh"
-            )}
-          </Button>
-        <div className="flex gap-2">
-          <Button
-            variant="outline"
-            onClick={() => refetch()}
             disabled={isLoading}
           >
             {isLoading ? (
@@ -226,7 +217,9 @@ export default function Inventory() {
                           <TableCell>₱{product.price.toFixed(2)}</TableCell>
                           <TableCell>
                             {isAtRisk ? (
-                              <Badge variant={getStatusColor(atRiskInfo.reasons)}>
+                              <Badge
+                                variant={getStatusColor(atRiskInfo.reasons)}
+                              >
                                 {getStatusLabel(atRiskInfo.reasons)}
                               </Badge>
                             ) : (
@@ -272,11 +265,7 @@ export default function Inventory() {
                             )}
                           </TableCell>
                           <TableCell className="text-right">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="gap-2"
-                            >
+                            <Button variant="ghost" size="sm" className="gap-2">
                               <ExternalLink className="h-4 w-4" />
                               View
                             </Button>
@@ -291,13 +280,6 @@ export default function Inventory() {
           </Card>
 
           <div className="grid gap-4 md:grid-cols-3">
-                            ? `${item.days_to_expiry} days`
-                            : "N/A"}
-                        </TableCell>
-                        <TableCell className="text-sm">
-                          <div className="max-w-xs">
-                            <p className="font-medium">
-          <div className="grid gap-4 md:grid-cols-3">
             <Card>
               <CardHeader>
                 <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -305,9 +287,7 @@ export default function Inventory() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">
-                  {products.length}
-                </div>
+                <div className="text-2xl font-bold">{products.length}</div>
                 <p className="text-xs text-muted-foreground mt-1">
                   Across all platforms
                 </p>
