@@ -1,23 +1,35 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { AxiosError } from "axios";
 
 export default function Login() {
   const navigate = useNavigate();
-  const { login, isLoading } = useAuth();
+  const { login, isLoading, isAuthenticated } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  useEffect(() => {
+    if (isAuthenticated) {
+      navigate("/dashboard");
+    }
+  }, [isAuthenticated, navigate]);
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!email || !password) {
       toast.error("Please enter email and password");
       return;
@@ -27,13 +39,13 @@ export default function Login() {
     try {
       await login(email, password);
       toast.success("Login successful!");
-      navigate("/dashboard");
+      // Navigation is handled by the useEffect above
     } catch (error) {
       const axiosError = error as AxiosError<{ error?: string }>;
       toast.error(
-        axiosError.response?.data?.error || 
-        axiosError.message || 
-        "Login failed. Please check your credentials."
+        axiosError.response?.data?.error ||
+          axiosError.message ||
+          "Login failed. Please check your credentials."
       );
     } finally {
       setIsSubmitting(false);
@@ -45,20 +57,26 @@ export default function Login() {
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <div className="flex justify-center mb-4">
-            <img 
-              src="/bva-logo.png" 
-              alt="BVA Logo" 
+            <img
+              src="/bva-logo.png"
+              alt="BVA Logo"
               className="h-20 w-auto object-contain"
             />
           </div>
-          <h1 className="text-3xl font-bold text-foreground mb-2">Business Virtual Assistant</h1>
-          <p className="text-muted-foreground">AI-powered inventory & marketing automation</p>
+          <h1 className="text-3xl font-bold text-foreground mb-2">
+            Business Virtual Assistant
+          </h1>
+          <p className="text-muted-foreground">
+            AI-powered inventory & marketing automation
+          </p>
         </div>
 
         <Card>
           <CardHeader>
             <CardTitle>Welcome Back</CardTitle>
-            <CardDescription>Sign in to manage your e-commerce business</CardDescription>
+            <CardDescription>
+              Sign in to manage your e-commerce business
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleLogin} className="space-y-4">
@@ -73,7 +91,7 @@ export default function Login() {
                   required
                 />
               </div>
-              
+
               <div className="space-y-2">
                 <Label htmlFor="password">Password</Label>
                 <Input
@@ -86,7 +104,11 @@ export default function Login() {
                 />
               </div>
 
-              <Button type="submit" className="w-full" disabled={isSubmitting || isLoading}>
+              <Button
+                type="submit"
+                className="w-full"
+                disabled={isSubmitting || isLoading}
+              >
                 {isSubmitting ? "Signing in..." : "Sign In"}
               </Button>
 
