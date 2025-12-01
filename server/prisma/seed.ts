@@ -6,7 +6,7 @@
  * AI-powered restocking strategy feature.
  *
  * Generates:
- * - 1 test user (admin)
+ * - 2 test users (admin and tester)
  * - 1 shop
  * - 50 products with varying prices, costs, and categories
  * - Inventory records (random stock levels 0-30)
@@ -20,6 +20,7 @@
 
 import { Role, Platform } from "../src/generated/prisma";
 import prisma from "../src/lib/prisma";
+import bcrypt from "bcrypt";
 
 // Product categories
 const CATEGORIES = [
@@ -249,10 +250,14 @@ async function main() {
 
   // Create test users
   console.log("👤 Creating test users...");
+
+  // Hash the password properly
+  const hashedPassword = await bcrypt.hash("password123", 10);
+
   const adminUser = await prisma.user.create({
     data: {
       email: "admin@test.com",
-      password: "$2b$10$rQVZw8H5R7K5B6J5B6J5Buo8E5Z6K5B6J5B6J5B6J5B6J5B6J5B6J", // "password123"
+      password: hashedPassword,
       name: "Test Admin",
       role: Role.ADMIN,
     },
@@ -262,7 +267,7 @@ async function main() {
   const testerUser = await prisma.user.create({
     data: {
       email: "tester@test.com",
-      password: "$2b$10$rQVZw8H5R7K5B6J5B6J5Buo8E5Z6K5B6J5B6J5B6J5B6J5B6J5B6J", // "password123"
+      password: hashedPassword,
       name: "Test Seller",
       role: Role.SELLER,
     },
