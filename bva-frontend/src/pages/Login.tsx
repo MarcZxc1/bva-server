@@ -39,7 +39,8 @@ export default function Login() {
     try {
       await login(email, password);
       toast.success("Login successful!");
-      // Navigation is handled by the useEffect above
+      // Force navigation to dashboard
+      navigate("/dashboard");
     } catch (error) {
       const axiosError = error as AxiosError<{ error?: string }>;
       toast.error(
