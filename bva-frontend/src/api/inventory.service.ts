@@ -82,6 +82,24 @@ export interface AtRiskResponse {
   };
 }
 
+export interface Product {
+  id: string;
+  sku: string;
+  name: string;
+  description: string | null;
+  price: number;
+  cost: number;
+  quantity: number;
+  expiryDate: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ProductsResponse {
+  success: boolean;
+  data: Product[];
+}
+
 export const inventoryService = {
   getPlatformStatus: async (): Promise<PlatformStatus> => {
     // Mocking this for now as I don't see a specific endpoint in the provided server files
@@ -114,5 +132,9 @@ export const inventoryService = {
 
   getAtRiskInventory: async (shopId: string): Promise<AtRiskResponse> => {
     return apiClient.get<AtRiskResponse>(`/api/smart-shelf/${shopId}/at-risk`);
+  },
+
+  getAllProducts: async (shopId: string): Promise<ProductsResponse> => {
+    return apiClient.get<ProductsResponse>(`/api/products/shop/${shopId}`);
   },
 };

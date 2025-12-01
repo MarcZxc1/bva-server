@@ -180,13 +180,15 @@ def _detect_near_expiry(df: pd.DataFrame, warning_days: int) -> pd.DataFrame:
     
     Performance: O(n) vectorized date arithmetic
     """
-    now = datetime.utcnow()
+    now = pd.Timestamp.now(tz='UTC')
     warning_date = now + timedelta(days=warning_days)
     
     # Compute days to expiry
     df['days_to_expiry'] = np.nan
     if 'expiry_date' in df.columns:
         valid_expiry = df['expiry_date'].notna()
+        # Ensure expiry_date is timezone-aware
+        df.loc[valid_expiry, 'expiry_date'] = pd.to_datetime(df.loc[valid_expiry, 'expiry_date'], utc=True)
         df.loc[valid_expiry, 'days_to_expiry'] = (
             df.loc[valid_expiry, 'expiry_date'] - now
         ).dt.days

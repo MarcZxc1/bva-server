@@ -19,7 +19,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { useAtRiskInventory } from "@/hooks/useSmartShelf";
+import { useAtRiskInventory, useAllProducts } from "@/hooks/useSmartShelf";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 
@@ -55,40 +55,61 @@ export default function Inventory() {
   const shopId = user?.shops?.[0]?.id || "";
   const [searchQuery, setSearchQuery] = useState("");
 
+  // Fetch all products
+  const {
+    data: productsData,
+    isLoading: isLoadingProducts,
+    error: productsError,
+    refetch: refetchProducts,
+  } = useAllProducts(shopId, !!shopId);
+
+  // Fetch at-risk analysis
   const {
     data: atRiskData,
-    isLoading,
-    error,
-    refetch,
+    isLoading: isLoadingRisk,
+    refetch: refetchRisk,
   } = useAtRiskInventory(shopId, !!shopId);
 
+  const products = productsData?.data || [];
   const atRiskItems = atRiskData?.data?.at_risk || [];
   const meta = atRiskData?.data?.meta;
 
-  // Filter items based on search query
-  const filteredItems = atRiskItems.filter(
-    (item) =>
-      item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.sku.toLowerCase().includes(searchQuery.toLowerCase())
+  // Create a map of at-risk product IDs for quick lookup
+  const atRiskMap = new Map(
+    atRiskItems.map((item) => [item.product_id, item])
+  );
+
+  const isLoading = isLoadingProducts || isLoadingRisk;
+
+  // Filter products based on search query
+  const filteredProducts = products.filter(
+    (product) =>
+      product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      product.sku.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   useEffect(() => {
-    if (error) {
+    if (productsError) {
       toast.error("Failed to load inventory data");
     }
-  }, [error]);
+  }, [productsError]);
 
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-foreground mb-2">
-            Smart Inventory
-          </h1>
-          <p className="text-muted-foreground">
-            Manage and track your products across all platforms
-          </p>
-        </div>
+  const handleRefresh = () => {
+    refetchProducts();
+    refetchRisk();
+  };
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={handleRefresh}
+            disabled={isLoading}
+          >
+            {isLoading ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              "Refresh"
+            )}
+          </Button>
         <div className="flex gap-2">
           <Button
             variant="outline"
@@ -121,7 +142,7 @@ export default function Inventory() {
         </Card>
       )}
 
-      {error && (
+      {productsError && (
         <Card className="border-destructive">
           <CardContent className="pt-6">
             <div className="flex items-center gap-2 text-destructive">
@@ -132,7 +153,7 @@ export default function Inventory() {
         </Card>
       )}
 
-      {!isLoading && !error && (
+      {!isLoading && !productsError && (
         <>
           <Card>
             <CardHeader>
@@ -153,11 +174,11 @@ export default function Inventory() {
               </div>
             </CardHeader>
             <CardContent>
-              {filteredItems.length === 0 ? (
+              {filteredProducts.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
                   {searchQuery
                     ? "No products found matching your search."
-                    : "No at-risk inventory items found."}
+                    : "No products found. Add products to get started."}
                 </div>
               ) : (
                 <Table>
@@ -166,86 +187,116 @@ export default function Inventory() {
                       <TableHead>Product Name</TableHead>
                       <TableHead>SKU</TableHead>
                       <TableHead>Quantity</TableHead>
+                      <TableHead>Price</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Risk Score</TableHead>
-                      <TableHead>Days to Expiry</TableHead>
                       <TableHead>Recommended Action</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredItems.map((item) => (
-                      <TableRow key={item.product_id}>
-                        <TableCell className="font-medium">
-                          {item.name}
-                        </TableCell>
-                        <TableCell className="font-mono text-sm text-muted-foreground">
-                          {item.sku}
-                        </TableCell>
-                        <TableCell>
-                          <span
-                            className={`font-semibold ${
-                              item.current_quantity < 20
-                                ? "text-destructive"
-                                : item.current_quantity < 50
-                                ? "text-warning"
-                                : "text-success"
-                            }`}
-                          >
-                            {item.current_quantity}
-                          </span>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={getStatusColor(item.reasons)}>
-                            {getStatusLabel(item.reasons)}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <span
-                            className={`font-semibold ${
-                              item.score >= 80
-                                ? "text-destructive"
-                                : item.score >= 60
-                                ? "text-warning"
-                                : "text-muted-foreground"
-                            }`}
-                          >
-                            {item.score}
-                          </span>
-                        </TableCell>
-                        <TableCell className="text-sm text-muted-foreground">
-                          {item.days_to_expiry !== undefined
-                            ? `${item.days_to_expiry} days`
-                            : "N/A"}
-                        </TableCell>
-                        <TableCell className="text-sm">
-                          <div className="max-w-xs">
-                            <p className="font-medium">
-                              {item.recommended_action.action_type}
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              {item.recommended_action.reasoning}
-                            </p>
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex justify-end gap-2">
-                            <Button variant="ghost" size="sm">
-                              Edit
-                            </Button>
-                            <Button variant="ghost" size="sm">
+                    {filteredProducts.map((product) => {
+                      const atRiskInfo = atRiskMap.get(product.id);
+                      const isAtRisk = !!atRiskInfo;
+
+                      return (
+                        <TableRow
+                          key={product.id}
+                          className={isAtRisk ? "bg-yellow-50/50" : ""}
+                        >
+                          <TableCell className="font-medium">
+                            {product.name}
+                          </TableCell>
+                          <TableCell className="font-mono text-sm text-muted-foreground">
+                            {product.sku}
+                          </TableCell>
+                          <TableCell>
+                            <span
+                              className={`font-semibold ${
+                                product.quantity < 10
+                                  ? "text-destructive"
+                                  : product.quantity < 20
+                                  ? "text-warning"
+                                  : "text-success"
+                              }`}
+                            >
+                              {product.quantity}
+                            </span>
+                          </TableCell>
+                          <TableCell>₱{product.price.toFixed(2)}</TableCell>
+                          <TableCell>
+                            {isAtRisk ? (
+                              <Badge variant={getStatusColor(atRiskInfo.reasons)}>
+                                {getStatusLabel(atRiskInfo.reasons)}
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline">Good</Badge>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {isAtRisk ? (
+                              <div className="flex items-center gap-2">
+                                <div className="w-16 h-2 bg-gray-200 rounded-full overflow-hidden">
+                                  <div
+                                    className={`h-full ${
+                                      atRiskInfo.score > 0.7
+                                        ? "bg-red-500"
+                                        : atRiskInfo.score > 0.4
+                                        ? "bg-yellow-500"
+                                        : "bg-orange-500"
+                                    }`}
+                                    style={{
+                                      width: `${atRiskInfo.score * 100}%`,
+                                    }}
+                                  />
+                                </div>
+                                <span className="text-sm text-muted-foreground">
+                                  {(atRiskInfo.score * 100).toFixed(0)}%
+                                </span>
+                              </div>
+                            ) : (
+                              <span className="text-sm text-muted-foreground">
+                                -
+                              </span>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {isAtRisk ? (
+                              <span className="text-sm">
+                                {atRiskInfo.recommended_action.action_type}
+                              </span>
+                            ) : (
+                              <span className="text-sm text-muted-foreground">
+                                -
+                              </span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="gap-2"
+                            >
                               <ExternalLink className="h-4 w-4" />
+                              View
                             </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               )}
             </CardContent>
           </Card>
 
+          <div className="grid gap-4 md:grid-cols-3">
+                            ? `${item.days_to_expiry} days`
+                            : "N/A"}
+                        </TableCell>
+                        <TableCell className="text-sm">
+                          <div className="max-w-xs">
+                            <p className="font-medium">
           <div className="grid gap-4 md:grid-cols-3">
             <Card>
               <CardHeader>
@@ -255,7 +306,7 @@ export default function Inventory() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
-                  {meta?.total_products || 0}
+                  {products.length}
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">
                   Across all platforms
@@ -271,7 +322,7 @@ export default function Inventory() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold text-warning">
-                  {meta?.flagged_count || 0}
+                  {atRiskItems.length}
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">
                   Need attention
