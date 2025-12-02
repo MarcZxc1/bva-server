@@ -108,14 +108,13 @@ export default function MarketMate() {
         playbook,
         discount,
       });
-      if (response.success) {
-        setGeneratedText(
-          response.ad_copy + "\n\n" + response.hashtags.join(" ")
-        );
+      if (response.success && response.data) {
+        setGeneratedText(response.data.generated_ad_copy);
         toast.success("Ad copy generated!");
       }
-    } catch (error) {
-      toast.error("AI Service Busy, please try again.");
+    } catch (error: any) {
+      const errorMessage = error?.response?.data?.message || error.message || "AI Service Busy, please try again.";
+      toast.error(errorMessage);
     } finally {
       setLoadingText(false);
     }
@@ -132,12 +131,13 @@ export default function MarketMate() {
         productName,
         playbook,
       });
-      if (response.success) {
-        setGeneratedImage(response.image_url);
+      if (response.success && response.data) {
+        setGeneratedImage(response.data.image_url);
         toast.success("Ad image generated!");
       }
-    } catch (error) {
-      toast.error("AI Service Busy, please try again.");
+    } catch (error: any) {
+      const errorMessage = error?.response?.data?.message || error.message || "AI Service Busy, please try again.";
+      toast.error(errorMessage);
     } finally {
       setLoadingImage(false);
     }

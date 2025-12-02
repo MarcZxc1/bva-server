@@ -1,5 +1,6 @@
 import { apiClient } from "@/lib/api-client";
-import { RestockRequest, RestockResponse } from "./inventory.service"; // Import types or move them here
+import { mainApi } from "./client";
+import { RestockRequest, RestockResponse } from "./inventory.service";
 
 export interface AdGenerationRequest {
   productName: string;
@@ -9,8 +10,11 @@ export interface AdGenerationRequest {
 
 export interface AdGenerationResponse {
   success: boolean;
-  ad_copy: string;
-  hashtags: string[];
+  data: {
+    playbookUsed: string;
+    product_name: string;
+    generated_ad_copy: string;
+  };
 }
 
 export interface AdImageRequest {
@@ -21,36 +25,62 @@ export interface AdImageRequest {
 
 export interface AdImageResponse {
   success: boolean;
-  image_url: string;
+  data: {
+    image_url: string;
+  };
 }
 
 export const aiService = {
+  /**
+   * Generate AI-powered ad copy
+   */
   generateAdCopy: async (
     data: AdGenerationRequest
   ): Promise<AdGenerationResponse> => {
-    return apiClient.post<AdGenerationResponse>(
+    const response = await mainApi.post<AdGenerationResponse>(
       "/api/v1/ads/generate-ad",
-      data
+      {
+        product_name: data.productName,
+        playbook: data.playbook,
+        discount: data.discount,
+      }
     );
+    return response.data;
   },
 
+  /**
+   * Generate AI-powered ad image
+   */
   generateAdImage: async (data: AdImageRequest): Promise<AdImageResponse> => {
-    return apiClient.post<AdImageResponse>(
+    const response = await mainApi.post<AdImageResponse>(
       "/api/v1/ads/generate-ad-image",
-      data
+      {
+        product_name: data.productName,
+        playbook: data.playbook,
+        style: data.style,
+      }
     );
+    return response.data;
   },
 
+  /**
+   * Get optimal restocking strategy
+   */
   getRestockStrategy: async (
     data: RestockRequest
   ): Promise<RestockResponse> => {
-    // Assuming the endpoint is /api/ai/restock-strategy based on previous lib/api.ts
-    // But user said "Call the backend to retrieve the suggested stock list"
-    // I'll stick to the one in lib/api.ts for now as it seems to be what was intended
-    return apiClient.post<RestockResponse>("/api/ai/restock-strategy", data);
+    const response = await mainApi.post<RestockResponse>(
+      "/api/ai/restock-strategy",
+      data
+    );
+    return response.data;
   },
 
+  /**
+   * Check ML service health
+   */
   checkHealth: async () => {
-    return apiClient.get("/api/ai/restock-strategy/health");
+    const response = await mainApi.get("/api/ai/restock-strategy/health");
+    return response.data;
   },
 };

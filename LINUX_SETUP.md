@@ -125,7 +125,7 @@ npm install
 
 # Create .env file
 cat > .env << EOF
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/virtual_business_assistant
+DATABASE_URL=postgresql://postgres:090904@localhost:5432/virtual_business_assistant
 ML_SERVICE_URL=http://localhost:8001
 PORT=5000
 JWT_SECRET=your-super-secret-jwt-key-change-this-in-production
@@ -241,8 +241,8 @@ Open browser and navigate to: http://localhost:8080
 
 **Default login credentials** (from seed data):
 
-- Email: `admin@shop1.com`
-- Password: Check `server/prisma/seed.ts` for the password
+- Email: `admin@test.com`
+- Password: `password123`
 
 ## Running All Services
 

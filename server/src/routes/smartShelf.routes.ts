@@ -11,4 +11,11 @@ router.get(
   smartShelfController.getAtRiskInventory
 );
 
+// GET /api/smart-shelf/:shopId/dashboard
+router.get(
+  "/:shopId/dashboard",
+  authMiddleware,
+  smartShelfController.getDashboardAnalytics
+);
+
 export default router;

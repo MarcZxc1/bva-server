@@ -57,6 +57,22 @@ export class AdService {
     }
   }
 
+  /**
+   * Generate AI-powered ad image using ML Service
+   */
+  public async generateAdImage(request: {
+    product_name: string;
+    playbook: string;
+    style?: string;
+  }): Promise<{ image_url: string }> {
+    try {
+      return await mlClient.generateAdImage(request);
+    } catch (error) {
+      console.error("Error generating ad image:", error);
+      throw error;
+    }
+  }
+
   public async getPromotions(shopId: string): Promise<PromotionResponse> {
     // 1. Fetch near expiry items (e.g. expiring in next 60 days)
     const now = new Date();

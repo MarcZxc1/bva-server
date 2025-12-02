@@ -90,3 +90,93 @@ export async function getAtRiskInventory(
 
   return response;
 }
+
+/**
+ * Get comprehensive dashboard analytics
+ * Combines database metrics with ML forecasts
+ */
+export async function getDashboardAnalytics(shopId: string) {
+  // 1. Calculate basic metrics from database
+  const products = await prisma.product.findMany({
+    where: { shopId },
+    include: {
+      inventories: { take: 1 },
+    },
+  });
+
+  // 2. Get sales data for the last 30 days
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+  const sales = await prisma.sale.findMany({
+    where: {
+      shopId,
+      createdAt: {
+        gte: thirtyDaysAgo,
+      },
+    },
+    select: {
+      items: true,
+      total: true,
+      createdAt: true,
+    },
+  });
+
+  // 3. Calculate totals
+  let totalRevenue = 0;
+  let totalCost = 0;
+  let totalItems = 0;
+
+  sales.forEach((sale) => {
+    totalRevenue += sale.total;
+
+    const items =
+      typeof sale.items === "string" ? JSON.parse(sale.items) : sale.items;
+
+    if (Array.isArray(items)) {
+      items.forEach((item: any) => {
+        const product = products.find((p) => p.id === item.productId);
+        if (product) {
+          totalCost += (product.cost || 0) * (item.quantity || 0);
+          totalItems += item.quantity || 0;
+        }
+      });
+    }
+  });
+
+  const totalProfit = totalRevenue - totalCost;
+  const profitMargin = totalRevenue > 0 ? (totalProfit / totalRevenue) * 100 : 0;
+
+  // 4. Get forecast from ML Service (optional - only if products exist)
+  let forecast = null;
+  if (products.length > 0) {
+    try {
+      const productIds = products.slice(0, 10).map((p) => p.id); // Top 10 products
+      forecast = await mlClient.getSalesForecast({
+        shop_id: shopId,
+        product_ids: productIds,
+        forecast_days: 7,
+      });
+    } catch (error) {
+      console.warn("Failed to get forecast from ML service:", error);
+      // Continue without forecast data
+    }
+  }
+
+  return {
+    metrics: {
+      totalRevenue,
+      totalProfit,
+      profitMargin,
+      totalItems,
+      totalProducts: products.length,
+      totalSales: sales.length,
+    },
+    forecast,
+    period: {
+      start: thirtyDaysAgo.toISOString(),
+      end: new Date().toISOString(),
+      days: 30,
+    },
+  };
+}

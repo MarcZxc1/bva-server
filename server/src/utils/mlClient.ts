@@ -1,4 +1,26 @@
+/**
+ * ML Service Client
+ * 
+ * Centralized client for communicating with the Python ML Service.
+ * Implements the API Gateway pattern - all ML operations go through this client.
+ * 
+ * Features:
+ * - Ads Generation (MarketMate)
+ * - Restock Optimization (Smart Restock Planner)
+ * - Analytics & Forecasting (SmartShelf)
+ */
+
 import axios, { AxiosInstance } from "axios";
+import {
+  RestockStrategyRequest,
+  RestockStrategyResponse,
+} from "../types/restock.types";
+import {
+  AtRiskRequest,
+  AtRiskResponse,
+  PromotionRequest,
+  PromotionResponse,
+} from "../types/smartShelf.types";
 
 export class MLServiceClient {
   private client: AxiosInstance;
@@ -8,31 +30,23 @@ export class MLServiceClient {
     this.baseURL = process.env.ML_SERVICE_URL || "http://localhost:8001";
     this.client = axios.create({
       baseURL: this.baseURL,
-      timeout: 30000, // 30 seconds
+      timeout: 60000, // 60 seconds for ML operations
       headers: {
         "Content-Type": "application/json",
       },
     });
   }
 
+  // ============================================
+  // Generic HTTP Methods
+  // ============================================
+
   async post<T>(endpoint: string, data: any): Promise<T> {
     try {
       const response = await this.client.post<T>(endpoint, data);
       return response.data;
     } catch (error: any) {
-      if (error.response) {
-        // ML-service returned an error
-        throw new Error(
-          `ML Service error: ${error.response.data?.detail || error.message}`
-        );
-      } else if (error.request) {
-        // No response received
-        throw new Error(
-          `ML Service unavailable at ${this.baseURL}. Please ensure the service is running.`
-        );
-      } else {
-        throw new Error(`Request failed: ${error.message}`);
-      }
+      this.handleError(error);
     }
   }
 
@@ -41,20 +55,93 @@ export class MLServiceClient {
       const response = await this.client.get<T>(endpoint);
       return response.data;
     } catch (error: any) {
-      if (error.response) {
-        throw new Error(
-          `ML Service error: ${error.response.data?.detail || error.message}`
-        );
-      } else if (error.request) {
-        throw new Error(
-          `ML Service unavailable at ${this.baseURL}. Please ensure the service is running.`
-        );
-      } else {
-        throw new Error(`Request failed: ${error.message}`);
-      }
+      this.handleError(error);
     }
   }
 
+  // ============================================
+  // Feature-Specific Methods
+  // ============================================
+
+  /**
+   * MarketMate: Generate AI-powered ad copy
+   * Endpoint: POST /api/v1/ads/generate
+   */
+  async generateAdCopy(request: {
+    product_name: string;
+    playbook: string;
+    discount?: string;
+  }): Promise<{ ad_copy: string; hashtags: string[] }> {
+    return this.post("/api/v1/ads/generate", request);
+  }
+
+  /**
+   * MarketMate: Generate AI-powered ad image
+   * Endpoint: POST /api/v1/ads/generate-image
+   */
+  async generateAdImage(request: {
+    product_name: string;
+    playbook: string;
+    style?: string;
+  }): Promise<{ image_url: string }> {
+    return this.post("/api/v1/ads/generate-image", request);
+  }
+
+  /**
+   * Smart Restock Planner: Calculate optimal restocking strategy
+   * Endpoint: POST /api/v1/restock/strategy
+   */
+  async calculateRestockStrategy(
+    request: RestockStrategyRequest
+  ): Promise<RestockStrategyResponse> {
+    return this.post<RestockStrategyResponse>(
+      "/api/v1/restock/strategy",
+      request
+    );
+  }
+
+  /**
+   * SmartShelf: Detect at-risk inventory
+   * Endpoint: POST /api/v1/smart-shelf/at-risk
+   */
+  async detectAtRiskInventory(
+    request: AtRiskRequest
+  ): Promise<AtRiskResponse> {
+    return this.post<AtRiskResponse>("/api/v1/smart-shelf/at-risk", request);
+  }
+
+  /**
+   * SmartShelf: Generate promotions for near-expiry items
+   * Endpoint: POST /api/v1/smart-shelf/promotions
+   */
+  async generatePromotions(
+    request: PromotionRequest
+  ): Promise<PromotionResponse> {
+    return this.post<PromotionResponse>(
+      "/api/v1/smart-shelf/promotions",
+      request
+    );
+  }
+
+  /**
+   * SmartShelf: Get sales forecast
+   * Endpoint: POST /api/v1/smart-shelf/forecast
+   */
+  async getSalesForecast(request: {
+    shop_id: string;
+    product_ids: string[];
+    forecast_days: number;
+  }): Promise<any> {
+    return this.post("/api/v1/smart-shelf/forecast", request);
+  }
+
+  // ============================================
+  // Health & Utilities
+  // ============================================
+
+  /**
+   * Check if ML Service is healthy and reachable
+   */
   async healthCheck(): Promise<boolean> {
     try {
       await this.client.get("/health");
@@ -63,6 +150,53 @@ export class MLServiceClient {
       return false;
     }
   }
+
+  /**
+   * Get ML Service status and version info
+   */
+  async getServiceInfo(): Promise<{
+    status: string;
+    version?: string;
+    uptime?: number;
+  }> {
+    try {
+      const response = await this.client.get("/health");
+      return response.data;
+    } catch {
+      return { status: "unavailable" };
+    }
+  }
+
+  // ============================================
+  // Error Handling
+  // ============================================
+
+  private handleError(error: any): never {
+    if (error.response) {
+      // ML-service returned an error response
+      const detail = error.response.data?.detail || error.response.data?.message;
+      const status = error.response.status;
+      
+      if (status === 503) {
+        throw new Error(
+          "AI Service Unavailable: The ML service is temporarily unavailable. Please try again later."
+        );
+      }
+      
+      throw new Error(
+        detail || `ML Service error (${status}): ${error.message}`
+      );
+    } else if (error.request) {
+      // No response received - service is down
+      throw new Error(
+        `AI Service Unavailable: Cannot reach ML service at ${this.baseURL}. Please ensure the service is running.`
+      );
+    } else {
+      // Request setup error
+      throw new Error(`Request failed: ${error.message}`);
+    }
+  }
 }
 
+// Singleton instance
 export const mlClient = new MLServiceClient();
