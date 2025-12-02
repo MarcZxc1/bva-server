@@ -1,27 +1,9 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  TrendingUp,
-  TrendingDown,
-  Package,
-  AlertCircle,
-  DollarSign,
-  ShoppingCart,
-} from "lucide-react";
-import {
-  LineChart,
-  Line,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  Legend,
-} from "recharts";
-import { PlatformStatus } from "@/components/PlatformStatus";
-import { useAtRiskInventory } from "@/hooks/useSmartShelf";
+import { TrendingUp, TrendingDown, Package, AlertCircle, DollarSign, ShoppingCart } from "lucide-react";
+import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
+import { useDashboardAnalytics } from "@/hooks/useSmartShelf";
 import { useAuth } from "@/contexts/AuthContext";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const salesData = [
   { month: "Jan", shopee: 4500, lazada: 3200, tiktok: 2100 },
@@ -33,100 +15,112 @@ const salesData = [
 ];
 
 const topProducts = [
-  {
-    name: "Wireless Earbuds Pro",
-    sales: 1234,
-    platform: "Shopee",
-    trend: "up",
-  },
+  { name: "Wireless Earbuds Pro", sales: 1234, platform: "Shopee", trend: "up" },
   { name: "Smart Watch Series 5", sales: 987, platform: "Lazada", trend: "up" },
   { name: "USB-C Cable 3-Pack", sales: 856, platform: "TikTok", trend: "down" },
   { name: "Phone Case Premium", sales: 743, platform: "Shopee", trend: "up" },
   { name: "Screen Protector Set", sales: 621, platform: "Lazada", trend: "up" },
 ];
 
+const stockAlerts = [
+  { product: "Wireless Earbuds Pro", stock: 12, status: "critical" },
+  { product: "Smart Watch Series 5", stock: 28, status: "low" },
+  { product: "Power Bank 20000mAh", stock: 45, status: "medium" },
+];
+
 export default function Dashboard() {
   const { user } = useAuth();
-  const shopId = user?.shops?.[0]?.id || "";
-  const { data: atRiskData, isLoading: isLoadingRisk } = useAtRiskInventory(
-    shopId,
-    !!shopId
-  );
+  const { data: analyticsData, isLoading } = useDashboardAnalytics(user?.id);
+
+  const metrics = analyticsData?.data?.metrics || {
+    totalRevenue: 0,
+    totalProfit: 0,
+    profitMargin: 0,
+    totalItems: 0,
+    totalProducts: 0,
+    totalSales: 0,
+  };
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold text-foreground mb-2">Dashboard</h1>
-        <p className="text-muted-foreground">
-          Overview of your multi-platform business performance
-        </p>
+        <p className="text-muted-foreground">Overview of your multi-platform business performance</p>
       </div>
-
-      <PlatformStatus />
 
       {/* Key Metrics */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card className="stat-card">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Total Sales
-            </CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">Total Sales</CardTitle>
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">₱2,345,678</div>
-            <p className="text-xs text-success flex items-center mt-1">
-              <TrendingUp className="h-3 w-3 mr-1" />
-              +18.2% from last month
-            </p>
+            {isLoading ? (
+              <Skeleton className="h-8 w-32" />
+            ) : (
+              <>
+                <div className="text-2xl font-bold">₱{metrics.totalRevenue.toLocaleString()}</div>
+                <p className="text-xs text-muted-foreground mt-1">Last 30 days</p>
+              </>
+            )}
           </CardContent>
         </Card>
 
         <Card className="stat-card">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Total Orders
-            </CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">Total Orders</CardTitle>
             <ShoppingCart className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">1,234</div>
-            <p className="text-xs text-success flex items-center mt-1">
-              <TrendingUp className="h-3 w-3 mr-1" />
-              +5.4% from last month
-            </p>
+            {isLoading ? (
+              <Skeleton className="h-8 w-32" />
+            ) : (
+              <>
+                <div className="text-2xl font-bold">{metrics.totalSales.toLocaleString()}</div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {metrics.totalItems.toLocaleString()} items sold
+                </p>
+              </>
+            )}
           </CardContent>
         </Card>
 
         <Card className="stat-card">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Active Products
-            </CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">Active Products</CardTitle>
             <Package className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">456</div>
-            <p className="text-xs text-muted-foreground flex items-center mt-1">
-              Across 3 platforms
-            </p>
+            {isLoading ? (
+              <Skeleton className="h-8 w-32" />
+            ) : (
+              <>
+                <div className="text-2xl font-bold">{metrics.totalProducts}</div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  In inventory
+                </p>
+              </>
+            )}
           </CardContent>
         </Card>
 
         <Card className="stat-card">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Low Stock Alerts
-            </CardTitle>
-            <AlertCircle className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium text-muted-foreground">Profit</CardTitle>
+            <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-warning">
-              {atRiskData?.data?.at_risk?.length || 0}
-            </div>
-            <p className="text-xs text-muted-foreground flex items-center mt-1">
-              Items need attention
-            </p>
+            {isLoading ? (
+              <Skeleton className="h-8 w-32" />
+            ) : (
+              <>
+                <div className="text-2xl font-bold text-success">₱{metrics.totalProfit.toLocaleString()}</div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {metrics.profitMargin.toFixed(1)}% margin
+                </p>
+              </>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -143,28 +137,11 @@ export default function Dashboard() {
                 <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                 <XAxis dataKey="month" className="text-xs" />
                 <YAxis className="text-xs" />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: "hsl(var(--card))",
-                    border: "1px solid hsl(var(--border))",
-                  }}
-                />
+                <Tooltip contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }} />
                 <Legend />
-                <Bar
-                  dataKey="shopee"
-                  fill="hsl(var(--chart-1))"
-                  name="Shopee"
-                />
-                <Bar
-                  dataKey="lazada"
-                  fill="hsl(var(--chart-2))"
-                  name="Lazada"
-                />
-                <Bar
-                  dataKey="tiktok"
-                  fill="hsl(var(--chart-3))"
-                  name="TikTok"
-                />
+                <Bar dataKey="shopee" fill="hsl(var(--chart-1))" name="Shopee" />
+                <Bar dataKey="lazada" fill="hsl(var(--chart-2))" name="Lazada" />
+                <Bar dataKey="tiktok" fill="hsl(var(--chart-3))" name="TikTok" />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
@@ -180,34 +157,11 @@ export default function Dashboard() {
                 <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                 <XAxis dataKey="month" className="text-xs" />
                 <YAxis className="text-xs" />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: "hsl(var(--card))",
-                    border: "1px solid hsl(var(--border))",
-                  }}
-                />
+                <Tooltip contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }} />
                 <Legend />
-                <Line
-                  type="monotone"
-                  dataKey="shopee"
-                  stroke="hsl(var(--chart-1))"
-                  strokeWidth={2}
-                  name="Shopee"
-                />
-                <Line
-                  type="monotone"
-                  dataKey="lazada"
-                  stroke="hsl(var(--chart-2))"
-                  strokeWidth={2}
-                  name="Lazada"
-                />
-                <Line
-                  type="monotone"
-                  dataKey="tiktok"
-                  stroke="hsl(var(--chart-3))"
-                  strokeWidth={2}
-                  name="TikTok"
-                />
+                <Line type="monotone" dataKey="shopee" stroke="hsl(var(--chart-1))" strokeWidth={2} name="Shopee" />
+                <Line type="monotone" dataKey="lazada" stroke="hsl(var(--chart-2))" strokeWidth={2} name="Lazada" />
+                <Line type="monotone" dataKey="tiktok" stroke="hsl(var(--chart-3))" strokeWidth={2} name="TikTok" />
               </LineChart>
             </ResponsiveContainer>
           </CardContent>
@@ -226,9 +180,7 @@ export default function Dashboard() {
                 <div key={index} className="flex items-center justify-between">
                   <div className="flex-1">
                     <p className="font-medium text-sm">{product.name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {product.platform}
-                    </p>
+                    <p className="text-xs text-muted-foreground">{product.platform}</p>
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="font-semibold">{product.sales}</span>
@@ -246,41 +198,30 @@ export default function Dashboard() {
 
         <Card>
           <CardHeader>
-            <CardTitle>At-Risk Inventory</CardTitle>
+            <CardTitle>Stock Alerts</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {isLoadingRisk ? (
-                <p>Loading alerts...</p>
-              ) : atRiskData?.data?.at_risk?.length ? (
-                atRiskData.data.at_risk.map((item, index) => (
-                  <div
-                    key={index}
-                    className="flex items-center justify-between p-4 border rounded-lg bg-red-50/50 border-red-100"
-                  >
-                    <div className="flex items-center space-x-4">
-                      <div className="p-2 bg-red-100 rounded-full">
-                        <AlertCircle className="h-4 w-4 text-red-600" />
-                      </div>
-                      <div>
-                        <p className="font-medium">{item.name}</p>
-                        <p className="text-sm text-muted-foreground">
-                          Stock: {item.current_quantity}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                        Critical
-                      </span>
-                    </div>
+              {stockAlerts.map((item, index) => (
+                <div key={index} className="flex items-center justify-between">
+                  <div className="flex-1">
+                    <p className="font-medium text-sm">{item.product}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {item.status === "critical" && "Critical - Restock Now"}
+                      {item.status === "low" && "Low Stock"}
+                      {item.status === "medium" && "Monitor"}
+                    </p>
                   </div>
-                ))
-              ) : (
-                <p className="text-muted-foreground">
-                  No stock alerts at the moment.
-                </p>
-              )}
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold">{item.stock}</span>
+                    <AlertCircle className={`h-4 w-4 ${
+                      item.status === "critical" ? "text-destructive" :
+                      item.status === "low" ? "text-warning" :
+                      "text-muted-foreground"
+                    }`} />
+                  </div>
+                </div>
+              ))}
             </div>
           </CardContent>
         </Card>

@@ -64,15 +64,27 @@ export class MLServiceClient {
   // ============================================
 
   /**
-   * MarketMate: Generate AI-powered ad copy
+   * MarketMate: Generate complete AI-powered ad (copy + image)
    * Endpoint: POST /api/v1/ads/generate
+   */
+  async generateCompleteAd(request: {
+    product_name: string;
+    playbook: string;
+    discount?: string;
+  }): Promise<{ ad_copy: string; hashtags: string[]; image_url: string }> {
+    return this.post("/api/v1/ads/generate", request);
+  }
+
+  /**
+   * MarketMate: Generate AI-powered ad copy only
+   * Endpoint: POST /api/v1/ads/generate-copy
    */
   async generateAdCopy(request: {
     product_name: string;
     playbook: string;
     discount?: string;
   }): Promise<{ ad_copy: string; hashtags: string[] }> {
-    return this.post("/api/v1/ads/generate", request);
+    return this.post("/api/v1/ads/generate-copy", request);
   }
 
   /**
@@ -124,15 +136,28 @@ export class MLServiceClient {
   }
 
   /**
-   * SmartShelf: Get sales forecast
+   * SmartShelf: Get sales forecast and analytics for dashboard
    * Endpoint: POST /api/v1/smart-shelf/forecast
    */
-  async getSalesForecast(request: {
+  async getDashboardForecast(request: {
     shop_id: string;
     product_ids: string[];
     forecast_days: number;
   }): Promise<any> {
     return this.post("/api/v1/smart-shelf/forecast", request);
+  }
+
+  /**
+   * SmartShelf: Get sales insights for analytics
+   * Endpoint: POST /api/v1/smart-shelf/insights
+   */
+  async getSalesInsights(request: {
+    shop_id: string;
+    sales: any[];
+    range: { start: string; end: string };
+    granularity?: string;
+  }): Promise<any> {
+    return this.post("/api/v1/smart-shelf/insights", request);
   }
 
   // ============================================

@@ -19,6 +19,30 @@ export class AdService {
   public async generateAdCopy(request: AdRequest): Promise<string> {
     const { product_name, playbook, discount } = request;
 
+    try {
+      // Call ML Service for complete ad generation
+      const result = await mlClient.generateCompleteAd({
+        product_name,
+        playbook,
+        discount,
+      });
+
+      // Return just the ad copy text
+      return result.ad_copy;
+    } catch (error: any) {
+      console.error("Error generating ad via ML service:", error);
+      
+      // Fallback to legacy Gemini if ML service fails
+      return this.generateAdCopyFallback(request);
+    }
+  }
+
+  /**
+   * Fallback method using legacy Gemini integration
+   */
+  private async generateAdCopyFallback(request: AdRequest): Promise<string> {
+    const { product_name, playbook, discount } = request;
+
     console.log(`Generating ad for: ${product_name}, Playbook: ${playbook}`);
 
     let prompt = `
@@ -34,7 +58,7 @@ export class AdService {
 
     if (playbook === "Flash Sale") {
       const promo = discount || "Big Discount";
-      prompt += `**Details:** This is an urgent Flash Sale. The product is ${promo}for a very limited time. Create a sense of urgency.`;
+      prompt += `**Details:** This is an urgent Flash Sale. The product is ${promo} for a very limited time. Create a sense of urgency.`;
     } else if (playbook === "New Arrival") {
       prompt += `**Details:** This is a NEW ARRIVAL. Highlight that it's brand new and exciting.`;
     } else if (playbook === "Best Seller Spotlight") {

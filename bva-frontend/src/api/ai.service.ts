@@ -1,86 +1,164 @@
-import { apiClient } from "@/lib/api-client";
-import { mainApi } from "./client";
-import { RestockRequest, RestockResponse } from "./inventory.service";
+/**
+ * AI Service API Client
+ * 
+ * Handles all AI-powered feature API calls:
+ * - MarketMate (Ad Generation)
+ * - Smart Restock Planner
+ * - SmartShelf Analytics
+ * 
+ * All requests go through the Node.js API Gateway (never direct to Python service)
+ */
 
-export interface AdGenerationRequest {
-  productName: string;
-  playbook: string;
+import { apiClient } from "./api-client";
+
+// ============================================
+// MarketMate Types
+// ============================================
+
+export interface GenerateAdRequest {
+  product_name: string;
+  playbook: "Flash Sale" | "New Arrival" | "Best Seller" | "Bundle";
   discount?: string;
 }
 
-export interface AdGenerationResponse {
+export interface GenerateAdResponse {
   success: boolean;
   data: {
-    playbookUsed: string;
-    product_name: string;
-    generated_ad_copy: string;
-  };
-}
-
-export interface AdImageRequest {
-  productName: string;
-  playbook: string;
-  style?: string;
-}
-
-export interface AdImageResponse {
-  success: boolean;
-  data: {
+    ad_copy: string;
+    hashtags: string[];
     image_url: string;
   };
 }
 
-export const aiService = {
+export interface GenerateAdCopyRequest {
+  product_name: string;
+  playbook: string;
+  discount?: string;
+}
+
+export interface GenerateAdCopyResponse {
+  success: boolean;
+  data: {
+    ad_copy: string;
+    hashtags: string[];
+  };
+}
+
+// ============================================
+// Restock Planner Types
+// ============================================
+
+export interface RestockRequest {
+  shopId: string;
+  budget: number;
+  goal: "profit" | "volume" | "balanced";
+  restockDays?: number;
+}
+
+export interface RestockResponse {
+  success: boolean;
+  data: {
+    strategy: string;
+    shopId: string;
+    budget: number;
+    recommendations: Array<{
+      productId: string | number;
+      productName: string;
+      currentStock: number;
+      recommendedQty: number;
+      unitCost: number;
+      totalCost: number;
+      expectedProfit: number;
+      expectedRevenue: number;
+      daysOfStock: number;
+      priorityScore: number;
+      reasoning: string;
+    }>;
+    summary: {
+      totalProducts: number;
+      totalQuantity: number;
+      totalCost: number;
+      budgetUtilization: number;
+      expectedRevenue: number;
+      expectedProfit: number;
+      expectedROI: number;
+      avgDaysOfStock: number;
+    };
+    insights: string[];
+    warnings: string[];
+  };
+}
+
+// ============================================
+// Dashboard Analytics Types
+// ============================================
+
+export interface DashboardAnalyticsResponse {
+  success: boolean;
+  data: {
+    metrics: {
+      totalRevenue: number;
+      totalProfit: number;
+      profitMargin: number;
+      totalItems: number;
+      totalProducts: number;
+      totalSales: number;
+    };
+    forecast: any;
+    period: {
+      start: string;
+      end: string;
+      days: number;
+    };
+  };
+}
+
+// ============================================
+// AI Service Class
+// ============================================
+
+class AIService {
   /**
-   * Generate AI-powered ad copy
+   * MarketMate: Generate complete ad (copy + image)
    */
-  generateAdCopy: async (
-    data: AdGenerationRequest
-  ): Promise<AdGenerationResponse> => {
-    const response = await mainApi.post<AdGenerationResponse>(
-      "/api/v1/ads/generate-ad",
-      {
-        product_name: data.productName,
-        playbook: data.playbook,
-        discount: data.discount,
-      }
-    );
-    return response.data;
-  },
+  async generateCompleteAd(request: GenerateAdRequest): Promise<GenerateAdResponse> {
+    return apiClient.post<GenerateAdResponse>("/api/v1/ads/generate-ad", request);
+  }
 
   /**
-   * Generate AI-powered ad image
+   * MarketMate: Generate ad copy only (faster)
    */
-  generateAdImage: async (data: AdImageRequest): Promise<AdImageResponse> => {
-    const response = await mainApi.post<AdImageResponse>(
-      "/api/v1/ads/generate-ad-image",
-      {
-        product_name: data.productName,
-        playbook: data.playbook,
-        style: data.style,
-      }
-    );
-    return response.data;
-  },
+  async generateAdCopy(request: GenerateAdCopyRequest): Promise<GenerateAdCopyResponse> {
+    return apiClient.post<GenerateAdCopyResponse>("/api/v1/ads/generate-ad", request);
+  }
 
   /**
-   * Get optimal restocking strategy
+   * Smart Restock Planner: Calculate optimal restocking strategy
    */
-  getRestockStrategy: async (
-    data: RestockRequest
-  ): Promise<RestockResponse> => {
-    const response = await mainApi.post<RestockResponse>(
-      "/api/ai/restock-strategy",
-      data
-    );
-    return response.data;
-  },
+  async getRestockStrategy(request: RestockRequest): Promise<RestockResponse> {
+    return apiClient.post<RestockResponse>("/api/ai/restock-strategy", request);
+  }
 
   /**
-   * Check ML service health
+   * Smart Restock Planner: Check ML service health
    */
-  checkHealth: async () => {
-    const response = await mainApi.get("/api/ai/restock-strategy/health");
-    return response.data;
-  },
-};
+  async checkHealth(): Promise<{ mlService: { status: string; url: string } }> {
+    return apiClient.get("/api/ai/restock-strategy/health");
+  }
+
+  /**
+   * SmartShelf: Get dashboard analytics
+   */
+  async getDashboardAnalytics(shopId: string): Promise<DashboardAnalyticsResponse> {
+    return apiClient.get<DashboardAnalyticsResponse>(`/api/smart-shelf/${shopId}/dashboard`);
+  }
+
+  /**
+   * SmartShelf: Get at-risk inventory items
+   */
+  async getAtRiskInventory(shopId: string) {
+    return apiClient.get(`/api/smart-shelf/${shopId}/at-risk`);
+  }
+}
+
+export const aiService = new AIService();

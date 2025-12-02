@@ -152,7 +152,7 @@ export async function getDashboardAnalytics(shopId: string) {
   if (products.length > 0) {
     try {
       const productIds = products.slice(0, 10).map((p) => p.id); // Top 10 products
-      forecast = await mlClient.getSalesForecast({
+      forecast = await mlClient.getDashboardForecast({
         shop_id: shopId,
         product_ids: productIds,
         forecast_days: 7,
