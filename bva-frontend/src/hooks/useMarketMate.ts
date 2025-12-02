@@ -4,7 +4,7 @@
  * Handles API communication for AI-powered ad generation
  */
 
-import { useMutation } from "@tantml:react-query";
+import { useMutation } from "@tanstack/react-query";
 import { aiService, GenerateAdRequest, GenerateAdCopyRequest } from "@/api/ai.service";
 import { toast } from "sonner";
 import { AxiosError } from "axios";

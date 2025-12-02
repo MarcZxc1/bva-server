@@ -9,7 +9,7 @@
  * All requests go through the Node.js API Gateway (never direct to Python service)
  */
 
-import { apiClient } from "./api-client";
+import { apiClient } from "@/lib/api-client";
 
 // ============================================
 // MarketMate Types
