@@ -18,6 +18,7 @@ export interface AuthResponse {
     id: string;
     email: string;
     name?: string;
+    shops?: Array<{ id: string; name: string }>;
   };
   token: string;
   message: string;
@@ -120,6 +121,10 @@ export const restockApi = {
 export const smartShelfApi = {
   getAtRiskInventory: async (shopId: string): Promise<AtRiskResponse> => {
     return apiClient.get<AtRiskResponse>(`/api/smart-shelf/${shopId}/at-risk`);
+  },
+
+  getDashboardAnalytics: async (shopId: string): Promise<any> => {
+    return apiClient.get(`/api/smart-shelf/${shopId}/dashboard`);
   },
 };
 

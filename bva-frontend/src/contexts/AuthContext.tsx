@@ -1,10 +1,16 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { authApi, AuthResponse } from "@/lib/api";
 
+interface Shop {
+  id: string;
+  name: string;
+}
+
 interface User {
   id: string;
   email: string;
   name?: string;
+  shops?: Shop[];
 }
 
 interface AuthContextType {

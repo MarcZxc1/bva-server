@@ -1,4 +1,4 @@
-import { LayoutDashboard, Package, TrendingUp, Megaphone, FileText, Settings, LogOut, ExternalLink } from "lucide-react";
+import { LayoutDashboard, Package, TrendingUp, Megaphone, FileText, Settings, LogOut, ExternalLink, AlertCircle } from "lucide-react";
 import { NavLink, useNavigate } from "react-router-dom";
 import {
   Sidebar,
@@ -20,6 +20,7 @@ import { useAuth } from "@/contexts/AuthContext";
 const mainItems = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
   { title: "Smart Inventory", url: "/inventory", icon: Package },
+  { title: "SmartShelf", url: "/smartshelf", icon: AlertCircle },
   { title: "Restock Planner", url: "/restock", icon: TrendingUp },
   { title: "MarketMate", url: "/ads", icon: Megaphone },
   { title: "Reports", url: "/reports", icon: FileText },

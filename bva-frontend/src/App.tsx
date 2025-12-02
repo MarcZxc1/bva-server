@@ -12,6 +12,7 @@ import Dashboard from "./pages/Dashboard";
 import Inventory from "./pages/Inventory";
 import RestockPlanner from "./pages/RestockPlanner";
 import MarketMate from "./pages/MarketMate";
+import SmartShelf from "./pages/SmartShelf";
 import Reports from "./pages/Reports";
 import Settings from "./pages/Settings";
 import Layout from "./components/Layout";
@@ -66,6 +67,14 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <Layout><MarketMate /></Layout>
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/smartshelf" 
+              element={
+                <ProtectedRoute>
+                  <Layout><SmartShelf /></Layout>
                 </ProtectedRoute>
               } 
             />

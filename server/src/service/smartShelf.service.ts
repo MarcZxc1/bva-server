@@ -24,7 +24,17 @@ export async function getAtRiskInventory(
   });
 
   if (products.length === 0) {
-    throw new Error(`No products found for shop ${shopId}`);
+    // Return empty response instead of throwing error
+    return {
+      at_risk: [],
+      meta: {
+        shop_id: shopId,
+        total_products: 0,
+        flagged_count: 0,
+        analysis_date: new Date().toISOString(),
+        thresholds_used: {},
+      },
+    };
   }
 
   // Map to InventoryItem

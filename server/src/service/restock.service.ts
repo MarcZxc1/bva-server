@@ -13,8 +13,8 @@
  * - Handle errors and retries
  */
 
-import axios, { AxiosInstance } from "axios";
 import prisma from "../lib/prisma";
+import { mlClient } from "../utils/mlClient";
 import {
   RestockRequestDTO,
   RestockResponseDTO,
@@ -22,68 +22,6 @@ import {
   RestockStrategyResponse,
   ProductInput,
 } from "../types/restock.types";
-
-/**
- * ML Service HTTP client configuration
- */
-class MLServiceClient {
-  private client: AxiosInstance;
-  private baseURL: string;
-
-  constructor() {
-    this.baseURL = process.env.ML_SERVICE_URL || "http://localhost:8001";
-    this.client = axios.create({
-      baseURL: this.baseURL,
-      timeout: 30000, // 30 seconds
-      headers: {
-        "Content-Type": "application/json",
-      },
-    });
-  }
-
-  /**
-   * Call ML-service restock strategy endpoint
-   */
-  async calculateRestockStrategy(
-    request: RestockStrategyRequest
-  ): Promise<RestockStrategyResponse> {
-    try {
-      const response = await this.client.post<RestockStrategyResponse>(
-        "/api/v1/restock/strategy",
-        request
-      );
-      return response.data;
-    } catch (error: any) {
-      if (error.response) {
-        // ML-service returned an error
-        throw new Error(
-          `ML Service error: ${error.response.data?.detail || error.message}`
-        );
-      } else if (error.request) {
-        // No response received
-        throw new Error(
-          `ML Service unavailable at ${this.baseURL}. Please ensure the service is running.`
-        );
-      } else {
-        throw new Error(`Request failed: ${error.message}`);
-      }
-    }
-  }
-
-  /**
-   * Health check for ML-service
-   */
-  async healthCheck(): Promise<boolean> {
-    try {
-      await this.client.get("/health");
-      return true;
-    } catch {
-      return false;
-    }
-  }
-}
-
-const mlServiceClient = new MLServiceClient();
 
 /**
  * Fetch products with inventory and sales data for restocking analysis
@@ -202,7 +140,7 @@ export async function calculateRestockStrategy(
   };
 
   // Call ML-service
-  const mlResponse = await mlServiceClient.calculateRestockStrategy(mlRequest);
+  const mlResponse = await mlClient.calculateRestockStrategy(mlRequest);
 
   // Transform response for frontend
   const response: RestockResponseDTO = {
@@ -245,7 +183,7 @@ export async function calculateRestockStrategy(
  * Check if ML-service is available
  */
 export async function checkMLServiceHealth(): Promise<boolean> {
-  return mlServiceClient.healthCheck();
+  return mlClient.healthCheck();
 }
 
 export default {

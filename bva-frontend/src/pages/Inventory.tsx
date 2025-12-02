@@ -162,7 +162,7 @@ const MOCK_INVENTORY_DATA = {
 
 export default function Inventory() {
   const { user } = useAuth();
-  const shopId = user?.id || "SHOP-001";
+  const shopId = user?.shops?.[0]?.id || "SHOP-001";
   const [searchQuery, setSearchQuery] = useState("");
   const [showMockData, setShowMockData] = useState(true);
   

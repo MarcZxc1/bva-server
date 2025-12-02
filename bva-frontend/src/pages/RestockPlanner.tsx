@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { TrendingUp, Calendar, Package, Sparkles, Loader2 } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, ReferenceLine } from "recharts";
 import { useRestockStrategy } from "@/hooks/useRestock";
@@ -25,7 +26,7 @@ const getPriorityLabel = (priorityScore: number) => {
 
 export default function RestockPlanner() {
   const { user } = useAuth();
-  const [shopId, setShopId] = useState(user?.id || "SHOP-001");
+  const [shopId, setShopId] = useState(user?.shops?.[0]?.id || "SHOP-001");
   const [budget, setBudget] = useState("50000");
   const [goal, setGoal] = useState<"profit" | "volume" | "balanced">("balanced");
   const [restockDays, setRestockDays] = useState("14");
@@ -248,7 +249,7 @@ export default function RestockPlanner() {
             </Card>
           )}
 
-          {/* Restock Recommendations */}
+          {/* Restock Recommendations Table */}
           <Card className="glass-card">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-foreground">
@@ -257,34 +258,42 @@ export default function RestockPlanner() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {restockData.recommendations.map((item, index) => (
-                  <div key={index} className="flex items-center justify-between p-4 glass-card-sm hover:shadow-glow transition-smooth">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <h3 className="font-semibold">{item.productName}</h3>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Product</TableHead>
+                    <TableHead>Priority</TableHead>
+                    <TableHead>Current Stock</TableHead>
+                    <TableHead>Recommended</TableHead>
+                    <TableHead>Cost</TableHead>
+                    <TableHead>Exp. Profit</TableHead>
+                    <TableHead>Reasoning</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {restockData.recommendations.map((item, index) => (
+                    <TableRow key={index}>
+                      <TableCell className="font-medium">{item.productName}</TableCell>
+                      <TableCell>
                         <Badge variant={getPriorityColor(item.priorityScore)}>
                           {getPriorityLabel(item.priorityScore)}
                         </Badge>
-                      </div>
-                      <p className="text-sm text-muted-foreground mb-2">{item.reasoning}</p>
-                      <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                        <span>Current: <strong className="text-foreground">{item.currentStock} units</strong></span>
-                        <span>•</span>
-                        <span>Restock: <strong className="text-success">{item.recommendedQty} units</strong></span>
-                        <span>•</span>
-                        <span>Cost: <strong className="text-foreground">₱{item.totalCost.toLocaleString()}</strong></span>
-                        <span>•</span>
-                        <span>Profit: <strong className="text-success">₱{item.expectedProfit.toLocaleString()}</strong></span>
-                      </div>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button variant="outline">View Details</Button>
-                      <Button>Approve</Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                      </TableCell>
+                      <TableCell>{item.currentStock}</TableCell>
+                      <TableCell className="text-success font-bold">{item.recommendedQty}</TableCell>
+                      <TableCell>₱{item.totalCost.toLocaleString()}</TableCell>
+                      <TableCell className="text-success">₱{item.expectedProfit.toLocaleString()}</TableCell>
+                      <TableCell className="max-w-[200px] truncate text-muted-foreground" title={item.reasoning}>
+                        {item.reasoning}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button variant="outline" size="sm">Approve</Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
             </CardContent>
           </Card>
 

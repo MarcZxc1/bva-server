@@ -1,7 +1,11 @@
+import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Megaphone, Sparkles, Calendar, Eye, TrendingUp } from "lucide-react";
+import { Megaphone, Sparkles, Calendar, Eye, TrendingUp, Loader2 } from "lucide-react";
+import { AdGeneratorDialog } from "@/components/AdGeneratorDialog";
+import { usePromotions } from "@/hooks/useMarketMate";
+import { useAuth } from "@/contexts/AuthContext";
 
 const adCampaigns = [
   {
@@ -73,6 +77,10 @@ const getPlatformColor = (platform: string) => {
 };
 
 export default function MarketMate() {
+  const { user } = useAuth();
+  const shopId = user?.id || "f7df4850-86bb-4b3e-8374-37f1c76d6793";
+  const { data: promotionsData, isLoading: promotionsLoading } = usePromotions(shopId, true);
+
   return (
     <div className="space-y-6">
       <div className="glass-card p-8">
@@ -81,10 +89,7 @@ export default function MarketMate() {
             <h1 className="text-4xl font-bold mb-2 text-foreground">🎯 MarketMate</h1>
             <p className="text-muted-foreground">AI-powered marketing automation for your products</p>
           </div>
-          <Button className="gap-2 bg-primary hover:bg-primary/90 text-primary-foreground shadow-nav-active">
-            <Sparkles className="h-4 w-4" />
-            Generate New Campaign
-          </Button>
+          <AdGeneratorDialog />
         </div>
       </div>
 
@@ -136,6 +141,67 @@ export default function MarketMate() {
           </CardContent>
         </Card>
       </div>
+      {/* AI Smart Promotions */}
+      {promotionsLoading ? (
+        <Card className="glass-card">
+          <CardContent className="py-12 flex items-center justify-center">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          </CardContent>
+        </Card>
+      ) : promotionsData && promotionsData.data.promotions.length > 0 ? (
+        <Card className="glass-card">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-foreground">
+              <Sparkles className="h-5 w-5 text-primary" />
+              🎯 AI Smart Promotions (Near-Expiry Items)
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {promotionsData.data.promotions.map((promo, index) => (
+                <div key={index} className="p-4 glass-card-sm hover:shadow-glow transition-smooth">
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <h3 className="font-semibold text-foreground">{promo.product_name}</h3>
+                        <Badge variant="outline" className="bg-warning/10 text-warning border-warning/20">
+                          {promo.suggested_discount_pct}% OFF
+                        </Badge>
+                        <Badge variant="secondary">{promo.event_title}</Badge>
+                      </div>
+                      <p className="text-xs text-muted-foreground mb-2">
+                        {promo.start_date} - {promo.end_date}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mb-3 p-3 glass-card-sm text-sm">
+                    {promo.promo_copy}
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                      <span>Expected Sales Lift: <strong className="text-success">+{promo.projected_sales_lift}%</strong></span>
+                      <span>•</span>
+                      <span>Clear in: <strong className="text-foreground">{promo.expected_clear_days} days</strong></span>
+                      <span>•</span>
+                      <span>Confidence: <strong className="text-foreground">{promo.confidence}</strong></span>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button variant="outline" size="sm" className="glass-card-sm">Preview</Button>
+                      <Button size="sm" className="bg-primary hover:bg-primary/90 text-primary-foreground">Use This</Button>
+                    </div>
+                  </div>
+
+                  <div className="mt-2 text-xs text-muted-foreground italic">
+                    💡 {promo.reasoning}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
 
       {/* Campaign Playbooks */}
       <Card className="glass-card">
@@ -147,26 +213,42 @@ export default function MarketMate() {
         </CardHeader>
         <CardContent>
           <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
-            <Button variant="outline" className="h-auto flex-col items-start p-4 glass-card-sm hover:shadow-glow">
-              <Megaphone className="h-5 w-5 mb-2 text-primary" />
-              <div className="font-semibold mb-1 text-foreground">Flash Sale</div>
-              <div className="text-xs text-muted-foreground text-left">Create urgency with limited-time offers</div>
-            </Button>
-            <Button variant="outline" className="h-auto flex-col items-start p-4 glass-card-sm hover:shadow-glow">
-              <Calendar className="h-5 w-5 mb-2 text-primary" />
-              <div className="font-semibold mb-1 text-foreground">Payday Promo</div>
-              <div className="text-xs text-muted-foreground text-left">Target 15th & 30th with special deals</div>
-            </Button>
-            <Button variant="outline" className="h-auto flex-col items-start p-4 glass-card-sm hover:shadow-glow">
-              <TrendingUp className="h-5 w-5 mb-2 text-primary" />
-              <div className="font-semibold mb-1 text-foreground">Trending Product</div>
-              <div className="text-xs text-muted-foreground text-left">Leverage viral products and trends</div>
-            </Button>
-            <Button variant="outline" className="h-auto flex-col items-start p-4 glass-card-sm hover:shadow-glow">
-              <Eye className="h-5 w-5 mb-2 text-primary" />
-              <div className="font-semibold mb-1 text-foreground">New Arrival</div>
-              <div className="text-xs text-muted-foreground text-left">Announce new products with impact</div>
-            </Button>
+            <AdGeneratorDialog 
+              trigger={
+                <Button variant="outline" className="h-auto flex-col items-start p-4 glass-card-sm hover:shadow-glow">
+                  <Megaphone className="h-5 w-5 mb-2 text-primary" />
+                  <div className="font-semibold mb-1 text-foreground">Flash Sale</div>
+                  <div className="text-xs text-muted-foreground text-left">Create urgency with limited-time offers</div>
+                </Button>
+              }
+            />
+            <AdGeneratorDialog 
+              trigger={
+                <Button variant="outline" className="h-auto flex-col items-start p-4 glass-card-sm hover:shadow-glow">
+                  <Calendar className="h-5 w-5 mb-2 text-primary" />
+                  <div className="font-semibold mb-1 text-foreground">New Arrival</div>
+                  <div className="text-xs text-muted-foreground text-left">Launch new products with excitement</div>
+                </Button>
+              }
+            />
+            <AdGeneratorDialog 
+              trigger={
+                <Button variant="outline" className="h-auto flex-col items-start p-4 glass-card-sm hover:shadow-glow">
+                  <TrendingUp className="h-5 w-5 mb-2 text-primary" />
+                  <div className="font-semibold mb-1 text-foreground">Best Seller</div>
+                  <div className="text-xs text-muted-foreground text-left">Highlight popular products</div>
+                </Button>
+              }
+            />
+            <AdGeneratorDialog 
+              trigger={
+                <Button variant="outline" className="h-auto flex-col items-start p-4 glass-card-sm hover:shadow-glow">
+                  <Eye className="h-5 w-5 mb-2 text-primary" />
+                  <div className="font-semibold mb-1 text-foreground">Bundle Up!</div>
+                  <div className="text-xs text-muted-foreground text-left">Create compelling bundle offers</div>
+                </Button>
+              }
+            />
           </div>
         </CardContent>
       </Card>
