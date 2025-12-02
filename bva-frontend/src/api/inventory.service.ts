@@ -1,12 +1,15 @@
 /**
- * Inventory Service
+ * Inventory Service API Client
  * 
- * Handles inventory and product-related API calls
+ * Handles inventory-related API calls for SmartShelf feature
  */
 
 import { apiClient } from "@/lib/api-client";
 
+// ============================================
 // Types
+// ============================================
+
 export interface AtRiskItem {
   product_id: string;
   sku: string;
@@ -34,7 +37,7 @@ export interface AtRiskResponse {
       total_products: number;
       flagged_count: number;
       analysis_date: string;
-      thresholds_used: Record<string, unknown>;
+      thresholds_used: any;
     };
   };
 }
@@ -44,8 +47,7 @@ export interface Product {
   name: string;
   sku: string;
   price: number;
-  cost: number;
-  quantity: number;
+  stock: number;
   category?: string;
 }
 
@@ -57,21 +59,29 @@ export interface ProductsResponse {
   };
 }
 
-// Inventory Service
-class InventoryService {
-  /**
-   * Get at-risk inventory items
-   */
-  async getAtRiskInventory(shopId: string): Promise<AtRiskResponse> {
-    return apiClient.get<AtRiskResponse>(`/api/smart-shelf/${shopId}/at-risk`);
-  }
+// ============================================
+// API Functions
+// ============================================
 
-  /**
-   * Get all products for a shop
-   */
-  async getAllProducts(shopId: string): Promise<ProductsResponse> {
-    return apiClient.get<ProductsResponse>(`/api/products?shopId=${shopId}`);
-  }
+/**
+ * Get at-risk inventory items
+ */
+async function getAtRiskInventory(shopId: string): Promise<AtRiskResponse> {
+  return apiClient.get<AtRiskResponse>(`/api/smart-shelf/${shopId}/at-risk`);
 }
 
-export const inventoryService = new InventoryService();
+/**
+ * Get all products for a shop
+ */
+async function getAllProducts(shopId: string): Promise<ProductsResponse> {
+  return apiClient.get<ProductsResponse>(`/api/products/${shopId}`);
+}
+
+// ============================================
+// Export
+// ============================================
+
+export const inventoryService = {
+  getAtRiskInventory,
+  getAllProducts,
+};

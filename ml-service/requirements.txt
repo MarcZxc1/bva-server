@@ -20,6 +20,10 @@ joblib==1.4.2
 # HTTP client for callbacks
 httpx==0.28.1
 
+# Google Generative AI (Gemini) - New SDK
+google-genai==0.3.0
+Pillow==10.4.0
+
 # Environment and config
 python-dotenv==1.0.1
 

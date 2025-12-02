@@ -10,3 +10,4 @@ export function useAtRiskInventory(shopId: string, enabled: boolean = true) {
   });
 }
 
+

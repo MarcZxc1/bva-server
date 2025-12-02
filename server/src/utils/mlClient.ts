@@ -18,9 +18,11 @@ import {
 import {
   AtRiskRequest,
   AtRiskResponse,
+} from "../types/smartShelf.types";
+import {
   PromotionRequest,
   PromotionResponse,
-} from "../types/smartShelf.types";
+} from "../types/promotion.types";
 
 export class MLServiceClient {
   private client: AxiosInstance;
@@ -70,7 +72,7 @@ export class MLServiceClient {
   async generateCompleteAd(request: {
     product_name: string;
     playbook: string;
-    discount?: string;
+    discount?: string | undefined;
   }): Promise<{ ad_copy: string; hashtags: string[]; image_url: string }> {
     return this.post("/api/v1/ads/generate", request);
   }
@@ -82,7 +84,7 @@ export class MLServiceClient {
   async generateAdCopy(request: {
     product_name: string;
     playbook: string;
-    discount?: string;
+    discount?: string | undefined;
   }): Promise<{ ad_copy: string; hashtags: string[] }> {
     return this.post("/api/v1/ads/generate-copy", request);
   }
@@ -94,7 +96,7 @@ export class MLServiceClient {
   async generateAdImage(request: {
     product_name: string;
     playbook: string;
-    style?: string;
+    style?: string | undefined;
   }): Promise<{ image_url: string }> {
     return this.post("/api/v1/ads/generate-image", request);
   }

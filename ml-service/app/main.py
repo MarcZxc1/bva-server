@@ -19,7 +19,7 @@ import structlog
 import logging
 import sys
 from app.config import settings
-from app.routes import smart_shelf, restock
+from app.routes import smart_shelf, restock, ads
 from app.utils.caching import cache_manager
 
 # Configure structured logging
@@ -161,6 +161,11 @@ app.include_router(
 
 app.include_router(
     restock.router,
+    prefix=settings.API_V1_PREFIX
+)
+
+app.include_router(
+    ads.router,
     prefix=settings.API_V1_PREFIX
 )
 

@@ -1,1 +1,151 @@
-/**\n * Ad Controller - MarketMate Feature\n * \n * Handles AI-powered ad generation requests.\n * Acts as API Gateway - forwards requests to ML Service.\n */\n\nimport { Request, Response } from \"express\";\nimport { AdService } from \"../service/ad.service\";\nimport { AdRequest, AdResponse } from \"../api/ads/ad.types\";\n\nconst adService = new AdService();\n\nexport class AdController {\n  /**\n   * POST /api/v1/ads/generate-ad\n   * Generate AI-powered ad copy using Gemini\n   */\n  public async generatedAd(req: Request, res: Response): Promise<void> {\n    try {\n      const requestData: AdRequest = req.body;\n      \n      // Validate required fields\n      if (!requestData.product_name || !requestData.playbook) {\n        res.status(400).json({ \n          success: false,\n          error: \"Missing required fields: product_name and playbook\" \n        });\n        return;\n      }\n      \n      // Generate ad copy via service\n      const adCopy = await adService.generateAdCopy(requestData);\n      \n      const response: AdResponse = {\n        playbookUsed: requestData.playbook,\n        product_name: requestData.product_name,\n        generated_ad_copy: adCopy,\n      };\n      \n      res.status(200).json({\n        success: true,\n        data: response,\n      });\n    } catch (error) {\n      console.error(\"Error in AdController.generatedAd:\", error);\n      \n      // Check if it's an ML service error\n      if ((error as Error).message?.includes(\"AI Service Unavailable\")) {\n        res.status(503).json({ \n          success: false,\n          error: \"AI Service Unavailable\",\n          message: \"The AI service is currently unavailable. Please try again later.\"\n        });\n        return;\n      }\n      \n      res.status(500).json({ \n        success: false,\n        error: (error as Error).message || \"Failed to generate ad\" \n      });\n    }\n  }\n\n  /**\n   * POST /api/v1/ads/generate-ad-image\n   * Generate AI-powered ad image\n   */\n  public async generateAdImage(req: Request, res: Response): Promise<void> {\n    try {\n      const { product_name, playbook, style } = req.body;\n      \n      if (!product_name || !playbook) {\n        res.status(400).json({ \n          success: false,\n          error: \"Missing required fields: product_name and playbook\" \n        });\n        return;\n      }\n      \n      // Generate image via service (forwarded to ML service)\n      const result = await adService.generateAdImage({ \n        product_name, \n        playbook, \n        style \n      });\n      \n      res.status(200).json({\n        success: true,\n        data: result,\n      });\n    } catch (error) {\n      console.error(\"Error in AdController.generateAdImage:\", error);\n      \n      if ((error as Error).message?.includes(\"AI Service Unavailable\")) {\n        res.status(503).json({ \n          success: false,\n          error: \"AI Service Unavailable\",\n          message: \"The AI service is currently unavailable. Please try again later.\"\n        });\n        return;\n      }\n      \n      res.status(500).json({ \n        success: false,\n        error: (error as Error).message || \"Failed to generate image\" \n      });\n    }\n  }\n\n  /**\n   * GET /api/v1/ads/:shopId/promotions\n   * Get smart promotion suggestions for near-expiry items\n   */\n  public async getPromotions(req: Request, res: Response): Promise<void> {\n    try {\n      const { shopId } = req.params;\n      \n      if (!shopId) {\n        res.status(400).json({ \n          success: false,\n          error: \"Shop ID is required\" \n        });\n        return;\n      }\n\n      const promotions = await adService.getPromotions(shopId);\n      \n      res.status(200).json({\n        success: true,\n        data: promotions,\n      });\n    } catch (error) {\n      console.error(\"Error in AdController.getPromotions:\", error);\n      \n      if ((error as Error).message?.includes(\"AI Service Unavailable\")) {\n        res.status(503).json({ \n          success: false,\n          error: \"AI Service Unavailable\",\n          message: \"The AI service is currently unavailable. Please try again later.\"\n        });\n        return;\n      }\n      \n      res.status(500).json({ \n        success: false,\n        error: (error as Error).message || \"Failed to get promotions\" \n      });\n    }\n  }\n}
+/**
+ * Ad Controller - MarketMate Feature
+ * 
+ * Handles AI-powered ad generation requests.
+ * Acts as API Gateway - forwards requests to ML Service.
+ */
+
+import { Request, Response } from "express";
+import { AdService } from "../service/ad.service";
+import { AdRequest, AdResponse } from "../api/ads/ad.types";
+
+const adService = new AdService();
+
+export class AdController {
+  /**
+   * POST /api/v1/ads/generate-ad
+   * Generate AI-powered ad copy using Gemini
+   */
+  public async generatedAd(req: Request, res: Response): Promise<void> {
+    try {
+      const requestData: AdRequest = req.body;
+      
+      // Validate required fields
+      if (!requestData.product_name || !requestData.playbook) {
+        res.status(400).json({ 
+          success: false,
+          error: "Missing required fields: product_name and playbook" 
+        });
+        return;
+      }
+      
+      // Generate ad copy via service
+      const adCopy = await adService.generateAdCopy(requestData);
+      
+      const response: AdResponse = {
+        playbookUsed: requestData.playbook,
+        product_name: requestData.product_name,
+        generated_ad_copy: adCopy,
+      };
+      
+      res.status(200).json({
+        success: true,
+        data: response,
+      });
+    } catch (error) {
+      console.error("Error in AdController.generatedAd:", error);
+      
+      // Check if it's an ML service error
+      if ((error as Error).message?.includes("AI Service Unavailable")) {
+        res.status(503).json({ 
+          success: false,
+          error: "AI Service Unavailable",
+          message: "The AI service is currently unavailable. Please try again later."
+        });
+        return;
+      }
+      
+      res.status(500).json({ 
+        success: false,
+        error: (error as Error).message || "Failed to generate ad" 
+      });
+    }
+  }
+
+  /**
+   * POST /api/v1/ads/generate-ad-image
+   * Generate AI-powered ad image
+   */
+  public async generateAdImage(req: Request, res: Response): Promise<void> {
+    try {
+      const { product_name, playbook, style } = req.body;
+      
+      if (!product_name || !playbook) {
+        res.status(400).json({ 
+          success: false,
+          error: "Missing required fields: product_name and playbook" 
+        });
+        return;
+      }
+      
+      // Generate image via service (forwarded to ML service)
+      const result = await adService.generateAdImage({ 
+        product_name, 
+        playbook, 
+        style 
+      });
+      
+      res.status(200).json({
+        success: true,
+        data: result,
+      });
+    } catch (error) {
+      console.error("Error in AdController.generateAdImage:", error);
+      
+      if ((error as Error).message?.includes("AI Service Unavailable")) {
+        res.status(503).json({ 
+          success: false,
+          error: "AI Service Unavailable",
+          message: "The AI service is currently unavailable. Please try again later."
+        });
+        return;
+      }
+      
+      res.status(500).json({ 
+        success: false,
+        error: (error as Error).message || "Failed to generate image" 
+      });
+    }
+  }
+
+  /**
+   * GET /api/v1/ads/:shopId/promotions
+   * Get smart promotion suggestions for near-expiry items
+   */
+  public async getPromotions(req: Request, res: Response): Promise<void> {
+    try {
+      const { shopId } = req.params;
+      
+      if (!shopId) {
+        res.status(400).json({ 
+          success: false,
+          error: "Shop ID is required" 
+        });
+        return;
+      }
+
+      const promotions = await adService.getPromotions(shopId);
+      
+      res.status(200).json({
+        success: true,
+        data: promotions,
+      });
+    } catch (error) {
+      console.error("Error in AdController.getPromotions:", error);
+      
+      if ((error as Error).message?.includes("AI Service Unavailable")) {
+        res.status(503).json({ 
+          success: false,
+          error: "AI Service Unavailable",
+          message: "The AI service is currently unavailable. Please try again later."
+        });
+        return;
+      }
+      
+      res.status(500).json({ 
+        success: false,
+        error: (error as Error).message || "Failed to get promotions" 
+      });
+    }
+  }
+}

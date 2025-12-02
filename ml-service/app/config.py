@@ -68,6 +68,14 @@ class Settings(BaseSettings):
     BACKEND_API_URL: Optional[str] = None
     BACKEND_API_KEY: Optional[str] = None
     
+    # Google Gemini API
+    GEMINI_API_KEY: Optional[str] = None
+    GEMINI_MODEL: str = "gemini-2.0-flash-exp"
+    
+    # Social Media APIs
+    FACEBOOK_ACCESS_TOKEN: Optional[str] = None
+    INSTAGRAM_ACCESS_TOKEN: Optional[str] = None
+    
     # Logging
     LOG_LEVEL: str = "INFO"
     LOG_FORMAT: str = "json"  # 'json' or 'console'

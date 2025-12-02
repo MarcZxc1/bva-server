@@ -60,9 +60,14 @@ export default {
         },
       },
       borderRadius: {
-        lg: "var(--radius)",
-        md: "calc(var(--radius) - 2px)",
-        sm: "calc(var(--radius) - 4px)",
+        lg: "var(--radius)", // 20px for main cards
+        md: "var(--radius-sm)", // 12px for smaller elements
+        sm: "calc(var(--radius-sm) - 2px)",
+      },
+      boxShadow: {
+        'glow': 'var(--shadow-glow)',
+        'card': 'var(--shadow-card)',
+        'nav-active': 'var(--shadow-nav-active)',
       },
       keyframes: {
         "accordion-down": {

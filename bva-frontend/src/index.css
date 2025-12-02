@@ -2,33 +2,42 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
-All colors MUST be HSL.
-*/
+/* Coachwyse Design System - Clean Glassmorphism Theme */
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222 47% 11%;
+    /* Global Background - Soft diagonal mesh gradient from Light Blue to White */
+    --background-gradient: linear-gradient(135deg, #EDF5FF 0%, #FFFFFF 100%);
+    --background: 237 100% 97%; /* Light Blue #EDF5FF */
+    --foreground: 214 35% 20%; /* Dark Blue-Grey #1A2B48 */
 
-    --card: 0 0% 100%;
-    --card-foreground: 222 47% 11%;
-
-    --popover: 0 0% 100%;
-    --popover-foreground: 222 47% 11%;
-
-    --primary: 239 84% 67%;
+    /* Primary Accent - Vibrant Royal Blue */
+    --primary: 217 100% 50%; /* #0062FF */
     --primary-foreground: 0 0% 100%;
 
+    /* Glass Cards - High transparency white */
+    --card: 0 0% 100%;
+    --card-foreground: 214 35% 20%;
+    --card-glass-bg: rgba(255, 255, 255, 0.7);
+    --card-glass-border: rgba(255, 255, 255, 0.5);
+
+    /* Popover */
+    --popover: 0 0% 100%;
+    --popover-foreground: 214 35% 20%;
+
+    /* Secondary */
     --secondary: 220 14% 96%;
-    --secondary-foreground: 222 47% 11%;
+    --secondary-foreground: 214 35% 20%;
 
+    /* Muted - Lighter Grey for secondary text */
     --muted: 220 14% 96%;
-    --muted-foreground: 220 9% 46%;
+    --muted-foreground: 214 20% 55%; /* #6E7C91 */
 
-    --accent: 262 83% 58%;
+    /* Accent */
+    --accent: 217 100% 50%;
     --accent-foreground: 0 0% 100%;
 
+    /* Status Colors */
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
 
@@ -38,60 +47,76 @@ All colors MUST be HSL.
     --warning: 38 92% 50%;
     --warning-foreground: 0 0% 100%;
 
+    /* Borders & Inputs */
     --border: 220 13% 91%;
     --input: 220 13% 91%;
-    --ring: 239 84% 67%;
+    --ring: 217 100% 50%;
 
-    --radius: 0.5rem;
+    /* Border Radius - Heavy rounding */
+    --radius: 1.25rem; /* 20px for main cards */
+    --radius-sm: 0.75rem; /* 12px for smaller elements */
 
-    --sidebar-background: 222 47% 11%;
-    --sidebar-foreground: 210 40% 98%;
-    --sidebar-primary: 239 84% 67%;
+    /* Sidebar - Glass effect */
+    --sidebar-background: rgba(255, 255, 255, 0.7);
+    --sidebar-foreground: 214 35% 20%;
+    --sidebar-primary: 217 100% 50%; /* Royal Blue for active */
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 222 47% 16%;
-    --sidebar-accent-foreground: 210 40% 98%;
-    --sidebar-border: 222 47% 16%;
-    --sidebar-ring: 239 84% 67%;
+    --sidebar-accent: 217 100% 50%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: rgba(255, 255, 255, 0.5);
+    --sidebar-ring: 217 100% 50%;
 
-    --chart-1: 239 84% 67%;
-    --chart-2: 262 83% 58%;
+    /* Charts */
+    --chart-1: 217 100% 50%;
+    --chart-2: 200 100% 50%;
     --chart-3: 142 71% 45%;
     --chart-4: 38 92% 50%;
     --chart-5: 0 84% 60%;
 
-    --gradient-primary: linear-gradient(135deg, hsl(239 84% 67%) 0%, hsl(262 83% 58%) 100%);
-    --gradient-success: linear-gradient(135deg, hsl(142 71% 45%) 0%, hsl(142 71% 55%) 100%);
+    /* Shadows - Ultra-soft, diffused */
+    --shadow-glow: 0 4px 24px rgba(0, 0, 0, 0.05);
+    --shadow-card: 0 4px 24px rgba(0, 0, 0, 0.05);
+    --shadow-nav-active: 0 4px 15px rgba(0, 98, 255, 0.4); /* Blue glow for active nav */
     
-    --shadow-glow: 0 0 40px hsl(239 84% 67% / 0.3);
-    --shadow-card: 0 4px 6px -1px hsl(220 9% 46% / 0.1), 0 2px 4px -1px hsl(220 9% 46% / 0.06);
-    
+    /* Transitions */
     --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   }
 
   .dark {
-    --background: 222 47% 11%;
-    --foreground: 210 40% 98%;
+    /* Dark Mode - Dark background with lighter glass cards */
+    --background-gradient: linear-gradient(135deg, #0F172A 0%, #1E293B 100%);
+    --background: 222 47% 11%; /* Dark Blue-Grey */
+    --foreground: 210 40% 98%; /* Light text */
 
+    /* Primary Accent - Slightly brighter for dark mode */
+    --primary: 217 100% 60%;
+    --primary-foreground: 0 0% 100%;
+
+    /* Glass Cards - Darker with transparency */
     --card: 222 47% 14%;
     --card-foreground: 210 40% 98%;
+    --card-glass-bg: rgba(30, 41, 59, 0.7); /* Dark slate with transparency */
+    --card-glass-border: rgba(255, 255, 255, 0.1);
 
+    /* Popover */
     --popover: 222 47% 14%;
     --popover-foreground: 210 40% 98%;
 
-    --primary: 239 84% 67%;
-    --primary-foreground: 0 0% 100%;
-
+    /* Secondary */
     --secondary: 222 47% 16%;
     --secondary-foreground: 210 40% 98%;
 
+    /* Muted */
     --muted: 222 47% 16%;
     --muted-foreground: 220 9% 65%;
 
-    --accent: 262 83% 58%;
+    /* Accent */
+    --accent: 217 100% 60%;
     --accent-foreground: 0 0% 100%;
 
-    --destructive: 0 63% 31%;
-    --destructive-foreground: 210 40% 98%;
+    /* Status Colors - Adjusted for dark mode */
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
 
     --success: 142 71% 45%;
     --success-foreground: 0 0% 100%;
@@ -99,27 +124,32 @@ All colors MUST be HSL.
     --warning: 38 92% 50%;
     --warning-foreground: 0 0% 100%;
 
+    /* Borders & Inputs */
     --border: 222 47% 20%;
     --input: 222 47% 20%;
-    --ring: 239 84% 67%;
+    --ring: 217 100% 60%;
 
-    --sidebar-background: 222 47% 11%;
+    /* Sidebar - Dark glass effect */
+    --sidebar-background: rgba(30, 41, 59, 0.7);
     --sidebar-foreground: 210 40% 98%;
-    --sidebar-primary: 239 84% 67%;
+    --sidebar-primary: 217 100% 60%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 222 47% 16%;
-    --sidebar-accent-foreground: 210 40% 98%;
-    --sidebar-border: 222 47% 16%;
-    --sidebar-ring: 239 84% 67%;
+    --sidebar-accent: 217 100% 60%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: rgba(255, 255, 255, 0.1);
+    --sidebar-ring: 217 100% 60%;
 
-    --chart-1: 239 84% 67%;
-    --chart-2: 262 83% 58%;
+    /* Charts */
+    --chart-1: 217 100% 60%;
+    --chart-2: 200 100% 60%;
     --chart-3: 142 71% 45%;
     --chart-4: 38 92% 50%;
     --chart-5: 0 84% 60%;
 
-    --shadow-glow: 0 0 40px hsl(239 84% 67% / 0.4);
-    --shadow-card: 0 4px 6px -1px hsl(0 0% 0% / 0.3), 0 2px 4px -1px hsl(0 0% 0% / 0.2);
+    /* Shadows - Adjusted for dark mode */
+    --shadow-glow: 0 4px 24px rgba(0, 0, 0, 0.3);
+    --shadow-card: 0 4px 24px rgba(0, 0, 0, 0.2);
+    --shadow-nav-active: 0 4px 15px rgba(0, 98, 255, 0.5);
   }
 }
 
@@ -128,26 +158,160 @@ All colors MUST be HSL.
     @apply border-border;
   }
 
+  html {
+    background: var(--background-gradient);
+    background-attachment: fixed;
+    overscroll-behavior: none;
+  }
+
   body {
-    @apply bg-background text-foreground;
+    @apply text-foreground;
+    background: var(--background-gradient);
+    background-attachment: fixed;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
     font-feature-settings: 'rlig' 1, 'calt' 1;
+    min-height: 100vh;
+    overscroll-behavior: none;
   }
 }
 
 @layer components {
+  /* Glass Card Effect - The defining feature of Coachwyse design */
+  .glass-card {
+    background: var(--card-glass-bg);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid var(--card-glass-border);
+    box-shadow: var(--shadow-card);
+    border-radius: var(--radius);
+  }
+
+  .glass-card-sm {
+    background: var(--card-glass-bg);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid var(--card-glass-border);
+    box-shadow: var(--shadow-card);
+    border-radius: var(--radius-sm);
+  }
+
+  /* Sidebar specific - no shadow, single panel look */
+  .sidebar-aligned.glass-card,
+  [data-sidebar="sidebar"].glass-card {
+    box-shadow: none !important;
+  }
+
+  /* Stat Card with glass effect */
   .stat-card {
-    @apply rounded-lg border bg-card p-6 shadow-sm transition-all hover:shadow-md;
+    @apply glass-card p-6 transition-all hover:shadow-glow;
   }
 
-  .gradient-primary {
-    background: var(--gradient-primary);
+  /* Navigation Active State with Blue Glow */
+  .nav-item.active {
+    background-color: #0062FF !important;
+    color: white !important;
+    box-shadow: var(--shadow-nav-active);
+    border-radius: var(--radius-sm);
   }
-
-  .gradient-success {
-    background: var(--gradient-success);
+  
+  /* Ensure NavLink fills the button properly */
+  .nav-item {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    padding: 0.5rem 0.75rem;
   }
 
   .transition-smooth {
     transition: var(--transition-smooth);
+  }
+
+  /* Sidebar Layout Fixes */
+  [data-sidebar="sidebar"] {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    max-height: 100%;
+  }
+
+  [data-sidebar="content"] {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Ensure SidebarGroup with mt-auto pushes to bottom */
+  [data-sidebar="content"] > [class*="mt-auto"] {
+    margin-top: auto;
+    padding-top: 0.5rem;
+  }
+
+  [data-sidebar="footer"] {
+    flex-shrink: 0;
+    margin-top: auto;
+  }
+
+  [data-sidebar="header"] {
+    flex-shrink: 0;
+  }
+
+  /* Sidebar - no border, single panel look */
+  [data-sidebar="sidebar"],
+  [data-sidebar="sidebar"].glass-card {
+    border: none !important;
+    box-shadow: none !important;
+  }
+
+  /* Floating variant sidebar - no border */
+  [data-variant="floating"] > div[class*="fixed"] > [data-sidebar="sidebar"] {
+    border: none !important;
+    box-shadow: none !important;
+  }
+
+  /* Remove shadow from floating variant container */
+  [data-variant="floating"] > div[class*="fixed"] {
+    box-shadow: none !important;
+  }
+
+  /* Override the group-data shadow class from sidebar component - single panel look */
+  [data-variant="floating"] [data-sidebar="sidebar"],
+  [data-sidebar="sidebar"][class*="shadow"],
+  [data-sidebar="sidebar"].group-data-\\[variant\\=floating\\]\\:shadow {
+    box-shadow: none !important;
+    -webkit-box-shadow: none !important;
+  }
+  
+  /* Remove all shadows from sidebar container and wrapper */
+  [data-variant="floating"] > div,
+  [data-variant="floating"] > div[class*="fixed"] {
+    box-shadow: none !important;
+    -webkit-box-shadow: none !important;
+  }
+
+  /* Adjust floating sidebar positioning to align with navbar */
+  /* Target the fixed sidebar container for floating variant */
+  [data-variant="floating"] > div[class*="fixed"][class*="inset-y-0"] {
+    top: 1rem !important;
+    left: 1rem !important;
+    height: calc(100vh - 2rem) !important;
+    bottom: auto !important;
+    padding-top: 0 !important;
+    padding-bottom: 0.5rem !important;
+    padding-left: 0.5rem !important;
+    padding-right: 0.5rem !important;
+  }
+
+  /* Sidebar positioning - no border */
+  [data-variant="floating"] > div[class*="fixed"][class*="inset-y-0"] > [data-sidebar="sidebar"] {
+    border: none !important;
+    margin-top: 0 !important;
+  }
+  
+  /* Reduce gap between sidebar and content */
+  [data-sidebar="sidebar"] {
+    margin-right: 0.5rem;
   }
 }
