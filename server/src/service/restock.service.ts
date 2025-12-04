@@ -124,10 +124,15 @@ export async function calculateRestockStrategy(
   }
 
   // Fetch products from database
-  const products = await fetchProductsForRestock(shopId);
+  let products = await fetchProductsForRestock(shopId);
+
+  // Filter out invalid products (cost or price <= 0) as ML service requires positive values
+  products = products.filter((p) => p.price > 0 && p.cost > 0);
 
   if (products.length === 0) {
-    throw new Error(`No active products found for shop ${shopId}`);
+    throw new Error(
+      `No active products with valid price and cost found for shop ${shopId}`
+    );
   }
 
   // Prepare ML-service request

@@ -1,8 +1,29 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Download, TrendingUp, Calendar } from "lucide-react";
+import { Download, TrendingUp, Calendar, Loader2 } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { reportsApi } from "@/lib/api";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 export default function Reports() {
+  const { data: metrics, isLoading: metricsLoading } = useQuery({
+    queryKey: ["dashboardMetrics"],
+    queryFn: reportsApi.getMetrics,
+  });
+
+  const { data: salesSummary, isLoading: summaryLoading } = useQuery({
+    queryKey: ["salesSummary"],
+    queryFn: reportsApi.getSalesSummary,
+  });
+
+  if (metricsLoading || summaryLoading) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div className="glass-card p-8">
@@ -30,7 +51,9 @@ export default function Reports() {
             <CardTitle className="text-sm font-medium text-muted-foreground">Total Revenue</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-foreground">₱2,345,678</div>
+            <div className="text-3xl font-bold text-foreground">
+              {metrics?.currency} {metrics?.totalRevenue.toLocaleString()}
+            </div>
             <p className="text-xs text-success flex items-center mt-1">
               <TrendingUp className="h-3 w-3 mr-1" />
               +18.2% vs last period
@@ -43,7 +66,9 @@ export default function Reports() {
             <CardTitle className="text-sm font-medium text-muted-foreground">Profit Margin</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-foreground">32.4%</div>
+            <div className="text-3xl font-bold text-foreground">
+              {metrics?.profitMargin.toFixed(1)}%
+            </div>
             <p className="text-xs text-success flex items-center mt-1">
               <TrendingUp className="h-3 w-3 mr-1" />
               +2.1% improvement
@@ -56,8 +81,32 @@ export default function Reports() {
             <CardTitle className="text-sm font-medium text-muted-foreground">Stock Turnover</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-foreground">4.2x</div>
+            <div className="text-3xl font-bold text-foreground">
+              {metrics?.stockTurnover.toFixed(1)}x
+            </div>
             <p className="text-xs text-muted-foreground mt-1">Average turnover rate</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2">
+        <Card className="glass-card col-span-2">
+          <CardHeader>
+            <CardTitle className="text-foreground">Sales Overview</CardTitle>
+          </CardHeader>
+          <CardContent className="h-[300px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={salesSummary}>
+                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                <XAxis dataKey="name" className="text-xs" />
+                <YAxis className="text-xs" />
+                <Tooltip 
+                  contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }}
+                  itemStyle={{ color: 'hsl(var(--foreground))' }}
+                />
+                <Bar dataKey="total" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
           </CardContent>
         </Card>
       </div>

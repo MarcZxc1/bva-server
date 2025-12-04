@@ -1,37 +1,22 @@
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { restockApi, RestockRequest, RestockResponse } from "@/lib/api";
-import { toast } from "sonner";
-import { AxiosError } from "axios";
+import { useMutation } from "@tanstack/react-query";
+import { restockService, RestockStrategyRequest, RestockStrategyResponse } from "@/services/restock.service";
+import { useToast } from "@/hooks/use-toast";
 
-interface ErrorResponse {
-  response?: {
-    data?: {
-      message?: string;
-    };
-  };
-  message?: string;
-}
+export function useRestock() {
+  // Hook for generating restock strategy
+  const { toast } = useToast();
 
-export function useRestockStrategy() {
   return useMutation({
-    mutationFn: async (request: RestockRequest): Promise<RestockResponse> => {
-      return restockApi.getRestockStrategy(request);
+    mutationFn: async (data: RestockStrategyRequest): Promise<RestockStrategyResponse> => {
+      return restockService.getRestockPlan(data);
     },
-    onError: (error: ErrorResponse) => {
-      toast.error(
-        (error as AxiosError<{ message?: string }>)?.response?.data?.message || 
-        error.message || 
-        "Failed to generate restock strategy"
-      );
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to generate restock strategy",
+        variant: "destructive",
+      });
     },
-  });
-}
-
-export function useRestockHealth() {
-  return useQuery({
-    queryKey: ["restock-health"],
-    queryFn: () => restockApi.checkHealth(),
-    refetchInterval: 30000, // Check every 30 seconds
   });
 }
 

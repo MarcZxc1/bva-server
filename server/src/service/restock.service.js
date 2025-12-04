@@ -1,0 +1,164 @@
+"use strict";
+// File: src/service/restock.service.ts
+/**
+ * Restocking Strategy Service
+ *
+ * Handles business logic for AI-powered restocking recommendations.
+ * Communicates with Python ML-service via HTTP API.
+ *
+ * Responsibilities:
+ * - Fetch products, inventory, and sales data from database
+ * - Transform data for ML-service format
+ * - Send requests to Python ML-service
+ * - Transform ML-service responses for frontend
+ * - Handle errors and retries
+ */
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.calculateRestockStrategy = calculateRestockStrategy;
+exports.checkMLServiceHealth = checkMLServiceHealth;
+const prisma_1 = __importDefault(require("../lib/prisma"));
+const mlClient_1 = require("../utils/mlClient");
+/**
+ * Fetch products with inventory and sales data for restocking analysis
+ */
+async function fetchProductsForRestock(shopId) {
+    // Fetch products with related inventory and sales data using Prisma ORM
+    const productsData = await prisma_1.default.product.findMany({
+        where: {
+            shopId: shopId,
+        },
+        include: {
+            inventories: {
+                take: 1,
+            },
+        },
+    });
+    // Calculate average daily sales for each product from Sale records
+    const productsWithSales = await Promise.all(productsData.map(async (product) => {
+        // Get sales for this product in the last 60 days
+        const sixtyDaysAgo = new Date();
+        sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
+        const sales = await prisma_1.default.sale.findMany({
+            where: {
+                shopId: shopId,
+                createdAt: {
+                    gte: sixtyDaysAgo,
+                },
+            },
+            select: {
+                items: true,
+                createdAt: true,
+            },
+        });
+        // Calculate total quantity sold for this product
+        let totalQuantitySold = 0;
+        const salesDates = new Set();
+        sales.forEach((sale) => {
+            const items = typeof sale.items === "string" ? JSON.parse(sale.items) : sale.items;
+            if (Array.isArray(items)) {
+                items.forEach((item) => {
+                    if (item.productId === product.id) {
+                        totalQuantitySold += item.quantity || 0;
+                        salesDates.add(sale.createdAt.toISOString().split("T")[0]);
+                    }
+                });
+            }
+        });
+        // Calculate average daily sales
+        const daysWithSales = salesDates.size || 1;
+        const avgDailySales = totalQuantitySold / Math.max(daysWithSales, 60);
+        // Calculate profit margin
+        const profitMargin = product.price > 0
+            ? (product.price - (product.cost || 0)) / product.price
+            : 0;
+        return {
+            product_id: product.id,
+            name: product.name,
+            price: product.price,
+            cost: product.cost || 0,
+            stock: product.inventories[0]?.quantity || 0,
+            category: product.description?.split("-")[1]?.trim() || "General",
+            avg_daily_sales: avgDailySales,
+            profit_margin: profitMargin,
+            min_order_qty: 1,
+        };
+    }));
+    return productsWithSales;
+}
+/**
+ * Main service function: Calculate restocking strategy
+ */
+async function calculateRestockStrategy(dto) {
+    const { shopId, budget, goal, restockDays = 14 } = dto;
+    // Validate inputs
+    if (budget <= 0) {
+        throw new Error("Budget must be greater than 0");
+    }
+    if (!["profit", "volume", "balanced"].includes(goal)) {
+        throw new Error("Invalid goal. Must be: profit, volume, or balanced");
+    }
+    // Fetch products from database
+    let products = await fetchProductsForRestock(shopId);
+    // Filter out invalid products (cost or price <= 0) as ML service requires positive values
+    products = products.filter((p) => p.price > 0 && p.cost > 0);
+    if (products.length === 0) {
+        throw new Error(`No active products with valid price and cost found for shop ${shopId}`);
+    }
+    // Prepare ML-service request
+    const mlRequest = {
+        shop_id: shopId,
+        budget,
+        goal,
+        products,
+        restock_days: restockDays,
+    };
+    // Call ML-service
+    const mlResponse = await mlClient_1.mlClient.calculateRestockStrategy(mlRequest);
+    // Transform response for frontend
+    const response = {
+        strategy: mlResponse.strategy,
+        shopId: mlResponse.shop_id,
+        budget: mlResponse.budget,
+        recommendations: mlResponse.items.map((item) => ({
+            productId: item.product_id,
+            productName: item.name,
+            currentStock: products.find((p) => String(p.product_id) === String(item.product_id))
+                ?.stock || 0,
+            recommendedQty: item.qty,
+            unitCost: item.unit_cost,
+            totalCost: item.total_cost,
+            expectedProfit: item.expected_profit,
+            expectedRevenue: item.expected_revenue,
+            daysOfStock: item.days_of_stock,
+            priorityScore: item.priority_score,
+            reasoning: item.reasoning || "",
+        })),
+        summary: {
+            totalProducts: mlResponse.totals.total_items,
+            totalQuantity: mlResponse.totals.total_qty,
+            totalCost: mlResponse.totals.total_cost,
+            budgetUtilization: mlResponse.totals.budget_used_pct,
+            expectedRevenue: mlResponse.totals.expected_revenue,
+            expectedProfit: mlResponse.totals.expected_profit,
+            expectedROI: mlResponse.totals.expected_roi,
+            avgDaysOfStock: mlResponse.totals.avg_days_of_stock,
+        },
+        insights: mlResponse.reasoning,
+        warnings: mlResponse.warnings || [],
+    };
+    return response;
+}
+/**
+ * Check if ML-service is available
+ */
+async function checkMLServiceHealth() {
+    return mlClient_1.mlClient.healthCheck();
+}
+exports.default = {
+    calculateRestockStrategy,
+    checkMLServiceHealth,
+};
+//# sourceMappingURL=restock.service.js.map

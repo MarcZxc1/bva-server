@@ -19,7 +19,7 @@ import { useAuth } from "@/contexts/AuthContext";
 
 const mainItems = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
-  { title: "Smart Inventory", url: "/inventory", icon: Package },
+  // { title: "Smart Inventory", url: "/inventory", icon: Package },
   { title: "SmartShelf", url: "/smartshelf", icon: AlertCircle },
   { title: "Restock Planner", url: "/restock", icon: TrendingUp },
   { title: "MarketMate", url: "/ads", icon: Megaphone },
@@ -58,7 +58,7 @@ export function AppSidebar() {
         {!isCollapsed && (
           <div className="flex items-center gap-2">
             <img 
-              src="/bva-logo.png" 
+              src="/bva-logo.svg" 
               alt="BVA Logo" 
               className="h-8 w-8 object-contain"
             />
@@ -67,7 +67,7 @@ export function AppSidebar() {
         )}
         {isCollapsed && (
           <img 
-            src="/bva-logo.png" 
+            src="/bva-logo.svg" 
             alt="BVA Logo" 
             className="h-8 w-8 object-contain mx-auto"
           />

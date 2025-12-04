@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="blue-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0062FF" />
+      <stop offset="100%" stop-color="#60A5FA" />
+    </linearGradient>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="5" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+  </defs>
+  
+  <!-- Background Shape: Rounded Square/Squircle -->
+  <rect x="64" y="64" width="384" height="384" rx="96" fill="url(#blue-grad)" />
+  
+  <!-- Glass Reflection Overlay -->
+  <path d="M96 160 C 96 160, 256 250, 416 160 L 416 120 C 416 120, 256 210, 96 120 Z" fill="white" fill-opacity="0.2" />
+  
+  <!-- Symbol: Growth Chart -->
+  <rect x="156" y="280" width="48" height="100" rx="8" fill="white" />
+  <rect x="232" y="200" width="48" height="180" rx="8" fill="white" />
+  <rect x="308" y="140" width="48" height="240" rx="8" fill="white" />
+  
+  <!-- Symbol: AI Sparkle -->
+  <path d="M390 100 L400 125 L425 135 L400 145 L390 170 L380 145 L355 135 L380 125 Z" fill="#FFFFFF" filter="url(#glow)" />
+</svg>

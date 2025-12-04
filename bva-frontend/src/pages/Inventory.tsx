@@ -13,6 +13,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useAtRiskInventory } from "@/hooks/useSmartShelf";
+import { useProducts } from "@/hooks/useProducts";
 import { useAuth } from "@/contexts/AuthContext";
 import { PageHeader } from "@/components/PageHeader";
 import { toast } from "sonner";
@@ -45,134 +46,133 @@ const getPlatformColor = (platform: string) => {
 };
 
 const MOCK_INVENTORY_DATA = {
-  data: {
-    at_risk: [
-      {
-        product_id: "PROD-001",
-        name: "Wireless Earbuds Pro",
-        sku: "WEB-PRO-2024",
-        current_quantity: 12,
-        reasons: ["low_stock"],
-        score: 85,
-        days_to_expiry: undefined,
-        recommended_action: {
-          action_type: "URGENT RESTOCK",
-          reasoning: "Stock below critical level. Immediate reordering required."
-        }
-      },
-      {
-        product_id: "PROD-002",
-        name: "USB-C Power Bank 20000mAh",
-        sku: "PB-20K-USB-C",
-        current_quantity: 45,
-        reasons: ["near_expiry"],
-        score: 72,
-        days_to_expiry: 7,
-        recommended_action: {
-          action_type: "CLEARANCE SALE",
-          reasoning: "Product expiring soon. Run promotional campaign to clear stock."
-        }
-      },
-      {
-        product_id: "PROD-003",
-        name: "Tempered Glass Screen Protector",
-        sku: "TG-SCREEN-PROT",
-        current_quantity: 156,
-        reasons: ["slow_moving"],
-        score: 55,
-        days_to_expiry: undefined,
-        recommended_action: {
-          action_type: "REDUCE ORDERS",
-          reasoning: "Slow-moving item. Reduce order quantity in next restock cycle."
-        }
-      },
-      {
-        product_id: "PROD-004",
-        name: "Phone Case Silicone Premium",
-        sku: "CASE-SILICON-P",
-        current_quantity: 8,
-        reasons: ["low_stock"],
-        score: 92,
-        days_to_expiry: undefined,
-        recommended_action: {
-          action_type: "EMERGENCY RESTOCK",
-          reasoning: "Critical stock level. This is a high-demand item. Restock immediately."
-        }
-      },
-      {
-        product_id: "PROD-005",
-        name: "Charging Cable 3-in-1",
-        sku: "CABLE-3IN1-BLK",
-        current_quantity: 34,
-        reasons: ["low_stock"],
-        score: 68,
-        days_to_expiry: undefined,
-        recommended_action: {
-          action_type: "RESTOCK",
-          reasoning: "Stock running low. Schedule reorder for next week."
-        }
-      },
-      {
-        product_id: "PROD-006",
-        name: "Phone Stand Adjustable",
-        sku: "STAND-ADJ-METAL",
-        current_quantity: 89,
-        reasons: [],
-        score: 25,
-        days_to_expiry: undefined,
-        recommended_action: {
-          action_type: "MONITOR",
-          reasoning: "Stock level is healthy. Continue monitoring."
-        }
-      },
-      {
-        product_id: "PROD-007",
-        name: "Bluetooth Speaker Portable",
-        sku: "BT-SPEAKER-BLU",
-        current_quantity: 3,
-        reasons: ["low_stock"],
-        score: 88,
-        days_to_expiry: undefined,
-        recommended_action: {
-          action_type: "URGENT RESTOCK",
-          reasoning: "Critically low stock on bestseller item. Reorder top priority."
-        }
-      },
-      {
-        product_id: "PROD-008",
-        name: "Laptop Cooling Pad RGB",
-        sku: "COOL-LAPTOP-RGB",
-        current_quantity: 52,
-        reasons: ["near_expiry"],
-        score: 61,
-        days_to_expiry: 14,
-        recommended_action: {
-          action_type: "PROMOTION",
-          reasoning: "Approaching expiry date. Launch limited-time offer."
-        }
+  at_risk: [
+    {
+      product_id: "PROD-001",
+      name: "Wireless Earbuds Pro",
+      sku: "WEB-PRO-2024",
+      current_quantity: 12,
+      reasons: ["low_stock"],
+      score: 85,
+      days_to_expiry: undefined,
+      recommended_action: {
+        action_type: "URGENT RESTOCK",
+        reasoning: "Stock below critical level. Immediate reordering required."
       }
-    ],
-    meta: {
-      total_products: 48,
-      flagged_count: 5,
-      analysis_date: new Date().toISOString()
+    },
+    {
+      product_id: "PROD-002",
+      name: "USB-C Power Bank 20000mAh",
+      sku: "PB-20K-USB-C",
+      current_quantity: 45,
+      reasons: ["near_expiry"],
+      score: 72,
+      days_to_expiry: 7,
+      recommended_action: {
+        action_type: "CLEARANCE SALE",
+        reasoning: "Product expiring soon. Run promotional campaign to clear stock."
+      }
+    },
+    {
+      product_id: "PROD-003",
+      name: "Tempered Glass Screen Protector",
+      sku: "TG-SCREEN-PROT",
+      current_quantity: 156,
+      reasons: ["slow_moving"],
+      score: 55,
+      days_to_expiry: undefined,
+      recommended_action: {
+        action_type: "REDUCE ORDERS",
+        reasoning: "Slow-moving item. Reduce order quantity in next restock cycle."
+      }
+    },
+    {
+      product_id: "PROD-004",
+      name: "Phone Case Silicone Premium",
+      sku: "CASE-SILICON-P",
+      current_quantity: 8,
+      reasons: ["low_stock"],
+      score: 92,
+      days_to_expiry: undefined,
+      recommended_action: {
+        action_type: "EMERGENCY RESTOCK",
+        reasoning: "Critical stock level. This is a high-demand item. Restock immediately."
+      }
+    },
+    {
+      product_id: "PROD-005",
+      name: "Charging Cable 3-in-1",
+      sku: "CABLE-3IN1-BLK",
+      current_quantity: 34,
+      reasons: ["low_stock"],
+      score: 68,
+      days_to_expiry: undefined,
+      recommended_action: {
+        action_type: "RESTOCK",
+        reasoning: "Stock running low. Schedule reorder for next week."
+      }
+    },
+    {
+      product_id: "PROD-006",
+      name: "Phone Stand Adjustable",
+      sku: "STAND-ADJ-METAL",
+      current_quantity: 89,
+      reasons: [],
+      score: 25,
+      days_to_expiry: undefined,
+      recommended_action: {
+        action_type: "MONITOR",
+        reasoning: "Stock level is healthy. Continue monitoring."
+      }
+    },
+    {
+      product_id: "PROD-007",
+      name: "Bluetooth Speaker Portable",
+      sku: "BT-SPEAKER-BLU",
+      current_quantity: 3,
+      reasons: ["low_stock"],
+      score: 88,
+      days_to_expiry: undefined,
+      recommended_action: {
+        action_type: "URGENT RESTOCK",
+        reasoning: "Critically low stock on bestseller item. Reorder top priority."
+      }
+    },
+    {
+      product_id: "PROD-008",
+      name: "Laptop Cooling Pad RGB",
+      sku: "COOL-LAPTOP-RGB",
+      current_quantity: 52,
+      reasons: ["near_expiry"],
+      score: 61,
+      days_to_expiry: 14,
+      recommended_action: {
+        action_type: "PROMOTION",
+        reasoning: "Approaching expiry date. Launch limited-time offer."
+      }
     }
+  ],
+  meta: {
+    total_products: 48,
+    flagged_count: 5,
+    analysis_date: new Date().toISOString()
   }
 };
 
 export default function Inventory() {
   const { user } = useAuth();
-  const shopId = user?.shops?.[0]?.id || "SHOP-001";
+  const shopId = user?.shops?.[0]?.id || "2aad5d00-d302-4c57-86ad-99826e19e610";
   const [searchQuery, setSearchQuery] = useState("");
   const [showMockData, setShowMockData] = useState(true);
   
   const { data: atRiskData, isLoading, error, refetch } = useAtRiskInventory(shopId, true);
+  const { data: productsData } = useProducts(shopId);
 
   // Use API data if available, otherwise use mock data
-  const displayData = atRiskData?.data ? atRiskData : MOCK_INVENTORY_DATA;
-  const atRiskItems = displayData?.data?.at_risk || [];
-  const meta = displayData?.data?.meta;
-  const isShowingMockData = !atRiskData?.data;
+  const displayData = atRiskData ? atRiskData : MOCK_INVENTORY_DATA;
+  const atRiskItems = displayData?.at_risk || [];
+  const meta = displayData?.meta;
+  const isShowingMockData = !atRiskData;
 
   // Filter items based on search query
   const filteredItems = atRiskItems.filter((item) =>
@@ -184,7 +184,7 @@ export default function Inventory() {
     if (error) {
       toast.error("Failed to load inventory data. Showing sample data.");
       setShowMockData(true);
-    } else if (atRiskData?.data) {
+    } else if (atRiskData) {
       setShowMockData(false);
     }
   }, [error, atRiskData]);
@@ -325,7 +325,7 @@ export default function Inventory() {
                 <CardTitle className="text-sm font-medium text-muted-foreground">Total Products</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-foreground">{meta?.total_products || 0}</div>
+                <div className="text-2xl font-bold text-foreground">{productsData?.length || meta?.total_products || 0}</div>
                 <p className="text-xs text-muted-foreground mt-1">Across all platforms</p>
               </CardContent>
             </Card>

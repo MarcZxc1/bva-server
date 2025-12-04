@@ -3,40 +3,13 @@
  */
 
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { adsService, GenerateAdRequest, GenerateAdResponse, GenerateAdImageRequest, GenerateAdImageResponse } from "@/services/ads.service";
+import { useToast } from "@/hooks/use-toast";
 import { apiClient } from "@/lib/api-client";
-import { toast } from "sonner";
 
 // ============================================
 // Types
 // ============================================
-
-export interface AdRequest {
-  product_name: string;
-  playbook: "Flash Sale" | "New Arrival" | "Best Seller Spotlight" | "Bundle Up!";
-  discount?: string;
-}
-
-export interface AdResponse {
-  success: boolean;
-  data: {
-    playbookUsed: string;
-    product_name: string;
-    generated_ad_copy: string;
-  };
-}
-
-export interface AdImageRequest {
-  product_name: string;
-  playbook: string;
-  style?: string;
-}
-
-export interface AdImageResponse {
-  success: boolean;
-  data: {
-    image_url: string;
-  };
-}
 
 export interface PromotionResponse {
   success: boolean;
@@ -74,19 +47,28 @@ export interface PromotionResponse {
  * Usage: const { mutate, isPending } = useGenerateAdCopy();
  */
 export function useGenerateAdCopy() {
+  const { toast } = useToast();
+
   return useMutation({
-    mutationFn: async (request: AdRequest): Promise<AdResponse> => {
-      return apiClient.post<AdResponse>("/api/v1/ads/generate-ad", request);
+    mutationFn: async (request: GenerateAdRequest): Promise<GenerateAdResponse> => {
+      return adsService.generateAdText(request);
     },
     onSuccess: () => {
-      toast.success("Ad copy generated successfully!");
+      toast({
+        title: "Success",
+        description: "Ad copy generated successfully!",
+      });
     },
     onError: (error: any) => {
       const errorMessage = 
         error?.response?.data?.message || 
         error?.message || 
         "Failed to generate ad copy";
-      toast.error(errorMessage);
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive",
+      });
     },
   });
 }
@@ -96,19 +78,28 @@ export function useGenerateAdCopy() {
  * Usage: const { mutate, isPending } = useGenerateAdImage();
  */
 export function useGenerateAdImage() {
+  const { toast } = useToast();
+
   return useMutation({
-    mutationFn: async (request: AdImageRequest): Promise<AdImageResponse> => {
-      return apiClient.post<AdImageResponse>("/api/v1/ads/generate-ad-image", request);
+    mutationFn: async (request: GenerateAdImageRequest): Promise<GenerateAdImageResponse> => {
+      return adsService.generateAdImage(request);
     },
     onSuccess: () => {
-      toast.success("Ad image generated successfully!");
+      toast({
+        title: "Success",
+        description: "Ad image generated successfully!",
+      });
     },
     onError: (error: any) => {
       const errorMessage = 
         error?.response?.data?.message || 
         error?.message || 
         "Failed to generate ad image";
-      toast.error(errorMessage);
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive",
+      });
     },
   });
 }

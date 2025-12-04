@@ -60,8 +60,8 @@ export default function Login() {
         {/* Header Section */}
         <div className="text-center mb-8">
           <div className="flex justify-center mb-4">
-            <div className="h-20 w-20 glass-card-sm flex items-center justify-center">
-              <div className="text-4xl font-bold text-primary">BVA</div>
+            <div className="h-20 w-20 glass-card-sm flex items-center justify-center p-2">
+              <img src="/bva-logo.svg" alt="BVA Logo" className="h-full w-full object-contain" />
             </div>
           </div>
           <h1 className="text-4xl font-bold text-foreground mb-2">Business Virtual Assistant</h1>

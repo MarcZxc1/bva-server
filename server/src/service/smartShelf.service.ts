@@ -136,6 +136,7 @@ export async function getDashboardAnalytics(shopId: string) {
   let totalRevenue = 0;
   let totalCost = 0;
   let totalItems = 0;
+  const salesRecords: any[] = [];
 
   sales.forEach((sale) => {
     totalRevenue += sale.total;
@@ -149,6 +150,14 @@ export async function getDashboardAnalytics(shopId: string) {
         if (product) {
           totalCost += (product.cost || 0) * (item.quantity || 0);
           totalItems += item.quantity || 0;
+        }
+
+        if (item.productId) {
+          salesRecords.push({
+            product_id: item.productId,
+            date: sale.createdAt.toISOString(),
+            qty: item.quantity || 0,
+          });
         }
       });
     }
@@ -164,8 +173,9 @@ export async function getDashboardAnalytics(shopId: string) {
       const productIds = products.slice(0, 10).map((p) => p.id); // Top 10 products
       forecast = await mlClient.getDashboardForecast({
         shop_id: shopId,
-        product_ids: productIds,
-        forecast_days: 7,
+        product_list: productIds,
+        sales: salesRecords,
+        periods: 7,
       });
     } catch (error) {
       console.warn("Failed to get forecast from ML service:", error);

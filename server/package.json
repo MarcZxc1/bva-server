@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "dev": "ts-node-dev --respawn src/server.ts",
+    "dev": "npx prisma generate && ts-node-dev --respawn --transpile-only --compiler-options '{\"module\":\"commonjs\"}' src/server.ts",
     "start": "node dist/server.js",
     "build": "tsc",
     "seed": "ts-node prisma/seed.ts"

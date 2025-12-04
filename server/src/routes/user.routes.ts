@@ -17,4 +17,10 @@ router.post("/login", userController.login);
 // GET /api/users - List all users
 router.get("/", authMiddleware, userController.list);
 
+// PUT /api/users/profile - Update user profile
+router.put("/profile", authMiddleware, userController.updateProfile);
+
+// PUT /api/users/password - Update user password
+router.put("/password", authMiddleware, userController.updatePassword);
+
 export default router;

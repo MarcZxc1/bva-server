@@ -10,6 +10,8 @@ import restockRouter from "./routes/restock.routes";
 import smartShelfRouter from "./routes/smartShelf.routes";
 import userRoutes from "./routes/user.routes";
 import productRoutes from "./routes/product.routes";
+import notificationRoutes from "./routes/notification.routes";
+import reportsRoutes from "./routes/reports.routes";
 
 const app: Application = express();
 
@@ -41,8 +43,14 @@ app.use("/api/smart-shelf", smartShelfRouter);
 // Register User Router
 app.use("/api/users", userRoutes);
 
+// Register Notification Router
+app.use("/api/v1/notifications", notificationRoutes);
+
 // Register Product Router
 app.use("/api/products", productRoutes);
+
+// Register Reports Router
+app.use("/api/reports", reportsRoutes);
 
 // --- 3. Export the App ---
 // We export the app so server.ts can import it

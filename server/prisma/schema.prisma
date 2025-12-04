@@ -5,8 +5,9 @@
 // Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
 
 generator client {
-  provider = "prisma-client-js"
-  output   = "../src/generated/prisma"
+  provider      = "prisma-client-js"
+  output        = "../src/generated/prisma"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
 }
 
 // -------------------------------------
@@ -50,11 +51,25 @@ model User {
   email     String   @unique
   password  String
   name      String?
+  firstName String?
+  lastName  String?
   role      Role     @default(SELLER)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   shops     Shop[]
+  notifications Notification[]
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  title     String
+  message   String
+  type      String   // e.g., 'info', 'warning', 'success'
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
 }
 
 model Shop {
@@ -90,12 +105,14 @@ model Product {
 }
 
 model Inventory {
-  id        String         @id @default(uuid())
-  product   Product        @relation(fields: [productId], references: [id])
-  productId String
-  quantity  Int            @default(0)
-  location  String?
-  updatedAt DateTime       @updatedAt
+  id          String         @id @default(uuid())
+  product     Product        @relation(fields: [productId], references: [id])
+  productId   String
+  quantity    Int            @default(0)
+  threshold   Int            @default(10)
+  batchNumber String?
+  location    String?
+  updatedAt   DateTime       @updatedAt
 
   logs InventoryLog[]
 }

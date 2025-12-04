@@ -1,9 +1,13 @@
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { AlertTriangle, Package, TrendingDown, Calendar, Loader2, Sparkles } from "lucide-react";
 import { useAtRiskInventory } from "@/hooks/useSmartShelf";
 import { useAuth } from "@/contexts/AuthContext";
+import { AdGeneratorDialog } from "@/components/AdGeneratorDialog";
 
 const getRiskColor = (score: number): "destructive" | "secondary" | "outline" => {
   if (score >= 80) return "destructive";
@@ -32,9 +36,31 @@ const getActionIcon = (actionType: string) => {
 
 export default function SmartShelf() {
   const { user } = useAuth();
-  const shopId = user?.shops?.[0]?.id || "f7df4850-86bb-4b3e-8374-37f1c76d6793";
+  const navigate = useNavigate();
+  const shopId = user?.shops?.[0]?.id || "2aad5d00-d302-4c57-86ad-99826e19e610";
   
   const { data: atRiskData, isLoading, refetch } = useAtRiskInventory(shopId, true);
+  
+  const [selectedItem, setSelectedItem] = useState<any>(null);
+  const [isAdDialogOpen, setIsAdDialogOpen] = useState(false);
+  const [adDialogProps, setAdDialogProps] = useState<{
+    productName: string;
+    playbook: "Flash Sale" | "New Arrival" | "Best Seller Spotlight" | "Bundle Up!";
+  }>({ productName: "", playbook: "Flash Sale" });
+
+  const handleTakeAction = (item: any) => {
+    const actionType = item.recommended_action.action_type.toLowerCase();
+    
+    if (actionType.includes("restock")) {
+      navigate("/restock");
+    } else if (actionType.includes("promotion") || actionType.includes("clearance")) {
+      setAdDialogProps({
+        productName: item.name,
+        playbook: actionType.includes("clearance") ? "Flash Sale" : "Best Seller Spotlight"
+      });
+      setIsAdDialogOpen(true);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -63,7 +89,7 @@ export default function SmartShelf() {
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-bold text-foreground">
-              {atRiskData?.data?.meta?.total_products || 0}
+              {atRiskData?.meta?.total_products || 0}
             </div>
             <p className="text-xs text-muted-foreground mt-1">In inventory</p>
           </CardContent>
@@ -75,7 +101,7 @@ export default function SmartShelf() {
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-bold text-warning">
-              {atRiskData?.data?.meta?.flagged_count || 0}
+              {atRiskData?.meta?.flagged_count || 0}
             </div>
             <p className="text-xs text-muted-foreground mt-1">Need attention</p>
           </CardContent>
@@ -87,7 +113,7 @@ export default function SmartShelf() {
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-bold text-destructive">
-              {atRiskData?.data?.at_risk?.filter(item => item.score >= 80).length || 0}
+              {atRiskData?.at_risk?.filter(item => item.score >= 80).length || 0}
             </div>
             <p className="text-xs text-muted-foreground mt-1">Immediate action required</p>
           </CardContent>
@@ -99,8 +125,8 @@ export default function SmartShelf() {
           </CardHeader>
           <CardContent>
             <div className="text-lg font-bold text-foreground">
-              {atRiskData?.data?.meta?.analysis_date 
-                ? new Date(atRiskData.data.meta.analysis_date).toLocaleDateString()
+              {atRiskData?.meta?.analysis_date 
+                ? new Date(atRiskData.meta.analysis_date).toLocaleDateString()
                 : "N/A"}
             </div>
             <p className="text-xs text-muted-foreground mt-1">Last updated</p>
@@ -121,9 +147,9 @@ export default function SmartShelf() {
             <div className="py-12 flex items-center justify-center">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
             </div>
-          ) : atRiskData?.data?.at_risk && atRiskData.data.at_risk.length > 0 ? (
+          ) : atRiskData?.at_risk && atRiskData.at_risk.length > 0 ? (
             <div className="space-y-4">
-              {atRiskData.data.at_risk.map((item, index) => (
+              {atRiskData.at_risk.map((item, index) => (
                 <div 
                   key={index} 
                   className="flex items-center justify-between p-4 glass-card-sm hover:shadow-glow transition-smooth border-l-4"
@@ -201,8 +227,18 @@ export default function SmartShelf() {
                   </div>
 
                   <div className="flex gap-2 ml-4">
-                    <Button variant="outline" size="sm">View Details</Button>
-                    <Button size="sm" className="bg-primary hover:bg-primary/90 text-primary-foreground">
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => setSelectedItem(item)}
+                    >
+                      View Details
+                    </Button>
+                    <Button 
+                      size="sm" 
+                      className="bg-primary hover:bg-primary/90 text-primary-foreground"
+                      onClick={() => handleTakeAction(item)}
+                    >
                       Take Action
                     </Button>
                   </div>
@@ -218,6 +254,103 @@ export default function SmartShelf() {
           )}
         </CardContent>
       </Card>
+
+      {/* View Details Dialog */}
+      <Dialog open={!!selectedItem} onOpenChange={(open) => !open && setSelectedItem(null)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Package className="h-5 w-5 text-primary" />
+              Product Details
+            </DialogTitle>
+            <DialogDescription>
+              Detailed analysis and risk factors for {selectedItem?.name}
+            </DialogDescription>
+          </DialogHeader>
+          
+          {selectedItem && (
+            <div className="space-y-6 py-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-bold">{selectedItem.name}</h3>
+                  <p className="text-sm text-muted-foreground">SKU: {selectedItem.sku}</p>
+                </div>
+                <Badge variant={getRiskColor(selectedItem.score)} className="text-lg px-3 py-1">
+                  Score: {selectedItem.score}
+                </Badge>
+              </div>
+
+              <div className="grid grid-cols-3 gap-4">
+                <Card className="glass-card-sm p-4">
+                  <div className="text-sm text-muted-foreground mb-1">Current Stock</div>
+                  <div className="text-2xl font-bold">{selectedItem.current_quantity}</div>
+                </Card>
+                <Card className="glass-card-sm p-4">
+                  <div className="text-sm text-muted-foreground mb-1">Avg Daily Sales</div>
+                  <div className="text-2xl font-bold">{selectedItem.avg_daily_sales?.toFixed(1) || "N/A"}</div>
+                </Card>
+                <Card className="glass-card-sm p-4">
+                  <div className="text-sm text-muted-foreground mb-1">Days to Expiry</div>
+                  <div className={`text-2xl font-bold ${selectedItem.days_to_expiry < 30 ? "text-warning" : ""}`}>
+                    {selectedItem.days_to_expiry || "N/A"}
+                  </div>
+                </Card>
+              </div>
+
+              <div className="space-y-2">
+                <h4 className="font-semibold flex items-center gap-2">
+                  <AlertTriangle className="h-4 w-4 text-warning" />
+                  Risk Factors
+                </h4>
+                <div className="flex flex-wrap gap-2">
+                  {selectedItem.reasons.map((reason: string, idx: number) => (
+                    <Badge key={idx} variant="outline">
+                      {reason.replace(/_/g, ' ')}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+
+              <div className="bg-muted/50 p-4 rounded-lg border border-border">
+                <h4 className="font-semibold mb-2 flex items-center gap-2">
+                  {getActionIcon(selectedItem.recommended_action.action_type)}
+                  Recommended Action: {selectedItem.recommended_action.action_type.replace(/_/g, ' ')}
+                </h4>
+                <p className="text-sm text-muted-foreground mb-3">
+                  {selectedItem.recommended_action.reasoning}
+                </p>
+                
+                {selectedItem.recommended_action.restock_qty && (
+                  <div className="text-sm font-medium text-success">
+                    Recommended Restock Quantity: {selectedItem.recommended_action.restock_qty} units
+                  </div>
+                )}
+                
+                {selectedItem.recommended_action.discount_range && (
+                  <div className="text-sm font-medium text-warning">
+                    Suggested Discount Range: {selectedItem.recommended_action.discount_range[0]}% - {selectedItem.recommended_action.discount_range[1]}%
+                  </div>
+                )}
+
+                <Button className="w-full mt-4" onClick={() => {
+                  setSelectedItem(null);
+                  handleTakeAction(selectedItem);
+                }}>
+                  Proceed with Action
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Ad Generator Dialog */}
+      <AdGeneratorDialog 
+        open={isAdDialogOpen} 
+        onOpenChange={setIsAdDialogOpen}
+        initialProductName={adDialogProps.productName}
+        initialPlaybook={adDialogProps.playbook}
+      />
     </div>
   );
 }

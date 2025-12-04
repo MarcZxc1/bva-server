@@ -78,7 +78,7 @@ const getPlatformColor = (platform: string) => {
 
 export default function MarketMate() {
   const { user } = useAuth();
-  const shopId = user?.id || "f7df4850-86bb-4b3e-8374-37f1c76d6793";
+  const shopId = user?.id || "2aad5d00-d302-4c57-86ad-99826e19e610";
   const { data: promotionsData, isLoading: promotionsLoading } = usePromotions(shopId, true);
 
   return (

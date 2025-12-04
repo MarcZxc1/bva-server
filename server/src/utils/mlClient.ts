@@ -143,8 +143,9 @@ export class MLServiceClient {
    */
   async getDashboardForecast(request: {
     shop_id: string;
-    product_ids: string[];
-    forecast_days: number;
+    product_list: string[];
+    sales: any[];
+    periods: number;
   }): Promise<any> {
     return this.post("/api/v1/smart-shelf/forecast", request);
   }

@@ -135,3 +135,59 @@ export const healthApi = {
   },
 };
 
+// User API
+export const userApi = {
+  updateProfile: async (data: { firstName: string; lastName: string; email: string }) => {
+    return apiClient.put("/api/users/profile", data);
+  },
+  updatePassword: async (data: { currentPassword: string; newPassword: string }) => {
+    return apiClient.put("/api/users/password", data);
+  },
+};
+
+export interface NotificationResponse {
+  success: boolean;
+  data: Array<{
+    id: string;
+    title: string;
+    message: string;
+    type: "info" | "warning" | "success";
+    isRead: boolean;
+    createdAt: string;
+  }>;
+}
+
+// Notification API
+export const notificationApi = {
+  getAll: async (): Promise<NotificationResponse> => {
+    return apiClient.get<NotificationResponse>("/api/v1/notifications");
+  },
+  markAsRead: async (id: string) => {
+    return apiClient.patch(`/api/v1/notifications/${id}/read`);
+  },
+  markAllAsRead: async () => {
+    return apiClient.patch("/api/v1/notifications/read-all");
+  },
+};
+
+export interface DashboardMetrics {
+  totalRevenue: number;
+  profitMargin: number;
+  stockTurnover: number;
+  currency: string;
+}
+
+export interface SalesSummaryItem {
+  name: string;
+  total: number;
+}
+
+export const reportsApi = {
+  getMetrics: async (): Promise<DashboardMetrics> => {
+    return apiClient.get<DashboardMetrics>("/api/reports/metrics");
+  },
+  getSalesSummary: async (): Promise<SalesSummaryItem[]> => {
+    return apiClient.get<SalesSummaryItem[]>("/api/reports/sales-summary");
+  },
+};
+

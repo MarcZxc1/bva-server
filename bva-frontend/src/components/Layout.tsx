@@ -1,10 +1,11 @@
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "./AppSidebar";
-import { Search, Moon, Sun, Bell } from "lucide-react";
+import { Moon, Sun } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
+import { NotificationsPopover } from "./NotificationsPopover";
+import { SearchCommand } from "./SearchCommand";
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const { theme, toggleTheme } = useTheme();
@@ -22,13 +23,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             
             {/* Search Bar */}
             <div className="flex-1 max-w-md hidden md:flex">
-              <div className="relative w-full">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  placeholder="Search inventory, campaigns..."
-                  className="pl-10 glass-card-sm border-card-glass-border text-foreground placeholder:text-muted-foreground focus:ring-primary/20"
-                />
-              </div>
+              <SearchCommand />
             </div>
 
             {/* Right Section */}
@@ -49,10 +44,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               </Button>
 
               {/* Notifications */}
-              <Button variant="ghost" size="icon" className="rounded-md relative text-foreground hover:bg-primary/10">
-                <Bell className="h-5 w-5" />
-                <span className="absolute top-2 right-2 h-2 w-2 bg-destructive rounded-full" />
-              </Button>
+              <NotificationsPopover />
 
               {/* User Avatar */}
               <div className="flex items-center gap-3 pl-3 border-l border-border">

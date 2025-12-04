@@ -7,15 +7,15 @@ import { useAuth } from "@/contexts/AuthContext";
 export default function Dashboard() {
   const { user } = useAuth();
   // Use the first shop ID if available, otherwise fallback (though fallback likely won't work with real data)
-  const shopId = user?.shops?.[0]?.id || "f7df4850-86bb-4b3e-8374-37f1c76d6793";
+  const shopId = user?.shops?.[0]?.id || "2aad5d00-d302-4c57-86ad-99826e19e610";
   
   const { data: atRiskData } = useAtRiskInventory(shopId, true);
   const { data: analyticsData, isLoading: analyticsLoading } = useDashboardAnalytics(shopId);
 
   // Fallback data for visualization
-  const salesDataFallback = analyticsData?.data?.forecast?.forecasts?.[0]?.forecast_values.map((val: number, i: number) => ({
+  const salesDataFallback = analyticsData?.forecast?.forecasts?.[0]?.predictions.map((val, i) => ({
     month: `Day ${i + 1}`,
-    sales: val,
+    sales: val.predicted_qty,
   })) || [
     { month: "Jan", shopee: 4500, lazada: 3200, tiktok: 2100 },
     { month: "Feb", shopee: 5200, lazada: 3800, tiktok: 2800 },
@@ -33,7 +33,7 @@ export default function Dashboard() {
     { name: "Screen Protector Set", sales: 621, platform: "Lazada", trend: "up" },
   ];
 
-  const stockAlertsFallback = atRiskData?.data?.at_risk?.slice(0, 5).map(item => ({
+  const stockAlertsFallback = atRiskData?.at_risk?.slice(0, 5).map(item => ({
     product: item.name,
     stock: item.current_quantity,
     status: item.score >= 80 ? "critical" : item.score >= 60 ? "low" : "medium"
@@ -69,7 +69,7 @@ export default function Dashboard() {
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold text-foreground">
-                ₱{(analyticsData?.data?.metrics?.totalRevenue || 2345678).toLocaleString()}
+                ₱{(analyticsData?.metrics?.totalRevenue || 2345678).toLocaleString()}
               </div>
               <p className="text-xs text-success flex items-center mt-1">
                 <TrendingUp className="h-3 w-3 mr-1" />
@@ -85,7 +85,7 @@ export default function Dashboard() {
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold text-foreground">
-                {analyticsData?.data?.metrics?.totalSales || 4892}
+                {analyticsData?.metrics?.totalSales || 4892}
               </div>
               <p className="text-xs text-success flex items-center mt-1">
                 <TrendingUp className="h-3 w-3 mr-1" />
@@ -101,7 +101,7 @@ export default function Dashboard() {
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold text-foreground">
-                {analyticsData?.data?.metrics?.totalProducts || 347}
+                {analyticsData?.metrics?.totalProducts || 347}
               </div>
               <p className="text-xs text-muted-foreground flex items-center mt-1">
                 <TrendingDown className="h-3 w-3 mr-1" />
@@ -117,7 +117,7 @@ export default function Dashboard() {
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold text-warning">
-                {atRiskData?.data?.meta?.flagged_count || 23}
+                {atRiskData?.meta?.flagged_count || 23}
               </div>
               <p className="text-xs text-muted-foreground mt-1">
                 Items need attention

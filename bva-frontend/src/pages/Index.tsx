@@ -27,16 +27,14 @@ const Index = () => {
       <nav className="sticky top-4 z-50 glass-card-sm mx-4 mt-4">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 glass-card-sm flex items-center justify-center">
-              <span className="text-primary font-bold text-sm">BV</span>
-            </div>
+            <img src="/bva-logo.svg" alt="BVA Logo" className="h-8 w-8 object-contain" />
             <span className="font-bold text-xl text-foreground">Business VA</span>
           </div>
           <div className="flex items-center gap-3 ml-auto">
             {/* Features and Services Links */}
             <div className="hidden md:flex gap-6">
-              <a href="#features" className="text-muted-foreground hover:text-foreground transition text-sm">Features</a>
-              <a href="#services" className="text-muted-foreground hover:text-foreground transition text-sm">Services</a>
+              <a href="#features" className="text-foreground font-medium text-sm">Features</a>
+              <a href="#services" className="text-foreground font-medium text-sm">Services</a>
             </div>
             {/* Theme Toggle */}
             <Button
@@ -53,7 +51,7 @@ const Index = () => {
               )}
             </Button>
             <Button className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-nav-active" onClick={() => navigate("/login")}>
-              Get Started
+              Sign up
             </Button>
           </div>
         </div>
@@ -63,7 +61,7 @@ const Index = () => {
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
           <div className="space-y-6">
-            <Badge className="w-fit glass-card-sm text-primary border-primary/20">
+            <Badge className="w-fit bg-primary/10 text-primary border-primary/20 px-4 py-1.5 text-sm font-medium rounded-full">
               🚀 Smart Business Automation
             </Badge>
             <h1 className="text-5xl lg:text-6xl font-bold text-foreground leading-tight">
@@ -74,7 +72,7 @@ const Index = () => {
             </p>
             <div className="flex flex-col sm:flex-row gap-4 pt-4">
               <Button size="lg" className="bg-primary hover:bg-primary/90 text-primary-foreground gap-2 shadow-nav-active" onClick={() => navigate("/login")}>
-                Start Free Trial <ArrowRight className="h-4 w-4" />
+                Get Started <ArrowRight className="h-4 w-4" />
               </Button>
               <Button size="lg" variant="outline" className="border-card-glass-border text-foreground hover:bg-primary/10 glass-card-sm">
                 Watch Demo
@@ -82,7 +80,7 @@ const Index = () => {
             </div>
             <div className="grid grid-cols-3 gap-4 pt-8">
               <div>
-                <p className="text-2xl font-bold text-primary">45K+</p>
+                <p className="text-2xl font-bold text-primary">1</p>
                 <p className="text-sm text-muted-foreground">Active Users</p>
               </div>
               <div>
@@ -104,7 +102,7 @@ const Index = () => {
                   <Package className="h-6 w-6 text-primary" />
                 </div>
                 <div>
-                  <p className="font-semibold text-foreground">Smart Inventory</p>
+                  <p className="font-semibold text-foreground">SmartShelf</p>
                   <p className="text-sm text-muted-foreground">Real-time tracking</p>
                 </div>
               </div>
@@ -147,7 +145,7 @@ const Index = () => {
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           {[
-            { icon: Package, title: "Smart Inventory", desc: "Track stock in real-time" },
+            { icon: Package, title: "SmartShelf", desc: "Track stock in real-time" },
             { icon: TrendingUp, title: "Restock Planning", desc: "AI-powered forecasting" },
             { icon: Zap, title: "MarketMate", desc: "Campaign automation" },
             { icon: BarChart3, title: "Analytics", desc: "Detailed insights" },
@@ -258,7 +256,7 @@ const Index = () => {
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Button size="lg" className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold gap-2 shadow-nav-active" onClick={() => navigate("/login")}>
-              Start Free Trial <ArrowRight className="h-4 w-4" />
+              Get Started <ArrowRight className="h-4 w-4" />
             </Button>
             <Button size="lg" variant="outline" className="border-card-glass-border text-foreground hover:bg-primary/10 glass-card-sm font-semibold">
               Schedule Demo
@@ -273,9 +271,7 @@ const Index = () => {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
             <div>
               <div className="flex items-center gap-2 mb-4">
-                <div className="w-8 h-8 glass-card-sm flex items-center justify-center">
-                  <span className="text-primary font-bold text-sm">BV</span>
-                </div>
+                <img src="/bva-logo.svg" alt="BVA Logo" className="h-8 w-8 object-contain" />
                 <span className="font-bold text-foreground">Business VA</span>
               </div>
               <p className="text-muted-foreground">Your AI-powered business assistant</p>

@@ -29,12 +29,12 @@ WORKDIR /app
 COPY package*.json ./
 
 # Install production dependencies only
-RUN npm ci --production
+RUN npm ci
 
 # Copy built app from builder
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/src/generated ./src/generated
-COPY --from=builder /app/src/prisma ./src/prisma
+COPY --from=builder /app/prisma ./prisma
 
 # Expose port
 EXPOSE 3000

@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { TrendingUp, Calendar, Package, Sparkles, Loader2 } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, ReferenceLine } from "recharts";
-import { useRestockStrategy } from "@/hooks/useRestock";
+import { useRestock } from "@/hooks/useRestock";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -31,7 +31,7 @@ export default function RestockPlanner() {
   const [goal, setGoal] = useState<"profit" | "volume" | "balanced">("balanced");
   const [restockDays, setRestockDays] = useState("14");
   
-  const restockMutation = useRestockStrategy();
+  const restockMutation = useRestock();
   const restockData = restockMutation.data?.data;
 
   const handleGeneratePlan = async () => {
@@ -57,8 +57,8 @@ export default function RestockPlanner() {
   // Prepare chart data from API response
   const chartData = restockData?.recommendations?.slice(0, 8).map((rec, index) => ({
     date: `Week ${index + 1}`,
-    predicted: rec.expectedRevenue / 100,
-    restock: rec.recommendedQty,
+    predicted: rec.expected_revenue / 100,
+    restock: rec.recommended_qty,
   })) || [];
 
   return (
@@ -168,10 +168,10 @@ export default function RestockPlanner() {
                 <CardTitle className="text-sm font-medium text-muted-foreground">Predicted Demand</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-foreground">{restockData.summary.totalQuantity} units</div>
+                <div className="text-2xl font-bold text-foreground">{restockData.summary.total_items} units</div>
                 <p className="text-xs text-success flex items-center mt-1">
                   <TrendingUp className="h-3 w-3 mr-1" />
-                  {restockData.summary.expectedROI.toFixed(1)}% ROI
+                  {(restockData.summary.roi || 0).toFixed(1)}% ROI
                 </p>
               </CardContent>
             </Card>
@@ -181,7 +181,7 @@ export default function RestockPlanner() {
                 <CardTitle className="text-sm font-medium text-muted-foreground">Restock Items</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-foreground">{restockData.summary.totalProducts}</div>
+                <div className="text-2xl font-bold text-foreground">{restockData.recommendations.length}</div>
                 <p className="text-xs text-muted-foreground mt-1">Products need restocking</p>
               </CardContent>
             </Card>
@@ -191,9 +191,9 @@ export default function RestockPlanner() {
                 <CardTitle className="text-sm font-medium text-muted-foreground">Est. Investment</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-foreground">₱{restockData.summary.totalCost.toLocaleString()}</div>
+                <div className="text-2xl font-bold text-foreground">₱{(restockData.summary.total_cost || 0).toLocaleString()}</div>
                 <p className="text-xs text-muted-foreground mt-1">
-                  {restockData.summary.budgetUtilization.toFixed(1)}% of budget
+                  {restockData.budget ? ((restockData.summary.total_cost / restockData.budget) * 100).toFixed(1) : "0.0"}% of budget
                 </p>
               </CardContent>
             </Card>
@@ -203,7 +203,7 @@ export default function RestockPlanner() {
                 <CardTitle className="text-sm font-medium text-muted-foreground">Expected Profit</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-primary">₱{restockData.summary.expectedProfit.toLocaleString()}</div>
+                <div className="text-2xl font-bold text-primary">₱{((restockData.summary.projected_revenue || 0) - (restockData.summary.total_cost || 0)).toLocaleString()}</div>
                 <p className="text-xs text-muted-foreground mt-1">AI prediction</p>
               </CardContent>
             </Card>
@@ -274,18 +274,18 @@ export default function RestockPlanner() {
                 <TableBody>
                   {restockData.recommendations.map((item, index) => (
                     <TableRow key={index}>
-                      <TableCell className="font-medium">{item.productName}</TableCell>
+                      <TableCell className="font-medium">{item.product_name}</TableCell>
                       <TableCell>
-                        <Badge variant={getPriorityColor(item.priorityScore)}>
-                          {getPriorityLabel(item.priorityScore)}
+                        <Badge variant={getPriorityColor(item.priority)}>
+                          {getPriorityLabel(item.priority)}
                         </Badge>
                       </TableCell>
-                      <TableCell>{item.currentStock}</TableCell>
-                      <TableCell className="text-success font-bold">{item.recommendedQty}</TableCell>
-                      <TableCell>₱{item.totalCost.toLocaleString()}</TableCell>
-                      <TableCell className="text-success">₱{item.expectedProfit.toLocaleString()}</TableCell>
-                      <TableCell className="max-w-[200px] truncate text-muted-foreground" title={item.reasoning}>
-                        {item.reasoning}
+                      <TableCell>{item.current_stock}</TableCell>
+                      <TableCell className="text-success font-bold">{item.recommended_qty}</TableCell>
+                      <TableCell>₱{(item.cost || 0).toLocaleString()}</TableCell>
+                      <TableCell className="text-success">₱{((item.expected_revenue || 0) - (item.cost || 0)).toLocaleString()}</TableCell>
+                      <TableCell className="max-w-[200px] truncate text-muted-foreground" title={item.reason}>
+                        {item.reason}
                       </TableCell>
                       <TableCell className="text-right">
                         <Button variant="outline" size="sm">Approve</Button>

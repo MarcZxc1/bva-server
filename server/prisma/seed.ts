@@ -391,6 +391,7 @@ async function main() {
   console.log("🏪 Creating shop...");
   const shop = await prisma.shop.create({
     data: {
+      id: "2aad5d00-d302-4c57-86ad-99826e19e610", // Fixed ID for frontend consistency
       name: "Main Store",
       ownerId: user.id,
     },

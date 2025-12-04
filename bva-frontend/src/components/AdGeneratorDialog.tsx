@@ -4,7 +4,7 @@
  * Modal for generating AI-powered ad copy and images
  */
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,16 +19,39 @@ import { toast } from "sonner";
 interface AdGeneratorDialogProps {
   trigger?: React.ReactNode;
   onAdGenerated?: (adData: any) => void;
+  initialProductName?: string;
+  initialPlaybook?: "Flash Sale" | "New Arrival" | "Best Seller Spotlight" | "Bundle Up!";
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
-export function AdGeneratorDialog({ trigger, onAdGenerated }: AdGeneratorDialogProps) {
-  const [open, setOpen] = useState(false);
-  const [productName, setProductName] = useState("");
-  const [playbook, setPlaybook] = useState<"Flash Sale" | "New Arrival" | "Best Seller Spotlight" | "Bundle Up!">("Flash Sale");
+export function AdGeneratorDialog({ 
+  trigger, 
+  onAdGenerated, 
+  initialProductName = "", 
+  initialPlaybook = "Flash Sale",
+  open: controlledOpen,
+  onOpenChange: setControlledOpen
+}: AdGeneratorDialogProps) {
+  const [internalOpen, setInternalOpen] = useState(false);
+  const isControlled = controlledOpen !== undefined;
+  const open = isControlled ? controlledOpen : internalOpen;
+  const setOpen = isControlled ? setControlledOpen : setInternalOpen;
+
+  const [productName, setProductName] = useState(initialProductName);
+  const [playbook, setPlaybook] = useState<"Flash Sale" | "New Arrival" | "Best Seller Spotlight" | "Bundle Up!">(initialPlaybook);
   const [discount, setDiscount] = useState("");
   const [generatedAd, setGeneratedAd] = useState<string | null>(null);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+
+  // Update state when dialog opens or props change
+  useEffect(() => {
+    if (open) {
+      if (initialProductName) setProductName(initialProductName);
+      if (initialPlaybook) setPlaybook(initialPlaybook);
+    }
+  }, [open, initialProductName, initialPlaybook]);
 
   const generateAdCopyMutation = useGenerateAdCopy();
   const generateImageMutation = useGenerateAdImage();
@@ -43,12 +66,12 @@ export function AdGeneratorDialog({ trigger, onAdGenerated }: AdGeneratorDialogP
       { product_name: productName, playbook, discount: discount || undefined },
       {
         onSuccess: (response) => {
-          setGeneratedAd(response.data.generated_ad_copy);
+          setGeneratedAd(response.ad_copy);
           if (onAdGenerated) {
             onAdGenerated({
               productName,
               playbook,
-              adCopy: response.data.generated_ad_copy,
+              adCopy: response.ad_copy,
             });
           }
         },
@@ -66,7 +89,7 @@ export function AdGeneratorDialog({ trigger, onAdGenerated }: AdGeneratorDialogP
       { product_name: productName, playbook },
       {
         onSuccess: (response) => {
-          setImageUrl(response.data.image_url);
+          setImageUrl(response.image_url);
         },
       }
     );
