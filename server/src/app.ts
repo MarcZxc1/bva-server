@@ -21,6 +21,25 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // --- 2. Routes ---
+// Root route
+app.get("/", (req: Request, res: Response) => {
+  res.status(200).json({ 
+    message: "Business Virtual Assistant API",
+    version: "1.0.0",
+    status: "running",
+    endpoints: {
+      health: "/health",
+      products: "/api/products",
+      users: "/api/users",
+      ads: "/api/v1/ads",
+      restock: "/api/ai/restock",
+      smartShelf: "/api/smart-shelf",
+      notifications: "/api/v1/notifications",
+      reports: "/api/reports"
+    }
+  });
+});
+
 // Health check route (good for testing if the server is alive)
 app.get("/health", (req: Request, res: Response) => {
   res.status(200).json({ status: "up" });
