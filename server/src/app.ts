@@ -1,10 +1,15 @@
 import express, { Application, Request, Response } from "express";
 import cors from "cors";
+import passport, { initializeGoogleStrategy } from "./config/passport";
 
 import dotenv from "dotenv";
 import path from "path";
 
 dotenv.config({ path: path.join(__dirname, "../.env") });
+
+// Initialize Google OAuth after env is loaded
+initializeGoogleStrategy();
+
 import adRouter from "./api/ads/ad.router";
 import restockRouter from "./routes/restock.routes";
 import smartShelfRouter from "./routes/smartShelf.routes";
@@ -12,6 +17,7 @@ import userRoutes from "./routes/user.routes";
 import productRoutes from "./routes/product.routes";
 import notificationRoutes from "./routes/notification.routes";
 import reportsRoutes from "./routes/reports.routes";
+import authRoutes from "./routes/auth.routes";
 
 const app: Application = express();
 
@@ -19,6 +25,9 @@ app.use(cors());
 app.use(express.json());
 
 app.use(express.urlencoded({ extended: true }));
+
+// Initialize Passport
+app.use(passport.initialize());
 
 // --- 2. Routes ---
 // Root route
@@ -29,6 +38,7 @@ app.get("/", (req: Request, res: Response) => {
     status: "running",
     endpoints: {
       health: "/health",
+      auth: "/api/auth",
       products: "/api/products",
       users: "/api/users",
       ads: "/api/v1/ads",
@@ -70,6 +80,9 @@ app.use("/api/products", productRoutes);
 
 // Register Reports Router
 app.use("/api/reports", reportsRoutes);
+
+// Register Auth Router
+app.use("/api/auth", authRoutes);
 
 // --- 3. Export the App ---
 // We export the app so server.ts can import it

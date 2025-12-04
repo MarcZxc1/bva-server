@@ -19,6 +19,7 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, name?: string) => Promise<void>;
   logout: () => void;
+  setToken: (token: string) => void;
   isAuthenticated: boolean;
   isLoading: boolean;
 }
@@ -75,6 +76,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem("user");
   };
 
+  // Set token from external source (e.g., Google OAuth callback)
+  const setAuthToken = (newToken: string) => {
+    setToken(newToken);
+    localStorage.setItem("auth_token", newToken);
+    
+    // Decode JWT to get user info (basic decode, not verification)
+    try {
+      const payload = JSON.parse(atob(newToken.split('.')[1]));
+      const basicUser: User = {
+        id: payload.userId,
+        email: payload.email || "google-user@example.com",
+        name: payload.name || "Google User",
+      };
+      setUser(basicUser);
+      localStorage.setItem("user", JSON.stringify(basicUser));
+    } catch (e) {
+      console.error("Failed to decode token:", e);
+    }
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -83,6 +104,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         login,
         register,
         logout,
+        setToken: setAuthToken,
         isAuthenticated: !!token && !!user,
         isLoading,
       }}
