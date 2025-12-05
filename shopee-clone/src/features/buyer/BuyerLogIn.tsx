@@ -61,7 +61,7 @@ const BuyerLogIn: React.FC = () => {
           window.history.replaceState({}, document.title, window.location.pathname);
           navigate('/');
         })
-        .catch((err) => {
+        .catch(() => {
           setError('Failed to authenticate. Please try again.');
           window.history.replaceState({}, document.title, window.location.pathname);
         });

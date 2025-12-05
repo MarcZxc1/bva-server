@@ -43,8 +43,8 @@ export class UserService {
       },
     });
 
-    if (!user) {
-      throw new Error("User not found");
+    if (!user || !user.password) {
+      throw new Error("User not found or password not set");
     }
 
     const isPasswordValid = await bcrypt.compare(password, user.password);

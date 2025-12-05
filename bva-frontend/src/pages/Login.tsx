@@ -90,8 +90,10 @@ export default function Login() {
   };
 
   const handleGoogleLogin = () => {
-    // Redirect to backend Google OAuth endpoint
-    window.location.href = `${BACKEND_URL}/api/auth/google`;
+    // We pass the frontend's origin as the 'state' parameter.
+    // The backend will use this to redirect the user back to the correct application.
+    const state = window.location.origin;
+    window.location.href = `${BACKEND_URL}/api/auth/google?state=${state}`;
   };
 
   return (

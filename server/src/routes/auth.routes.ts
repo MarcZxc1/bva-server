@@ -7,8 +7,14 @@ import jwt from "jsonwebtoken";
 
 const router = Router();
 
-// Frontend URL for redirects
-const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:5173";
+// Allowed frontend URLs for redirection
+const ALLOWED_FRONTENDS = [
+  "http://localhost:5173", // Shopee Clone
+  "http://localhost:8080", // BVA Frontend
+  "https://bva-frontend.vercel.app",
+  "https://shopee-clone.vercel.app"
+];
+
 const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key";
 const JWT_EXPIRATION = process.env.JWT_EXPIRATION || "24h";
 
@@ -48,50 +54,87 @@ const authMiddleware = async (req: Request, res: Response, next: Function) => {
  * @desc    Initiate Google OAuth authentication
  * @access  Public
  */
-router.get(
-  "/google",
-  passport.authenticate("google", {
+router.get("/google", (req: Request, res: Response, next) => {
+  const { state } = req.query;
+
+  if (!state || typeof state !== "string") {
+    return res.status(400).send("A 'state' query parameter is required for login.");
+  }
+  
+  // Encode the state to ensure it's safely passed through the OAuth flow
+  const encodedState = Buffer.from(JSON.stringify({ redirectUrl: state })).toString('base64');
+
+  const authenticator = passport.authenticate("google", {
     scope: ["profile", "email"],
     session: false,
-  })
-);
+    state: encodedState,
+  });
+
+  authenticator(req, res, next);
+});
+
 
 /**
  * @route   GET /api/auth/google/callback
  * @desc    Google OAuth callback handler
  * @access  Public
  */
-router.get(
-  "/google/callback",
+router.get("/google/callback", (req, res, next) => {
+  // Extract state and validate it
+  const state = req.query.state as string;
+  let redirectUrl = ALLOWED_FRONTENDS[0]; // Default redirect
+  let decodedState: { redirectUrl: string } | null = null;
+
+  try {
+    if (state) {
+      decodedState = JSON.parse(Buffer.from(state, 'base64').toString('utf-8'));
+      if (decodedState && decodedState.redirectUrl && ALLOWED_FRONTENDS.includes(decodedState.redirectUrl)) {
+        redirectUrl = decodedState.redirectUrl;
+      }
+    }
+  } catch (e) {
+    console.error("Invalid state parameter:", e);
+    // Handle error, maybe redirect to a default error page
+    return res.redirect(`${ALLOWED_FRONTENDS[0]}/buyer-login?error=invalid_state`);
+  }
+  
+  const failureRedirect = `${redirectUrl}/buyer-login?error=google_auth_failed`;
+
   passport.authenticate("google", {
     session: false,
-    failureRedirect: `${FRONTEND_URL}/buyer-login?error=google_auth_failed`,
-  }),
-  (req: Request, res: Response) => {
+    failureRedirect: failureRedirect,
+    state: state,
+  }) (req, res, (err: any) => {
+    if (err) {
+      return next(err);
+    }
+    
     try {
-      // User is attached to req.user by passport
       const user = req.user as any;
 
       if (!user) {
-        return res.redirect(`${FRONTEND_URL}/buyer-login?error=no_user`);
+        return res.redirect(`${redirectUrl}/buyer-login?error=no_user`);
       }
 
-      // Generate JWT token
       const token = jwt.sign(
         { userId: user.id, role: user.role },
         JWT_SECRET,
         { expiresIn: JWT_EXPIRATION } as jwt.SignOptions
       );
+      
+      if(redirectUrl){
+        // BVA frontend is on port 8080, Shopee-Clone is on port 5173
+        // BVA handles token in /login page, Shopee handles it in root page
+        const destination = redirectUrl.includes('8080') ? '/login' : '/';
+        res.redirect(`${redirectUrl}${destination}?token=${token}`);
+      }
 
-      // Redirect to frontend with token
-      // For Shopee Clone, redirect to /buyer-login which handles the token
-      res.redirect(`${FRONTEND_URL}/buyer-login?token=${token}`);
     } catch (error) {
       console.error("Google callback error:", error);
-      res.redirect(`${FRONTEND_URL}/buyer-login?error=token_generation_failed`);
+      res.redirect(`${redirectUrl}/buyer-login?error=token_generation_failed`);
     }
-  }
-);
+  });
+});
 
 // ==========================================
 // Standard Auth Routes

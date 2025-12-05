@@ -151,9 +151,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const loginWithGoogle = (): void => {
-    // Redirect to BVA's Google OAuth endpoint
+    const state = window.location.origin;
     // The callback will redirect back to this app with a token
-    window.location.href = `${BVA_API_URL}/api/auth/google`;
+    window.location.href = `${BVA_API_URL}/api/auth/google?state=${state}`;
   };
 
   const register = async (email: string, password: string, name?: string): Promise<void> => {

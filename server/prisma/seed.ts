@@ -5,7 +5,7 @@
  * Populates the database with realistic sample data for testing the
  * AI-powered restocking strategy feature.
  *
- * Generates:
+ * Generates: 
  * - 2 test users (admin and tester)
  * - 1 shop
  * - 50 products with varying prices, costs, and categories

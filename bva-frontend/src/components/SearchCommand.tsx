@@ -28,6 +28,16 @@ import {
   CommandSeparator,
   CommandShortcut,
 } from "@/components/ui/command";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useNavigate } from "react-router-dom";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useAuth } from "@/contexts/AuthContext";
@@ -35,6 +45,7 @@ import { Button } from "@/components/ui/button";
 
 export function SearchCommand() {
   const [open, setOpen] = React.useState(false);
+  const [showLogoutDialog, setShowLogoutDialog] = React.useState(false);
   const navigate = useNavigate();
   const { toggleTheme } = useTheme();
   const { logout } = useAuth();
@@ -107,16 +118,35 @@ export function SearchCommand() {
               <Moon className="absolute mr-2 h-4 w-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
               <span className="ml-6">Toggle Theme</span>
             </CommandItem>
-            <CommandItem onSelect={() => runCommand(() => {
-                logout();
-                navigate("/login");
-            })}>
+            <CommandItem onSelect={() => runCommand(() => setShowLogoutDialog(true))}>
               <LogOut className="mr-2 h-4 w-4" />
               <span>Log out</span>
             </CommandItem>
           </CommandGroup>
         </CommandList>
       </CommandDialog>
+
+      <AlertDialog open={showLogoutDialog} onOpenChange={setShowLogoutDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure you want to logout?</AlertDialogTitle>
+            <AlertDialogDescription>
+              You will need to sign in again to access your dashboard and features.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                logout();
+                navigate("/login");
+              }}
+            >
+              Logout
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }
