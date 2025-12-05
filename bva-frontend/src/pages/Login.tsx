@@ -4,10 +4,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { AxiosError } from "axios";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Mail, Lock, User } from "lucide-react";
 
 // Google Icon SVG Component
 const GoogleIcon = () => (
@@ -37,10 +38,20 @@ const BACKEND_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
 export default function Login() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { login, setToken, isLoading } = useAuth();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const { login, register, setToken, isLoading } = useAuth();
+  
+  // Login form state
+  const [loginEmail, setLoginEmail] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
+  
+  // Register form state
+  const [registerName, setRegisterName] = useState("");
+  const [registerEmail, setRegisterEmail] = useState("");
+  const [registerPassword, setRegisterPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [activeTab, setActiveTab] = useState<"login" | "register">("login");
 
   // Handle token from Google OAuth callback
   useEffect(() => {
@@ -76,22 +87,59 @@ export default function Login() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!email || !password) {
+    if (!loginEmail || !loginPassword) {
       toast.error("Please enter email and password");
       return;
     }
 
     setIsSubmitting(true);
     try {
-      await login(email, password);
+      await login(loginEmail, loginPassword);
       toast.success("Login successful!");
       navigate("/dashboard");
     } catch (error) {
-      const axiosError = error as AxiosError<{ error?: string }>;
+      const axiosError = error as AxiosError<{ error?: string; message?: string }>;
       toast.error(
         axiosError.response?.data?.error || 
+        axiosError.response?.data?.message ||
         axiosError.message || 
         "Login failed. Please check your credentials."
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!registerName || !registerEmail || !registerPassword) {
+      toast.error("Please fill in all fields");
+      return;
+    }
+
+    if (registerPassword !== confirmPassword) {
+      toast.error("Passwords do not match");
+      return;
+    }
+
+    if (registerPassword.length < 6) {
+      toast.error("Password must be at least 6 characters");
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      await register(registerEmail, registerPassword, registerName);
+      toast.success("Registration successful! Welcome to BVA!");
+      navigate("/dashboard");
+    } catch (error) {
+      const axiosError = error as AxiosError<{ error?: string; message?: string }>;
+      toast.error(
+        axiosError.response?.data?.error || 
+        axiosError.response?.data?.message ||
+        axiosError.message || 
+        "Registration failed. Please try again."
       );
     } finally {
       setIsSubmitting(false);
@@ -132,74 +180,171 @@ export default function Login() {
           <p className="text-muted-foreground">AI-powered inventory & marketing automation</p>
         </div>
 
-        {/* Login Card - Centered Glass Card */}
+        {/* Auth Card with Tabs */}
         <Card className="glass-card shadow-card">
-          <CardHeader className="border-b border-card-glass-border">
-            <CardTitle className="text-foreground">👋 Welcome Back</CardTitle>
-            <CardDescription className="text-muted-foreground">Sign in to manage your e-commerce business</CardDescription>
+          <CardHeader className="border-b border-card-glass-border pb-4">
+            <CardTitle className="text-foreground">
+              {activeTab === "login" ? "👋 Welcome Back" : "🚀 Get Started"}
+            </CardTitle>
+            <CardDescription className="text-muted-foreground">
+              {activeTab === "login" 
+                ? "Sign in to manage your e-commerce business" 
+                : "Create an account to start automating your business"}
+            </CardDescription>
           </CardHeader>
           <CardContent className="pt-6">
-            <form onSubmit={handleLogin} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="email" className="text-foreground font-medium">Email</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="seller@example.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="glass-card-sm border-card-glass-border focus:ring-primary/20"
-                  required
-                />
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="password" className="text-foreground font-medium">Password</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="glass-card-sm border-card-glass-border focus:ring-primary/20"
-                  required
-                />
-              </div>
+            <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "login" | "register")} className="w-full">
+              <TabsList className="grid w-full grid-cols-2 mb-6">
+                <TabsTrigger value="login">Login</TabsTrigger>
+                <TabsTrigger value="register">Register</TabsTrigger>
+              </TabsList>
 
-              <Button 
-                type="submit" 
-                className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold py-2 h-11 rounded-md shadow-nav-active" 
-                disabled={isSubmitting || isLoading}
-              >
-                {isSubmitting ? "Signing in..." : "Sign In"}
-              </Button>
+              {/* Login Form */}
+              <TabsContent value="login">
+                <form onSubmit={handleLogin} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="login-email" className="text-foreground font-medium">
+                      <Mail className="inline h-4 w-4 mr-1" />
+                      Email
+                    </Label>
+                    <Input
+                      id="login-email"
+                      type="email"
+                      placeholder="seller@example.com"
+                      value={loginEmail}
+                      onChange={(e) => setLoginEmail(e.target.value)}
+                      className="glass-card-sm border-card-glass-border focus:ring-primary/20"
+                      required
+                    />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="login-password" className="text-foreground font-medium">
+                      <Lock className="inline h-4 w-4 mr-1" />
+                      Password
+                    </Label>
+                    <Input
+                      id="login-password"
+                      type="password"
+                      placeholder="••••••••"
+                      value={loginPassword}
+                      onChange={(e) => setLoginPassword(e.target.value)}
+                      className="glass-card-sm border-card-glass-border focus:ring-primary/20"
+                      required
+                    />
+                  </div>
 
-              {/* Divider */}
-              <div className="relative my-4">
-                <div className="absolute inset-0 flex items-center">
-                  <span className="w-full border-t border-card-glass-border" />
-                </div>
-                <div className="relative flex justify-center text-xs uppercase">
-                  <span className="bg-card px-2 text-muted-foreground">Or continue with</span>
-                </div>
+                  <Button 
+                    type="submit" 
+                    className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold py-2 h-11 rounded-md shadow-nav-active" 
+                    disabled={isSubmitting || isLoading}
+                  >
+                    {isSubmitting ? "Signing in..." : "Sign In"}
+                  </Button>
+                </form>
+              </TabsContent>
+
+              {/* Register Form */}
+              <TabsContent value="register">
+                <form onSubmit={handleRegister} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="register-name" className="text-foreground font-medium">
+                      <User className="inline h-4 w-4 mr-1" />
+                      Full Name
+                    </Label>
+                    <Input
+                      id="register-name"
+                      type="text"
+                      placeholder="John Doe"
+                      value={registerName}
+                      onChange={(e) => setRegisterName(e.target.value)}
+                      className="glass-card-sm border-card-glass-border focus:ring-primary/20"
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="register-email" className="text-foreground font-medium">
+                      <Mail className="inline h-4 w-4 mr-1" />
+                      Email
+                    </Label>
+                    <Input
+                      id="register-email"
+                      type="email"
+                      placeholder="seller@example.com"
+                      value={registerEmail}
+                      onChange={(e) => setRegisterEmail(e.target.value)}
+                      className="glass-card-sm border-card-glass-border focus:ring-primary/20"
+                      required
+                    />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="register-password" className="text-foreground font-medium">
+                      <Lock className="inline h-4 w-4 mr-1" />
+                      Password
+                    </Label>
+                    <Input
+                      id="register-password"
+                      type="password"
+                      placeholder="••••••••"
+                      value={registerPassword}
+                      onChange={(e) => setRegisterPassword(e.target.value)}
+                      className="glass-card-sm border-card-glass-border focus:ring-primary/20"
+                      required
+                      minLength={6}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="confirm-password" className="text-foreground font-medium">
+                      <Lock className="inline h-4 w-4 mr-1" />
+                      Confirm Password
+                    </Label>
+                    <Input
+                      id="confirm-password"
+                      type="password"
+                      placeholder="••••••••"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      className="glass-card-sm border-card-glass-border focus:ring-primary/20"
+                      required
+                      minLength={6}
+                    />
+                  </div>
+
+                  <Button 
+                    type="submit" 
+                    className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold py-2 h-11 rounded-md shadow-nav-active" 
+                    disabled={isSubmitting || isLoading}
+                  >
+                    {isSubmitting ? "Creating account..." : "Create Account"}
+                  </Button>
+                </form>
+              </TabsContent>
+            </Tabs>
+
+            {/* Divider */}
+            <div className="relative my-6">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t border-card-glass-border" />
               </div>
-
-              {/* Google Sign-in Button */}
-              <Button
-                type="button"
-                variant="outline"
-                className="w-full h-11 glass-card-sm border-card-glass-border hover:bg-primary/5 transition-smooth"
-                onClick={handleGoogleLogin}
-                disabled={isSubmitting || isLoading}
-              >
-                <GoogleIcon />
-                Sign in with Google
-              </Button>
-
-              <div className="text-center text-sm text-muted-foreground glass-card-sm p-3 rounded-md">
-                Demo: Use any email and password to login
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-card px-2 text-muted-foreground">Or continue with</span>
               </div>
-            </form>
+            </div>
+
+            {/* Google Sign-in Button */}
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full h-11 glass-card-sm border-card-glass-border hover:bg-primary/5 transition-smooth"
+              onClick={handleGoogleLogin}
+              disabled={isSubmitting || isLoading}
+            >
+              <GoogleIcon />
+              Sign in with Google
+            </Button>
           </CardContent>
         </Card>
 

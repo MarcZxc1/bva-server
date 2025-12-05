@@ -48,11 +48,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     
     if (response.success && response.token) {
       // For manual login, we already have user data from response
-      // Don't call async setToken which tries to fetch user data
+      const userData: User = {
+        id: response.data.id,
+        email: response.data.email,
+        name: response.data.name,
+        shops: response.data.shops || []
+      };
+      
       setToken(response.token);
-      setUser(response.data);
+      setUser(userData);
       localStorage.setItem("auth_token", response.token);
-      localStorage.setItem("user", JSON.stringify(response.data));
+      localStorage.setItem("user", JSON.stringify(userData));
     } else {
       throw new Error("Login failed");
     }
@@ -63,11 +69,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     
     if (response.success && response.token) {
       // For manual register, we already have user data from response
-      // Don't call async setToken which tries to fetch user data
+      const userData: User = {
+        id: response.data.id,
+        email: response.data.email,
+        name: response.data.name,
+        shops: response.data.shops || []
+      };
+      
       setToken(response.token);
-      setUser(response.data);
+      setUser(userData);
       localStorage.setItem("auth_token", response.token);
-      localStorage.setItem("user", JSON.stringify(response.data));
+      localStorage.setItem("user", JSON.stringify(userData));
     } else {
       throw new Error("Registration failed");
     }

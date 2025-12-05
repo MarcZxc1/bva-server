@@ -3,6 +3,7 @@ import { UserService } from "../service/user.service";
 import { generateToken } from "../utils/jwt";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
+import prisma from "../lib/prisma";
 
 const userService = new UserService();
 
@@ -11,22 +12,73 @@ export class UserController {
   async register(req: Request, res: Response) {
     try {
       const { email, password, name } = req.body;
-      const user = await userService.register(email, password, name);
+      
+      // Check if email already exists
+      const existingUser = await prisma.user.findUnique({
+        where: { email }
+      });
 
-      // We don't want to return the password hash
-      const { password: _, ...userWithoutPassword } = user;
-      const token = generateToken(user.id, user.email, user.name || undefined, user.role);
+      if (existingUser) {
+        return res.status(400).json({
+          success: false,
+          error: "Email already exists. Please use a different email or login instead.",
+        });
+      }
+      
+      // Use transaction to ensure shop creation happens with user
+      const result = await prisma.$transaction(async (tx) => {
+        // Create user
+        const hashedPassword = await bcrypt.hash(password, 10);
+        const user = await tx.user.create({
+          data: {
+            email,
+            password: hashedPassword,
+            name: name ?? null,
+            role: "SELLER" // Default role
+          }
+        });
+
+        // Create shop for SELLER
+        const shop = await tx.shop.create({
+          data: {
+            name: `${name || email.split("@")[0]}'s Shop`,
+            ownerId: user.id,
+          }
+        });
+
+        return { user, shop };
+      });
+
+      const { password: _, ...userWithoutPassword } = result.user;
+      const token = generateToken(
+        result.user.id, 
+        result.user.email, 
+        result.user.name || undefined, 
+        result.user.role, 
+        result.shop.id
+      );
 
       res.status(201).json({
         success: true,
-        data: userWithoutPassword,
+        data: {
+          ...userWithoutPassword,
+          shops: [{ id: result.shop.id, name: result.shop.name }]
+        },
         token,
         message: "User registered successfully",
       });
     } catch (error: any) {
+      // Handle Prisma unique constraint errors
+      if (error.code === 'P2002') {
+        return res.status(400).json({
+          success: false,
+          error: "Email already exists. Please use a different email or login instead.",
+        });
+      }
+      
       res.status(400).json({
         success: false,
-        error: error.message,
+        error: error.message || "Registration failed. Please try again.",
       });
     }
   }
@@ -37,12 +89,22 @@ export class UserController {
       const { email, password } = req.body;
       const user = await userService.login(email, password);
 
+      // Fetch user's shop if they're a seller
+      const userShops = await prisma.shop.findMany({
+        where: { ownerId: user.id },
+        select: { id: true, name: true }
+      });
+      const shopId = userShops[0]?.id;
+
       const { password: _, ...userWithoutPassword } = user;
-      const token = generateToken(user.id, user.email, user.name || undefined, user.role);
+      const token = generateToken(user.id, user.email, user.name || undefined, user.role, shopId);
 
       res.json({
         success: true,
-        data: userWithoutPassword,
+        data: {
+          ...userWithoutPassword,
+          shops: userShops
+        },
         token,
         message: "Login successful",
       });

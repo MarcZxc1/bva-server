@@ -39,9 +39,9 @@ export default function MarketMate() {
   const { data: promotionsData, isLoading: promotionsLoading } = usePromotions(shopId, !!shopId);
   const { data: campaignsData, isLoading: campaignsLoading } = useCampaigns(shopId, !!shopId);
 
-  const campaigns = campaignsData?.data || [];
+  const campaigns = campaignsData || [];
   const hasCampaigns = campaigns && campaigns.length > 0;
-  const hasPromotions = promotionsData && promotionsData.data.promotions.length > 0;
+  const hasPromotions = promotionsData && promotionsData.promotions.length > 0;
 
   return (
     <div className="space-y-6">
@@ -124,7 +124,7 @@ export default function MarketMate() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {promotionsData.data.promotions.map((promo, index) => (
+              {promotionsData.promotions.map((promo, index) => (
                 <div key={index} className="p-4 glass-card-sm hover:shadow-glow transition-smooth">
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex-1">

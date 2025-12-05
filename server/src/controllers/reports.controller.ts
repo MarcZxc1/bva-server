@@ -3,17 +3,28 @@ import prisma from "../lib/prisma";
 
 export const getDashboardMetrics = async (req: Request, res: Response) => {
   try {
-    // In a real app, we would filter by shopId from the authenticated user
-    // const shopId = req.user.shopId;
+    // Get shopId from authenticated user
+    const shopId = (req as any).user?.shopId;
 
-    // Calculate Total Revenue
-    const sales = await prisma.sale.findMany();
+    if (!shopId) {
+      return res.status(400).json({
+        success: false,
+        error: "Shop ID not found. Please ensure you have a shop associated with your account."
+      });
+    }
+
+    // Calculate Total Revenue - filter by shopId
+    const sales = await prisma.sale.findMany({
+      where: { shopId }
+    });
     const totalRevenue = sales.reduce((acc: number, sale) => acc + sale.total, 0);
 
     // Calculate Profit Margin (Simplified: Revenue - Cost) / Revenue
     // We need to fetch products to get the cost.
     // This is an approximation. In a real system, we'd store cost at the time of sale.
-    const products = await prisma.product.findMany();
+    const products = await prisma.product.findMany({
+      where: { shopId }
+    });
     const productCostMap = new Map(products.map((p) => [p.id, p.cost || 0]));
 
     let totalCost = 0;
@@ -32,11 +43,16 @@ export const getDashboardMetrics = async (req: Request, res: Response) => {
     // Calculate Stock Turnover (COGS / Average Inventory)
     // Simplified: Total Cost / (Current Inventory Value)
     const inventory = await prisma.inventory.findMany({
+      where: { 
+        product: {
+          shopId: shopId
+        }
+      },
       include: { product: true }
     });
     
     const currentInventoryValue = inventory.reduce((acc: number, inv) => {
-      return acc + (inv.product.cost || 0) * inv.quantity;
+      return acc + ((inv.product?.cost || 0) * inv.quantity);
     }, 0);
 
     const stockTurnover = currentInventoryValue > 0 ? totalCost / currentInventoryValue : 0;
@@ -51,7 +67,7 @@ export const getDashboardMetrics = async (req: Request, res: Response) => {
     console.error("Error fetching dashboard metrics:", error);
     res.status(500).json({ error: "Failed to fetch dashboard metrics" });
   }
-};
+}
 
 export const getSalesSummary = async (req: Request, res: Response) => {
   try {

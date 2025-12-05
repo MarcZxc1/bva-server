@@ -35,14 +35,110 @@ const CATEGORIES = [
 ];
 
 // Sample products with realistic Filipino grocery items
+// 20 products optimized for SmartShelf and RestockPlanner testing
 const SAMPLE_PRODUCTS = [
-  // Condiments
+  // LOW STOCK ITEMS (Critical - Need immediate restocking)
   {
     name: "UFC Banana Catsup 320g",
     category: "Condiments",
     price: 45,
     cost: 30,
+    lowStock: true, // 0-3 units
   },
+  {
+    name: "Coke 1.5L",
+    category: "Beverages",
+    price: 65,
+    cost: 45,
+    lowStock: true, // 0-3 units
+  },
+  {
+    name: "Century Tuna 155g",
+    category: "Canned Goods",
+    price: 38,
+    cost: 25,
+    lowStock: true, // 0-3 units
+  },
+
+  // NEAR EXPIRY ITEMS (Need to sell fast with promotions)
+  {
+    name: "Bear Brand Milk 300ml",
+    category: "Dairy",
+    price: 32,
+    cost: 22,
+    nearExpiry: true, // Expires in 3-7 days
+  },
+  {
+    name: "Gardenia White Bread",
+    category: "Bakery",
+    price: 55,
+    cost: 38,
+    nearExpiry: true, // Expires in 3-7 days
+  },
+  {
+    name: "Ligo Sardines 155g",
+    category: "Canned Goods",
+    price: 28,
+    cost: 18,
+    nearExpiry: true, // Expires in 3-7 days
+  },
+
+  // SLOW MOVING ITEMS (Overstocked - Low sales velocity)
+  {
+    name: "Lorins Vinegar 385ml",
+    category: "Condiments",
+    price: 22,
+    cost: 14,
+    slowMoving: true, // 25-39 units, low sales
+  },
+  {
+    name: "Royal 1.5L",
+    category: "Beverages",
+    price: 58,
+    cost: 40,
+    slowMoving: true, // 25-39 units, low sales
+  },
+  {
+    name: "CDO Liver Spread 85g",
+    category: "Canned Goods",
+    price: 28,
+    cost: 18,
+    slowMoving: true, // 25-39 units, low sales
+  },
+
+  // FAST MOVING ITEMS (High demand - Good for restocking)
+  {
+    name: "Sprite 1.5L",
+    category: "Beverages",
+    price: 65,
+    cost: 45,
+  },
+  {
+    name: "Chippy BBQ Flavor",
+    category: "Snacks",
+    price: 15,
+    cost: 9,
+  },
+  {
+    name: "Piattos Cheese",
+    category: "Snacks",
+    price: 15,
+    cost: 9,
+  },
+  {
+    name: "C2 Green Tea 500ml",
+    category: "Beverages",
+    price: 28,
+    cost: 18,
+  },
+  {
+    name: "Skyflakes Crackers",
+    category: "Snacks",
+    price: 38,
+    cost: 25,
+  },
+
+  // NORMAL STOCK ITEMS (Balanced inventory)
   {
     name: "Datu Puti Soy Sauce 385ml",
     category: "Condiments",
@@ -55,69 +151,33 @@ const SAMPLE_PRODUCTS = [
     price: 55,
     cost: 38,
   },
-  { name: "Lorins Vinegar 385ml", category: "Condiments", price: 22, cost: 14 },
   {
-    name: "Mama Sita Oyster Sauce",
-    category: "Condiments",
-    price: 48,
-    cost: 32,
+    name: "Nestea Iced Tea 1L",
+    category: "Beverages",
+    price: 45,
+    cost: 30,
   },
-
-  // Beverages
-  { name: "Coke 1.5L", category: "Beverages", price: 65, cost: 45 },
-  { name: "Sprite 1.5L", category: "Beverages", price: 65, cost: 45 },
-  { name: "Royal 1.5L", category: "Beverages", price: 58, cost: 40 },
-  { name: "C2 Green Tea 500ml", category: "Beverages", price: 28, cost: 18 },
-  { name: "Zest-O Orange 200ml", category: "Beverages", price: 12, cost: 7 },
-  { name: "Nestea Iced Tea 1L", category: "Beverages", price: 45, cost: 30 },
-
-  // Snacks
-  { name: "Chippy BBQ Flavor", category: "Snacks", price: 15, cost: 9 },
-  { name: "Piattos Cheese", category: "Snacks", price: 15, cost: 9 },
-  { name: "Nova Multigrain", category: "Snacks", price: 15, cost: 9 },
-  { name: "Oishi Prawn Crackers", category: "Snacks", price: 12, cost: 7 },
-  { name: "Clover Chips", category: "Snacks", price: 12, cost: 7 },
-  { name: "Skyflakes Crackers", category: "Snacks", price: 38, cost: 25 },
-
-  // Canned Goods
-  { name: "Century Tuna 155g", category: "Canned Goods", price: 38, cost: 25 },
-  { name: "Ligo Sardines 155g", category: "Canned Goods", price: 28, cost: 18 },
   {
-    name: "Argentina Corned Beef 175g",
-    category: "Canned Goods",
+    name: "Nova Multigrain",
+    category: "Snacks",
+    price: 15,
+    cost: 9,
+  },
+  {
+    name: "Safeguard Soap 135g",
+    category: "Personal Care",
     price: 42,
     cost: 28,
   },
-  { name: "555 Tuna 155g", category: "Canned Goods", price: 35, cost: 23 },
   {
-    name: "CDO Liver Spread 85g",
-    category: "Canned Goods",
-    price: 28,
-    cost: 18,
+    name: "Tide Detergent 65g",
+    category: "Household",
+    price: 12,
+    cost: 7,
   },
+];
 
-  // Dairy
-  {
-    name: "Alaska Evaporated Milk 370ml",
-    category: "Dairy",
-    price: 45,
-    cost: 32,
-  },
-  { name: "Bear Brand 300ml", category: "Dairy", price: 52, cost: 38 },
-  {
-    name: "Anchor Powdered Milk 900g",
-    category: "Dairy",
-    price: 385,
-    cost: 280,
-  },
-  { name: "Nestle Fresh Milk 1L", category: "Dairy", price: 95, cost: 68 },
-  { name: "Eden Cheese 165g", category: "Dairy", price: 78, cost: 55 },
-
-  // Bakery
-  { name: "Gardenia White Bread", category: "Bakery", price: 58, cost: 40 },
-  { name: "Gardenia Wheat Bread", category: "Bakery", price: 62, cost: 43 },
-  { name: "Pandesal (6pcs)", category: "Bakery", price: 25, cost: 15 },
-  { name: "Tasty Bread Loaf", category: "Bakery", price: 45, cost: 30 },
+/**
 
   // Household
   { name: "Tide Powder 1kg", category: "Household", price: 125, cost: 88 },
@@ -238,58 +298,6 @@ const SAMPLE_PRODUCTS = [
     category: "Dairy",
     price: 165,
     cost: 120,
-    nearExpiry: true,
-  },
-
-  // SLOW MOVING items (will have very low sales velocity 0-1 unit/day)
-  {
-    name: "Imported Olive Oil 500ml",
-    category: "Condiments",
-    price: 385,
-    cost: 280,
-    slowMoving: true,
-  },
-  {
-    name: "Specialty Tea Bags",
-    category: "Beverages",
-    price: 195,
-    cost: 140,
-    slowMoving: true,
-  },
-  {
-    name: "Gourmet Balsamic Vinegar",
-    category: "Condiments",
-    price: 425,
-    cost: 310,
-    slowMoving: true,
-  },
-  {
-    name: "Organic Honey 250g",
-    category: "Condiments",
-    price: 295,
-    cost: 210,
-    slowMoving: true,
-  },
-
-  // COMBINATION: Low Stock + Slow Moving
-  {
-    name: "Premium Pasta Sauce",
-    category: "Condiments",
-    price: 145,
-    cost: 100,
-    lowStock: true,
-    slowMoving: true,
-  },
-
-  // COMBINATION: Near Expiry + Slow Moving (Critical!)
-  {
-    name: "Artisan Cheese 150g",
-    category: "Dairy",
-    price: 225,
-    cost: 160,
-    nearExpiry: true,
-    slowMoving: true,
-  },
 ];
 
 /**
@@ -455,52 +463,54 @@ async function main() {
   }
   console.log(`✅ Created ${products.length} products with inventory`);
 
-  // Generate sales history (60 days)
-  console.log("📊 Generating 60 days of sales history...");
-  const salesCount = 60; // days
+  // Generate exactly 20 sales records (1 per product for recent sales data)
+  console.log("📊 Generating 20 sales records (1 per product)...");
   let totalSalesRecords = 0;
 
-  for (let day = 0; day < salesCount; day++) {
+  // Create one recent sale for each product
+  for (let i = 0; i < products.length; i++) {
+    const product = products[i]!;
+    const productData = SAMPLE_PRODUCTS[i]!;
+    
+    // Generate a sale date within the last 7 days
     const saleDate = new Date();
-    saleDate.setDate(saleDate.getDate() - (salesCount - day));
+    saleDate.setDate(saleDate.getDate() - Math.floor(Math.random() * 7));
 
-    // Generate sales for each product
-    for (let i = 0; i < products.length; i++) {
-      const product = products[i]!;
-      const productData = SAMPLE_PRODUCTS[i]!;
-      const salesPattern = generateSalesPattern(i, salesCount, productData);
-      const dailyQty = salesPattern[day]!;
+    // Determine quantity based on product type
+    let quantity: number;
+    if (productData.lowStock) {
+      quantity = 1 + Math.floor(Math.random() * 3); // 1-3 units (showing demand despite low stock)
+    } else if (productData.nearExpiry) {
+      quantity = 2 + Math.floor(Math.random() * 5); // 2-6 units (moderate sales)
+    } else if (productData.slowMoving) {
+      quantity = 1 + Math.floor(Math.random() * 2); // 1-2 units (slow sales)
+    } else {
+      quantity = 3 + Math.floor(Math.random() * 8); // 3-10 units (normal/fast moving)
+    }
 
-      if (dailyQty > 0) {
-        // Create sale record
-        await prisma.sale.create({
-          data: {
-            shopId: shop.id,
-            platform: Platform.OTHER,
-            platformOrderId: `ORDER-${saleDate.toISOString().split("T")[0]}-${
-              product.sku
-            }-${Math.random().toString(36).substring(7)}`,
-            items: JSON.stringify([
-              {
-                productId: product.id,
-                sku: product.sku,
-                name: product.name,
-                quantity: dailyQty,
-                price: product.price,
-              },
-            ]),
-            total: product.price * dailyQty,
-            createdAt: saleDate,
+    // Create sale record
+    await prisma.sale.create({
+      data: {
+        shopId: shop.id,
+        platform: Platform.OTHER,
+        platformOrderId: `ORDER-${saleDate.toISOString().split("T")[0]}-${
+          product.sku
+        }-${Math.random().toString(36).substring(7)}`,
+        items: JSON.stringify([
+          {
+            productId: product.id,
+            sku: product.sku,
+            name: product.name,
+            quantity: quantity,
+            price: product.price,
           },
-        });
+        ]),
+        total: product.price * quantity,
+        createdAt: saleDate,
+      },
+    });
 
-        totalSalesRecords++;
-      }
-    }
-
-    if ((day + 1) % 10 === 0) {
-      console.log(`  Generated sales for day ${day + 1}/${salesCount}...`);
-    }
+    totalSalesRecords++;
   }
   console.log(`✅ Created ${totalSalesRecords} sales records`);
 

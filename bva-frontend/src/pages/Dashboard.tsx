@@ -6,7 +6,8 @@ import { useAuth } from "@/contexts/AuthContext";
 
 export default function Dashboard() {
   const { user } = useAuth();
-  const shopId = user?.shops?.[0]?.id || "";
+  const DEFAULT_SHOP_ID = "2aad5d00-d302-4c57-86ad-99826e19e610";
+  const shopId = user?.shops?.[0]?.id || DEFAULT_SHOP_ID;
   
   const { data: atRiskData, isLoading: atRiskLoading } = useAtRiskInventory(shopId, !!shopId);
   const { data: analyticsData, isLoading: analyticsLoading } = useDashboardAnalytics(shopId);

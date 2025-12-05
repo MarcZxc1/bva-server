@@ -104,16 +104,16 @@ export const initializeGoogleStrategy = () => {
             // If googleId column doesn't exist, create without it
             if (error.message?.includes("does not exist")) {
               console.warn("⚠️  googleId column not found. Creating user without googleId. Please run migration: npx prisma migrate dev");
-              user = await prisma.user.create({
-                data: {
-                  email,
+          user = await prisma.user.create({
+            data: {
+              email,
                   password: null,
-                  name: profile.displayName || null,
-                  firstName: profile.name?.givenName || null,
-                  lastName: profile.name?.familyName || null,
-                  role: "SELLER",
-                },
-              });
+              name: profile.displayName || null,
+              firstName: profile.name?.givenName || null,
+              lastName: profile.name?.familyName || null,
+              role: "SELLER",
+            },
+          });
             } else {
               throw error;
             }

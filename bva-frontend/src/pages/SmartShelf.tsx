@@ -37,9 +37,10 @@ const getActionIcon = (actionType: string) => {
 export default function SmartShelf() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const shopId = user?.shops?.[0]?.id || "2aad5d00-d302-4c57-86ad-99826e19e610";
+  const DEFAULT_SHOP_ID = "2aad5d00-d302-4c57-86ad-99826e19e610";
+  const shopId = user?.shops?.[0]?.id || DEFAULT_SHOP_ID;
   
-  const { data: atRiskData, isLoading, refetch } = useAtRiskInventory(shopId, true);
+  const { data: atRiskData, isLoading, refetch } = useAtRiskInventory(shopId, !!shopId);
   
   const [selectedItem, setSelectedItem] = useState<any>(null);
   const [isAdDialogOpen, setIsAdDialogOpen] = useState(false);

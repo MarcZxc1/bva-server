@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -26,13 +26,21 @@ const getPriorityLabel = (priorityScore: number) => {
 
 export default function RestockPlanner() {
   const { user } = useAuth();
-  const [shopId, setShopId] = useState(user?.shops?.[0]?.id || "");
+  const DEFAULT_SHOP_ID = "2aad5d00-d302-4c57-86ad-99826e19e610";
+  const [shopId, setShopId] = useState(user?.shops?.[0]?.id || DEFAULT_SHOP_ID);
   const [budget, setBudget] = useState("50000");
   const [goal, setGoal] = useState<"profit" | "volume" | "balanced">("balanced");
   const [restockDays, setRestockDays] = useState("14");
   
   const restockMutation = useRestock();
-  const restockData = restockMutation.data?.data;
+  const restockData = restockMutation.data;
+
+  // Update shopId when user loads
+  useEffect(() => {
+    if (user?.shops?.[0]?.id) {
+      setShopId(user.shops[0].id);
+    }
+  }, [user]);
 
   const handleGeneratePlan = async () => {
     if (!shopId || !budget) {

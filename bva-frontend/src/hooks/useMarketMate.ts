@@ -12,29 +12,26 @@ import { apiClient } from "@/lib/api-client";
 // ============================================
 
 export interface PromotionResponse {
-  success: boolean;
-  data: {
-    promotions: Array<{
-      event_id: string;
-      event_title: string;
-      product_id: string;
-      product_name: string;
-      suggested_discount_pct: number;
-      promo_copy: string;
-      start_date: string;
-      end_date: string;
-      expected_clear_days: number;
-      projected_sales_lift: number;
-      confidence: string;
-      reasoning: string;
-    }>;
-    meta: {
-      shop_id: string;
-      total_items: number;
-      total_events: number;
-      promotions_generated: number;
-      analysis_date: string;
-    };
+  promotions: Array<{
+    event_id: string;
+    event_title: string;
+    product_id: string;
+    product_name: string;
+    suggested_discount_pct: number;
+    promo_copy: string;
+    start_date: string;
+    end_date: string;
+    expected_clear_days: number;
+    projected_sales_lift: number;
+    confidence: string;
+    reasoning: string;
+  }>;
+  meta: {
+    shop_id: string;
+    total_items: number;
+    total_events: number;
+    promotions_generated: number;
+    analysis_date: string;
   };
 }
 
@@ -124,12 +121,12 @@ export function usePromotions(shopId: string, enabled: boolean = true) {
  * Usage: const { data, isLoading } = useCampaigns(shopId);
  */
 export function useCampaigns(shopId: string, enabled: boolean = true) {
-  return useQuery({
+  return useQuery<any[]>({
     queryKey: ["campaigns", shopId],
     queryFn: async () => {
       // This would be a real endpoint in production
       // For now, return empty array to show empty state
-      return { data: [] };
+      return [];
     },
     enabled: enabled && !!shopId,
   });

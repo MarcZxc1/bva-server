@@ -46,12 +46,9 @@ var __generator = (this && this.__generator) || function (thisArg, body) {
         if (op[0] & 5) throw op[1]; return { value: op[0] ? op[1] : void 0, done: true };
     }
 };
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.mlClient = exports.MLServiceClient = void 0;
-var axios_1 = __importDefault(require("axios"));
+var axios_1 = require("axios");
 var MLServiceClient = /** @class */ (function () {
     function MLServiceClient() {
         this.baseURL = process.env.ML_SERVICE_URL || "http://localhost:8001";

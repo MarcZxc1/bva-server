@@ -43,28 +43,28 @@ class ApiClient {
   }
 
   async get<T>(url: string, config?: AxiosRequestConfig): Promise<T> {
-    const response = await this.client.get<T>(url, config);
-    return response.data;
+    const response = await this.client.get<{ success: boolean; data: T }>(url, config);
+    return response.data.data; // Unwrap the data property
   }
 
   async post<T>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<T> {
-    const response = await this.client.post<T>(url, data, config);
-    return response.data;
+    const response = await this.client.post<{ success: boolean; data: T }>(url, data, config);
+    return response.data.data; // Unwrap the data property
   }
 
   async put<T>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<T> {
-    const response = await this.client.put<T>(url, data, config);
-    return response.data;
+    const response = await this.client.put<{ success: boolean; data: T }>(url, data, config);
+    return response.data.data; // Unwrap the data property
   }
 
   async patch<T>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<T> {
-    const response = await this.client.patch<T>(url, data, config);
-    return response.data;
+    const response = await this.client.patch<{ success: boolean; data: T }>(url, data, config);
+    return response.data.data; // Unwrap the data property
   }
 
   async delete<T>(url: string, config?: AxiosRequestConfig): Promise<T> {
-    const response = await this.client.delete<T>(url, config);
-    return response.data;
+    const response = await this.client.delete<{ success: boolean; data: T }>(url, config);
+    return response.data.data; // Unwrap the data property
   }
 }
 

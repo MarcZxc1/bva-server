@@ -87,8 +87,15 @@ class AuthService {
       return user;
     });
 
+    // Fetch user's shop if they're a seller
+    const userShops = await prisma.shop.findMany({
+      where: { ownerId: result.id },
+      select: { id: true }
+    });
+    const shopId = userShops[0]?.id;
+
     // Generate JWT token
-    const token = this.generateToken(result.id, result.role, result.email, result.name || undefined);
+    const token = this.generateToken(result.id, result.role, result.email, result.name || undefined, shopId);
 
     return {
       user: result,
@@ -121,8 +128,15 @@ class AuthService {
       throw new Error("Invalid credentials");
     }
 
+    // Fetch user's shop if they're a seller
+    const userShops = await prisma.shop.findMany({
+      where: { ownerId: user.id },
+      select: { id: true }
+    });
+    const shopId = userShops[0]?.id;
+
     // Generate JWT token
-    const token = this.generateToken(user.id, user.role, user.email, user.name || undefined);
+    const token = this.generateToken(user.id, user.role, user.email, user.name || undefined, shopId);
 
     return {
       user: {
@@ -156,12 +170,13 @@ class AuthService {
   /**
    * Generate JWT token
    */
-  private generateToken(userId: string, role: string, email?: string, name?: string): string {
+  private generateToken(userId: string, role: string, email?: string, name?: string, shopId?: string): string {
     return jwt.sign({ 
       userId, 
       role,
       email: email || 'user@example.com',
-      name: name || 'User'
+      name: name || 'User',
+      shopId: shopId || null
     }, this.JWT_SECRET, {
       expiresIn: this.JWT_EXPIRATION as string,
     } as jwt.SignOptions);
@@ -271,8 +286,15 @@ class AuthService {
       console.error(`❌ Error syncing Shopee-Clone data for user ${user!.id}:`, error);
     });
 
+    // Fetch user's shop if they're a seller
+    const userShops = await prisma.shop.findMany({
+      where: { ownerId: user.id },
+      select: { id: true }
+    });
+    const shopId = userShops[0]?.id;
+
     // Generate JWT token
-    const token = this.generateToken(user.id, user.role, user.email, user.name || undefined);
+    const token = this.generateToken(user.id, user.role, user.email, user.name || undefined, shopId);
 
     return {
       user: {

@@ -55,18 +55,22 @@ export async function getRestockStrategy(
       },
     });
 
+    console.log(`Found ${sales.length} sales records for shop ${shopId}`);
+
     // Mock sales data if DB is empty (for demo purposes)
     if (sales.length === 0) {
-      console.log("No sales found, using mock data for demo");
-      sales = Array.from({ length: 10 }).map((_, i) => ({
-        createdAt: new Date(Date.now() - i * 86400000), // Last 10 days
-        total: 100,
-        items: JSON.stringify(products.map(p => ({
+      console.log("No sales found, generating mock sales data");
+      sales = products.map(p => ({
+        createdAt: new Date(),
+        total: p.price * 5,
+        items: JSON.stringify([{
           productId: p.id,
-          quantity: Math.floor(Math.random() * 5) + 1, // Random qty 1-5
+          quantity: Math.floor(Math.random() * 5) + 1,
           price: p.price
-        })))
+        }])
       }));
+    } else {
+      console.log(`Using ${sales.length} real sales records`);
     }
 
     // 4. Format Data for ML Service
@@ -85,9 +89,9 @@ export async function getRestockStrategy(
         }
       });
       
-      // If using mock data (10 days), divide by 10. If real data (90 days), divide by 90.
-      const daysPeriod = sales.length === 10 && sales[0]?.total === 100 ? 10 : 90;
-      const avgDailySales = totalQty / daysPeriod;
+      // Use actual number of sales days, defaulting to 7 if we have sales
+      const daysWithSales = sales.length > 0 ? 7 : 30; // Assume 7 days for recent sales
+      const avgDailySales = totalQty > 0 ? totalQty / daysWithSales : 1.0; // Default to 1.0 if no sales
 
       const cost = p.cost || 0;
       const price = p.price || 0;
@@ -105,7 +109,7 @@ export async function getRestockStrategy(
         cost: cost,
         stock: stock,
         category: p.description || "General",
-        avg_daily_sales: avgDailySales || 1, // Ensure at least 1 for demo if 0
+        avg_daily_sales: Math.max(avgDailySales, 0.5), // Ensure minimum 0.5
         profit_margin: profitMargin,
         min_order_qty: 1
       };
@@ -113,6 +117,11 @@ export async function getRestockStrategy(
 
     // Filter out invalid products (cost or price <= 0) as ML service requires positive values
     const validProducts = mlProducts.filter((p: any) => p.price > 0 && p.cost > 0);
+
+    console.log(`Prepared ${validProducts.length} valid products out of ${products.length} total`);
+    if (validProducts.length > 0) {
+      console.log(`Sample product:`, JSON.stringify(validProducts[0], null, 2));
+    }
 
     if (validProducts.length === 0) {
         res.status(400).json({
