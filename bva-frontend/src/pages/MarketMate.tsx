@@ -2,53 +2,10 @@ import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Megaphone, Sparkles, Calendar, Eye, TrendingUp, Loader2 } from "lucide-react";
+import { Megaphone, Sparkles, Calendar, Eye, TrendingUp, Loader2, Lightbulb, PackageOpen } from "lucide-react";
 import { AdGeneratorDialog } from "@/components/AdGeneratorDialog";
-import { usePromotions } from "@/hooks/useMarketMate";
+import { usePromotions, useCampaigns } from "@/hooks/useMarketMate";
 import { useAuth } from "@/contexts/AuthContext";
-
-const adCampaigns = [
-  {
-    id: 1,
-    title: "Flash Sale - Wireless Earbuds",
-    type: "Limited Offer",
-    platform: "Shopee",
-    status: "scheduled",
-    scheduledDate: "2025-11-01 10:00 AM",
-    caption: "🎧 FLASH SALE ALERT! Premium Wireless Earbuds Pro now 40% OFF! Crystal clear sound, 24hr battery life. Limited stocks - grab yours now! #ShopeeFinds #TechDeals #WirelessEarbuds",
-    engagement: { views: 0, clicks: 0 }
-  },
-  {
-    id: 2,
-    title: "Payday Sale - Smart Watch",
-    type: "Payday Promo",
-    platform: "Lazada",
-    status: "published",
-    scheduledDate: "2025-10-28 09:00 AM",
-    caption: "💰 PAYDAY TREAT! Smart Watch Series 5 - Track your fitness goals in style. FREE shipping + extra 15% off this payday weekend! Limited time only! #PaydaySale #SmartWatch #FitnessGoals",
-    engagement: { views: 2450, clicks: 342 }
-  },
-  {
-    id: 3,
-    title: "Trending Product - Phone Accessories",
-    type: "Viral Content",
-    platform: "TikTok",
-    status: "draft",
-    scheduledDate: null,
-    caption: "📱 Must-have phone accessories that went viral! Premium cases + screen protectors + fast charging cables. Bundle deal - Save 50%! Tag a friend who needs this! #TikTokMadeMeBuyIt #PhoneAccessories #ViralProducts",
-    engagement: { views: 0, clicks: 0 }
-  },
-  {
-    id: 4,
-    title: "New Arrival - Power Banks",
-    type: "Product Launch",
-    platform: "Shopee",
-    status: "published",
-    scheduledDate: "2025-10-27 02:00 PM",
-    caption: "🔋 NEW ARRIVAL! 20000mAh Power Bank - Never run out of battery again! Fast charging, compact design, perfect for travel. Limited launch promo - 30% OFF first 100 orders! #NewArrival #PowerBank #TravelEssentials",
-    engagement: { views: 1890, clicks: 267 }
-  },
-];
 
 const getStatusColor = (status: string) => {
   switch (status) {
@@ -78,8 +35,13 @@ const getPlatformColor = (platform: string) => {
 
 export default function MarketMate() {
   const { user } = useAuth();
-  const shopId = user?.id || "2aad5d00-d302-4c57-86ad-99826e19e610";
-  const { data: promotionsData, isLoading: promotionsLoading } = usePromotions(shopId, true);
+  const shopId = user?.shops?.[0]?.id || "";
+  const { data: promotionsData, isLoading: promotionsLoading } = usePromotions(shopId, !!shopId);
+  const { data: campaignsData, isLoading: campaignsLoading } = useCampaigns(shopId, !!shopId);
+
+  const campaigns = campaignsData?.data || [];
+  const hasCampaigns = campaigns && campaigns.length > 0;
+  const hasPromotions = promotionsData && promotionsData.data.promotions.length > 0;
 
   return (
     <div className="space-y-6">
@@ -93,62 +55,66 @@ export default function MarketMate() {
         </div>
       </div>
 
-      {/* Summary Cards */}
-      <div className="grid gap-4 md:grid-cols-4">
-        <Card className="glass-card">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Total Campaigns</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-foreground">24</div>
-            <p className="text-xs text-muted-foreground mt-1">Active across platforms</p>
-          </CardContent>
-        </Card>
+      {/* Summary Cards - Only show if there are campaigns */}
+      {!campaignsLoading && hasCampaigns && (
+        <div className="grid gap-4 md:grid-cols-4">
+          <Card className="glass-card">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Total Campaigns</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold text-foreground">{campaigns.length}</div>
+              <p className="text-xs text-muted-foreground mt-1">Generated campaigns</p>
+            </CardContent>
+          </Card>
 
-        <Card className="glass-card">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Total Reach</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-foreground">45.2K</div>
-            <p className="text-xs text-success flex items-center mt-1">
-              <TrendingUp className="h-3 w-3 mr-1" />
-              +32% this week
-            </p>
-          </CardContent>
-        </Card>
+          <Card className="glass-card">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Total Reach</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold text-foreground">--</div>
+              <p className="text-xs text-muted-foreground mt-1">
+                Publish campaigns to track
+              </p>
+            </CardContent>
+          </Card>
 
-        <Card className="glass-card">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Engagement Rate</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-foreground">14.8%</div>
-            <p className="text-xs text-success flex items-center mt-1">
-              <TrendingUp className="h-3 w-3 mr-1" />
-              Above average
-            </p>
-          </CardContent>
-        </Card>
+          <Card className="glass-card">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Engagement Rate</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold text-foreground">--</div>
+              <p className="text-xs text-muted-foreground mt-1">
+                Publish campaigns to track
+              </p>
+            </CardContent>
+          </Card>
 
-        <Card className="glass-card">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Scheduled Posts</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-foreground">8</div>
-            <p className="text-xs text-muted-foreground mt-1">Next 7 days</p>
-          </CardContent>
-        </Card>
-      </div>
+          <Card className="glass-card">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Scheduled Posts</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold text-foreground">0</div>
+              <p className="text-xs text-muted-foreground mt-1">Next 7 days</p>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
       {/* AI Smart Promotions */}
       {promotionsLoading ? (
         <Card className="glass-card">
           <CardContent className="py-12 flex items-center justify-center">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <div className="text-center space-y-2">
+              <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto" />
+              <p className="text-sm text-muted-foreground">Loading promotions...</p>
+            </div>
           </CardContent>
         </Card>
-      ) : promotionsData && promotionsData.data.promotions.length > 0 ? (
+      ) : hasPromotions ? (
         <Card className="glass-card">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-foreground">
@@ -207,7 +173,7 @@ export default function MarketMate() {
       <Card className="glass-card">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-foreground">
-            <Sparkles className="h-5 w-5 text-primary" />
+            <Lightbulb className="h-5 w-5 text-primary" />
             ✨ AI Campaign Playbooks
           </CardTitle>
         </CardHeader>
@@ -254,71 +220,105 @@ export default function MarketMate() {
       </Card>
 
       {/* Campaign List */}
-      <Card className="glass-card">
-        <CardHeader>
-          <CardTitle className="text-foreground">📋 Your Campaigns</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {adCampaigns.map((campaign) => (
-              <div key={campaign.id} className="p-4 glass-card-sm hover:shadow-glow transition-smooth">
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      <h3 className="font-semibold text-foreground">{campaign.title}</h3>
-                      <Badge variant={getStatusColor(campaign.status)} className={campaign.status === 'published' ? 'bg-green-600' : ''}>
-                        {campaign.status}
-                      </Badge>
-                      <Badge variant="outline" className={getPlatformColor(campaign.platform)}>
-                        {campaign.platform}
-                      </Badge>
-                    </div>
-                    <p className="text-xs text-muted-foreground">{campaign.type}</p>
-                  </div>
-                </div>
-
-                <div className="mb-3 p-3 glass-card-sm text-sm">
-                  {campaign.caption}
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                    {campaign.scheduledDate && (
-                      <span className="flex items-center gap-1">
-                        <Calendar className="h-3 w-3" />
-                        {campaign.scheduledDate}
-                      </span>
-                    )}
-                    {campaign.status === "published" && (
-                      <>
-                        <span>Views: <strong className="text-foreground">{campaign.engagement.views.toLocaleString()}</strong></span>
-                        <span>Clicks: <strong className="text-foreground">{campaign.engagement.clicks.toLocaleString()}</strong></span>
-                      </>
-                    )}
-                  </div>
-                  <div className="flex gap-2">
-                    {campaign.status === "draft" && (
-                      <>
-                        <Button variant="outline" size="sm" className="glass-card-sm">Edit</Button>
-                        <Button size="sm" className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-nav-active">Schedule</Button>
-                      </>
-                    )}
-                    {campaign.status === "scheduled" && (
-                      <>
-                        <Button variant="outline" size="sm" className="glass-card-sm">Reschedule</Button>
-                        <Button variant="destructive" size="sm">Cancel</Button>
-                      </>
-                    )}
-                    {campaign.status === "published" && (
-                      <Button variant="outline" size="sm" className="glass-card-sm">View Analytics</Button>
-                    )}
-                  </div>
-                </div>
+      {campaignsLoading ? (
+        <Card className="glass-card">
+          <CardContent className="py-12 flex items-center justify-center">
+            <div className="text-center space-y-2">
+              <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto" />
+              <p className="text-sm text-muted-foreground">Loading campaigns...</p>
+            </div>
+          </CardContent>
+        </Card>
+      ) : !hasCampaigns ? (
+        <Card className="glass-card">
+          <CardContent className="py-16">
+            <div className="flex flex-col items-center justify-center text-center space-y-4">
+              <PackageOpen className="h-16 w-16 text-muted-foreground/50" />
+              <div>
+                <h3 className="font-semibold text-lg text-foreground mb-2">No Campaigns Yet</h3>
+                <p className="text-sm text-muted-foreground max-w-md mb-4">
+                  Start creating AI-powered marketing campaigns using our Campaign Playbooks above. 
+                  Generate compelling ad copy instantly!
+                </p>
+                <AdGeneratorDialog 
+                  trigger={
+                    <Button className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-nav-active">
+                      <Sparkles className="h-4 w-4 mr-2" />
+                      Create Your First Campaign
+                    </Button>
+                  }
+                />
               </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+            </div>
+          </CardContent>
+        </Card>
+      ) : (
+        <Card className="glass-card">
+          <CardHeader>
+            <CardTitle className="text-foreground">📋 Your Campaigns</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {campaigns.map((campaign: any) => (
+                <div key={campaign.id} className="p-4 glass-card-sm hover:shadow-glow transition-smooth">
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <h3 className="font-semibold text-foreground">{campaign.title}</h3>
+                        <Badge variant={getStatusColor(campaign.status)} className={campaign.status === 'published' ? 'bg-green-600' : ''}>
+                          {campaign.status}
+                        </Badge>
+                        <Badge variant="outline" className={getPlatformColor(campaign.platform)}>
+                          {campaign.platform}
+                        </Badge>
+                      </div>
+                      <p className="text-xs text-muted-foreground">{campaign.type}</p>
+                    </div>
+                  </div>
+
+                  <div className="mb-3 p-3 glass-card-sm text-sm">
+                    {campaign.caption}
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                      {campaign.scheduledDate && (
+                        <span className="flex items-center gap-1">
+                          <Calendar className="h-3 w-3" />
+                          {campaign.scheduledDate}
+                        </span>
+                      )}
+                      {campaign.status === "published" && campaign.engagement && (
+                        <>
+                          <span>Views: <strong className="text-foreground">{campaign.engagement.views.toLocaleString()}</strong></span>
+                          <span>Clicks: <strong className="text-foreground">{campaign.engagement.clicks.toLocaleString()}</strong></span>
+                        </>
+                      )}
+                    </div>
+                    <div className="flex gap-2">
+                      {campaign.status === "draft" && (
+                        <>
+                          <Button variant="outline" size="sm" className="glass-card-sm">Edit</Button>
+                          <Button size="sm" className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-nav-active">Schedule</Button>
+                        </>
+                      )}
+                      {campaign.status === "scheduled" && (
+                        <>
+                          <Button variant="outline" size="sm" className="glass-card-sm">Reschedule</Button>
+                          <Button variant="destructive" size="sm">Cancel</Button>
+                        </>
+                      )}
+                      {campaign.status === "published" && (
+                        <Button variant="outline" size="sm" className="glass-card-sm">View Analytics</Button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

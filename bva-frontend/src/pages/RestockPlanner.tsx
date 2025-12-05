@@ -6,8 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { TrendingUp, Calendar, Package, Sparkles, Loader2 } from "lucide-react";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, ReferenceLine } from "recharts";
+import { TrendingUp, Calendar, Package, Sparkles, Loader2, PackageOpen } from "lucide-react";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import { useRestock } from "@/hooks/useRestock";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
@@ -26,7 +26,7 @@ const getPriorityLabel = (priorityScore: number) => {
 
 export default function RestockPlanner() {
   const { user } = useAuth();
-  const [shopId, setShopId] = useState(user?.shops?.[0]?.id || "SHOP-001");
+  const [shopId, setShopId] = useState(user?.shops?.[0]?.id || "");
   const [budget, setBudget] = useState("50000");
   const [goal, setGoal] = useState<"profit" | "volume" | "balanced">("balanced");
   const [restockDays, setRestockDays] = useState("14");
@@ -54,12 +54,15 @@ export default function RestockPlanner() {
     });
   };
 
-  // Prepare chart data from API response
+  // Prepare chart data from API response only
   const chartData = restockData?.recommendations?.slice(0, 8).map((rec, index) => ({
     date: `Week ${index + 1}`,
     predicted: rec.expected_revenue / 100,
     restock: rec.recommended_qty,
   })) || [];
+
+  // Check if recommendations exist
+  const hasRecommendations = restockData && restockData.recommendations && restockData.recommendations.length > 0;
 
   return (
     <div className="space-y-6">
@@ -161,179 +164,198 @@ export default function RestockPlanner() {
 
       {restockData && (
         <>
-          {/* Summary Cards */}
-          <div className="grid gap-4 md:grid-cols-4">
+          {!hasRecommendations ? (
             <Card className="glass-card">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Predicted Demand</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-foreground">{restockData.summary.total_items} units</div>
-                <p className="text-xs text-success flex items-center mt-1">
-                  <TrendingUp className="h-3 w-3 mr-1" />
-                  {(restockData.summary.roi || 0).toFixed(1)}% ROI
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card className="glass-card">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Restock Items</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-foreground">{restockData.recommendations.length}</div>
-                <p className="text-xs text-muted-foreground mt-1">Products need restocking</p>
-              </CardContent>
-            </Card>
-
-            <Card className="glass-card">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Est. Investment</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-foreground">₱{(restockData.summary.total_cost || 0).toLocaleString()}</div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {restockData.budget ? ((restockData.summary.total_cost / restockData.budget) * 100).toFixed(1) : "0.0"}% of budget
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card className="glass-card">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Expected Profit</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-primary">₱{((restockData.summary.projected_revenue || 0) - (restockData.summary.total_cost || 0)).toLocaleString()}</div>
-                <p className="text-xs text-muted-foreground mt-1">AI prediction</p>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Forecast Chart */}
-          {chartData.length > 0 && (
-            <Card className="glass-card">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-foreground">
-                  <TrendingUp className="h-5 w-5 text-primary" />
-                  Sales Forecast & Restock Levels
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={350}>
-                  <LineChart data={chartData}>
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                    <XAxis dataKey="date" className="text-xs" />
-                    <YAxis className="text-xs" />
-                    <Tooltip contentStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.9)', border: '1px solid rgba(255, 255, 255, 0.5)', borderRadius: '12px', backdropFilter: 'blur(10px)' }} />
-                    <Legend />
-                    <Line 
-                      type="monotone" 
-                      dataKey="predicted" 
-                      stroke="hsl(var(--chart-2))" 
-                      strokeWidth={2} 
-                      strokeDasharray="5 5"
-                      name="Predicted Demand"
-                      dot={{ fill: 'hsl(var(--chart-2))' }}
-                    />
-                    <Line 
-                      type="monotone" 
-                      dataKey="restock" 
-                      stroke="hsl(var(--success))" 
-                      strokeWidth={2} 
-                      name="Recommended Stock"
-                      dot={{ fill: 'hsl(var(--success))' }}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Restock Recommendations Table */}
-          <Card className="glass-card">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-foreground">
-                <Package className="h-5 w-5 text-primary" />
-                Restock Recommendations
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Product</TableHead>
-                    <TableHead>Priority</TableHead>
-                    <TableHead>Current Stock</TableHead>
-                    <TableHead>Recommended</TableHead>
-                    <TableHead>Cost</TableHead>
-                    <TableHead>Exp. Profit</TableHead>
-                    <TableHead>Reasoning</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {restockData.recommendations.map((item, index) => (
-                    <TableRow key={index}>
-                      <TableCell className="font-medium">{item.product_name}</TableCell>
-                      <TableCell>
-                        <Badge variant={getPriorityColor(item.priority)}>
-                          {getPriorityLabel(item.priority)}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>{item.current_stock}</TableCell>
-                      <TableCell className="text-success font-bold">{item.recommended_qty}</TableCell>
-                      <TableCell>₱{(item.cost || 0).toLocaleString()}</TableCell>
-                      <TableCell className="text-success">₱{((item.expected_revenue || 0) - (item.cost || 0)).toLocaleString()}</TableCell>
-                      <TableCell className="max-w-[200px] truncate text-muted-foreground" title={item.reason}>
-                        {item.reason}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button variant="outline" size="sm">Approve</Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-
-          {/* Insights */}
-          {restockData.insights && restockData.insights.length > 0 && (
-            <Card className="glass-card">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-foreground">
-                  <Calendar className="h-5 w-5 text-primary" />
-                  AI Insights
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  {restockData.insights.map((insight, index) => (
-                    <div key={index} className="p-3 glass-card-sm">
-                      <div className="text-sm text-foreground">{insight}</div>
-                    </div>
-                  ))}
+              <CardContent className="py-12">
+                <div className="flex flex-col items-center justify-center text-center space-y-3">
+                  <PackageOpen className="h-16 w-16 text-muted-foreground/50" />
+                  <div>
+                    <h3 className="font-semibold text-lg text-foreground mb-2">No Restocking Needed</h3>
+                    <p className="text-sm text-muted-foreground max-w-md">
+                      Based on current sales trends and inventory levels, no items need restocking at this time. 
+                      Your inventory is well-stocked for the selected period.
+                    </p>
+                  </div>
                 </div>
               </CardContent>
             </Card>
-          )}
+          ) : (
+            <>
+              {/* Summary Cards */}
+              <div className="grid gap-4 md:grid-cols-4">
+                <Card className="glass-card">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium text-muted-foreground">Predicted Demand</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold text-foreground">{restockData.summary.total_items} units</div>
+                    <p className="text-xs text-success flex items-center mt-1">
+                      <TrendingUp className="h-3 w-3 mr-1" />
+                      {(restockData.summary.roi || 0).toFixed(1)}% ROI
+                    </p>
+                  </CardContent>
+                </Card>
 
-          {/* Warnings */}
-          {restockData.warnings && restockData.warnings.length > 0 && (
-            <Card className="glass-card border-warning">
-              <CardHeader>
-                <CardTitle className="text-warning">Warnings</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  {restockData.warnings.map((warning, index) => (
-                    <div key={index} className="p-3 glass-card-sm border-warning/20">
-                      <div className="text-sm text-warning">{warning}</div>
+                <Card className="glass-card">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium text-muted-foreground">Restock Items</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold text-foreground">{restockData.recommendations.length}</div>
+                    <p className="text-xs text-muted-foreground mt-1">Products need restocking</p>
+                  </CardContent>
+                </Card>
+
+                <Card className="glass-card">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium text-muted-foreground">Est. Investment</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold text-foreground">₱{(restockData.summary.total_cost || 0).toLocaleString()}</div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {restockData.budget ? ((restockData.summary.total_cost / restockData.budget) * 100).toFixed(1) : "0.0"}% of budget
+                    </p>
+                  </CardContent>
+                </Card>
+
+                <Card className="glass-card">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium text-muted-foreground">Expected Profit</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold text-primary">₱{((restockData.summary.projected_revenue || 0) - (restockData.summary.total_cost || 0)).toLocaleString()}</div>
+                    <p className="text-xs text-muted-foreground mt-1">AI prediction</p>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Forecast Chart */}
+              {chartData.length > 0 && (
+                <Card className="glass-card">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-foreground">
+                      <TrendingUp className="h-5 w-5 text-primary" />
+                      Sales Forecast & Restock Levels
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <ResponsiveContainer width="100%" height={350}>
+                      <LineChart data={chartData}>
+                        <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                        <XAxis dataKey="date" className="text-xs" />
+                        <YAxis className="text-xs" />
+                        <Tooltip contentStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.9)', border: '1px solid rgba(255, 255, 255, 0.5)', borderRadius: '12px', backdropFilter: 'blur(10px)' }} />
+                        <Legend />
+                        <Line 
+                          type="monotone" 
+                          dataKey="predicted" 
+                          stroke="hsl(var(--chart-2))" 
+                          strokeWidth={2} 
+                          strokeDasharray="5 5"
+                          name="Predicted Demand"
+                          dot={{ fill: 'hsl(var(--chart-2))' }}
+                        />
+                        <Line 
+                          type="monotone" 
+                          dataKey="restock" 
+                          stroke="hsl(var(--success))" 
+                          strokeWidth={2} 
+                          name="Recommended Stock"
+                          dot={{ fill: 'hsl(var(--success))' }}
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Restock Recommendations Table */}
+              <Card className="glass-card">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-foreground">
+                    <Package className="h-5 w-5 text-primary" />
+                    Restock Recommendations
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Product</TableHead>
+                        <TableHead>Priority</TableHead>
+                        <TableHead>Current Stock</TableHead>
+                        <TableHead>Recommended</TableHead>
+                        <TableHead>Cost</TableHead>
+                        <TableHead>Exp. Profit</TableHead>
+                        <TableHead>Reasoning</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {restockData.recommendations.map((item, index) => (
+                        <TableRow key={index}>
+                          <TableCell className="font-medium">{item.product_name}</TableCell>
+                          <TableCell>
+                            <Badge variant={getPriorityColor(item.priority)}>
+                              {getPriorityLabel(item.priority)}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>{item.current_stock}</TableCell>
+                          <TableCell className="text-success font-bold">{item.recommended_qty}</TableCell>
+                          <TableCell>₱{(item.cost || 0).toLocaleString()}</TableCell>
+                          <TableCell className="text-success">₱{((item.expected_revenue || 0) - (item.cost || 0)).toLocaleString()}</TableCell>
+                          <TableCell className="max-w-[200px] truncate text-muted-foreground" title={item.reason}>
+                            {item.reason}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Button variant="outline" size="sm">Approve</Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+
+              {/* Insights */}
+              {restockData.insights && restockData.insights.length > 0 && (
+                <Card className="glass-card">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-foreground">
+                      <Calendar className="h-5 w-5 text-primary" />
+                      AI Insights
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-2">
+                      {restockData.insights.map((insight, index) => (
+                        <div key={index} className="p-3 glass-card-sm">
+                          <div className="text-sm text-foreground">{insight}</div>
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Warnings */}
+              {restockData.warnings && restockData.warnings.length > 0 && (
+                <Card className="glass-card border-warning">
+                  <CardHeader>
+                    <CardTitle className="text-warning">Warnings</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-2">
+                      {restockData.warnings.map((warning, index) => (
+                        <div key={index} className="p-3 glass-card-sm border-warning/20">
+                          <div className="text-sm text-warning">{warning}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+            </>
           )}
         </>
       )}

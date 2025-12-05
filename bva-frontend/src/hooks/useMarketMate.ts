@@ -118,3 +118,19 @@ export function usePromotions(shopId: string, enabled: boolean = true) {
     refetchInterval: 300000, // Refresh every 5 minutes
   });
 }
+
+/**
+ * Get all generated ad campaigns
+ * Usage: const { data, isLoading } = useCampaigns(shopId);
+ */
+export function useCampaigns(shopId: string, enabled: boolean = true) {
+  return useQuery({
+    queryKey: ["campaigns", shopId],
+    queryFn: async () => {
+      // This would be a real endpoint in production
+      // For now, return empty array to show empty state
+      return { data: [] };
+    },
+    enabled: enabled && !!shopId,
+  });
+}

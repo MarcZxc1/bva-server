@@ -21,7 +21,18 @@ import authRoutes from "./routes/auth.routes";
 
 const app: Application = express();
 
-app.use(cors());
+// Configure CORS to allow both frontends
+app.use(cors({
+  origin: [
+    "http://localhost:5173", // Shopee Clone
+    "http://localhost:8080", // BVA Frontend
+    "https://bva-frontend.vercel.app",
+    "https://shopee-clone.vercel.app"
+  ],
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"]
+}));
 app.use(express.json());
 
 app.use(express.urlencoded({ extended: true }));
