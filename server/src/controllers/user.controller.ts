@@ -15,7 +15,7 @@ export class UserController {
 
       // We don't want to return the password hash
       const { password: _, ...userWithoutPassword } = user;
-      const token = generateToken(user.id);
+      const token = generateToken(user.id, user.email, user.name || undefined, user.role);
 
       res.status(201).json({
         success: true,
@@ -38,7 +38,7 @@ export class UserController {
       const user = await userService.login(email, password);
 
       const { password: _, ...userWithoutPassword } = user;
-      const token = generateToken(user.id);
+      const token = generateToken(user.id, user.email, user.name || undefined, user.role);
 
       res.json({
         success: true,

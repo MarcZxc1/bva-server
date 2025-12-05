@@ -88,7 +88,7 @@ class AuthService {
     });
 
     // Generate JWT token
-    const token = this.generateToken(result.id, result.role);
+    const token = this.generateToken(result.id, result.role, result.email, result.name || undefined);
 
     return {
       user: result,
@@ -122,7 +122,7 @@ class AuthService {
     }
 
     // Generate JWT token
-    const token = this.generateToken(user.id, user.role);
+    const token = this.generateToken(user.id, user.role, user.email, user.name || undefined);
 
     return {
       user: {
@@ -156,8 +156,13 @@ class AuthService {
   /**
    * Generate JWT token
    */
-  private generateToken(userId: string, role: string): string {
-    return jwt.sign({ userId, role }, this.JWT_SECRET, {
+  private generateToken(userId: string, role: string, email?: string, name?: string): string {
+    return jwt.sign({ 
+      userId, 
+      role,
+      email: email || 'user@example.com',
+      name: name || 'User'
+    }, this.JWT_SECRET, {
       expiresIn: this.JWT_EXPIRATION as string,
     } as jwt.SignOptions);
   }
@@ -267,7 +272,7 @@ class AuthService {
     });
 
     // Generate JWT token
-    const token = this.generateToken(user.id, user.role);
+    const token = this.generateToken(user.id, user.role, user.email, user.name || undefined);
 
     return {
       user: {

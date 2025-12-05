@@ -47,6 +47,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const response: AuthResponse = await authApi.login({ email, password });
     
     if (response.success && response.token) {
+      // For manual login, we already have user data from response
+      // Don't call async setToken which tries to fetch user data
       setToken(response.token);
       setUser(response.data);
       localStorage.setItem("auth_token", response.token);
@@ -60,6 +62,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const response: AuthResponse = await authApi.register({ email, password, name });
     
     if (response.success && response.token) {
+      // For manual register, we already have user data from response
+      // Don't call async setToken which tries to fetch user data
       setToken(response.token);
       setUser(response.data);
       localStorage.setItem("auth_token", response.token);
