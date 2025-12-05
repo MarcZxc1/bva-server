@@ -2,6 +2,7 @@
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import prisma from "../lib/prisma";
+import { shopeeIntegrationService } from "./shopeeIntegration.service";
 
 export interface RegisterInput {
   email: string;
@@ -9,11 +10,20 @@ export interface RegisterInput {
   name?: string;
   firstName?: string;
   lastName?: string;
+  role?: "ADMIN" | "SELLER" | "BUYER" | "ANALYST";
 }
 
 export interface LoginInput {
   email: string;
   password: string;
+}
+
+export interface ShopeeSSOInput {
+  shopeeUserId: string;
+  email: string;
+  name?: string | undefined;
+  role?: "ADMIN" | "SELLER" | "BUYER" | "ANALYST" | undefined;
+  apiKey: string;
 }
 
 class AuthService {
@@ -23,6 +33,7 @@ class AuthService {
 
   /**
    * Register a new user
+   * If role is SELLER, automatically create an empty Shop
    */
   async register(data: RegisterInput) {
     // Check if email already exists
@@ -37,32 +48,50 @@ class AuthService {
     // Hash password
     const hashedPassword = await bcrypt.hash(data.password, this.SALT_ROUNDS);
 
-    // Create user with default role 'SELLER'
-    const user = await prisma.user.create({
-      data: {
-        email: data.email,
-        password: hashedPassword,
-        name: data.name || null,
-        firstName: data.firstName || null,
-        lastName: data.lastName || null,
-        role: "SELLER",
-      },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        firstName: true,
-        lastName: true,
-        role: true,
-        createdAt: true,
-      },
+    // Determine role (default to SELLER)
+    const role = data.role || "SELLER";
+
+    // Create user with transaction to ensure shop creation for sellers
+    const result = await prisma.$transaction(async (tx) => {
+      // Create user
+      const user = await tx.user.create({
+        data: {
+          email: data.email,
+          password: hashedPassword,
+          name: data.name || null,
+          firstName: data.firstName || null,
+          lastName: data.lastName || null,
+          role,
+        },
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          firstName: true,
+          lastName: true,
+          role: true,
+          createdAt: true,
+        },
+      });
+
+      // If user is a SELLER, create an empty shop for them
+      if (role === "SELLER") {
+        await tx.shop.create({
+          data: {
+            name: `${data.name || data.email.split("@")[0]}'s Shop`,
+            ownerId: user.id,
+          },
+        });
+      }
+
+      return user;
     });
 
     // Generate JWT token
-    const token = this.generateToken(user.id, user.role);
+    const token = this.generateToken(result.id, result.role);
 
     return {
-      user,
+      user: result,
       token,
     };
   }
@@ -146,6 +175,8 @@ class AuthService {
         firstName: true,
         lastName: true,
         role: true,
+        shopeeId: true,
+        googleId: true,
         createdAt: true,
       },
     });
@@ -155,6 +186,96 @@ class AuthService {
     }
 
     return user;
+  }
+
+  /**
+   * Shopee-Clone SSO Login
+   * Find or create user based on Shopee-Clone data, then sync their products/sales
+   */
+  async shopeeSSOLogin(data: ShopeeSSOInput) {
+    const { shopeeUserId, email, name, role, apiKey } = data;
+
+    // Find existing user by email or shopeeId
+    let user = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { email },
+          { shopeeId: shopeeUserId },
+        ],
+      },
+    });
+
+    let isNewUser = false;
+
+    if (user) {
+      // Update existing user with shopeeId if not set
+      if (!user.shopeeId) {
+        user = await prisma.user.update({
+          where: { id: user.id },
+          data: { shopeeId: shopeeUserId },
+        });
+      }
+    } else {
+      // Create new user
+      isNewUser = true;
+      const userRole = role || "SELLER";
+
+      user = await prisma.$transaction(async (tx) => {
+        // Create user
+        const newUser = await tx.user.create({
+          data: {
+            email,
+            password: null, // SSO users don't need password
+            shopeeId: shopeeUserId,
+            name: name || null,
+            role: userRole,
+          },
+        });
+
+        // If user is a SELLER, create a shop for them
+        if (userRole === "SELLER") {
+          await tx.shop.create({
+            data: {
+              name: `${name || email.split("@")[0]}'s Shop`,
+              ownerId: newUser.id,
+            },
+          });
+        }
+
+        return newUser;
+      });
+    }
+
+    // Trigger data sync from Shopee-Clone (async, don't block login)
+    shopeeIntegrationService.syncAllData(user.id, apiKey).catch((error) => {
+      console.error(`❌ Error syncing Shopee-Clone data for user ${user!.id}:`, error);
+    });
+
+    // Generate JWT token
+    const token = this.generateToken(user.id, user.role);
+
+    return {
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        role: user.role,
+        shopeeId: user.shopeeId,
+        createdAt: user.createdAt,
+      },
+      token,
+      isNewUser,
+      syncStarted: true,
+    };
+  }
+
+  /**
+   * Manually trigger Shopee-Clone data sync
+   */
+  async triggerShopeeSync(userId: string, apiKey: string) {
+    return shopeeIntegrationService.syncAllData(userId, apiKey);
   }
 }
 

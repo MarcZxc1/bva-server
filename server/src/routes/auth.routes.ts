@@ -65,7 +65,7 @@ router.get(
   "/google/callback",
   passport.authenticate("google", {
     session: false,
-    failureRedirect: `${FRONTEND_URL}/login?error=google_auth_failed`,
+    failureRedirect: `${FRONTEND_URL}/buyer-login?error=google_auth_failed`,
   }),
   (req: Request, res: Response) => {
     try {
@@ -73,7 +73,7 @@ router.get(
       const user = req.user as any;
 
       if (!user) {
-        return res.redirect(`${FRONTEND_URL}/login?error=no_user`);
+        return res.redirect(`${FRONTEND_URL}/buyer-login?error=no_user`);
       }
 
       // Generate JWT token
@@ -84,10 +84,11 @@ router.get(
       );
 
       // Redirect to frontend with token
-      res.redirect(`${FRONTEND_URL}/login?token=${token}`);
+      // For Shopee Clone, redirect to /buyer-login which handles the token
+      res.redirect(`${FRONTEND_URL}/buyer-login?token=${token}`);
     } catch (error) {
       console.error("Google callback error:", error);
-      res.redirect(`${FRONTEND_URL}/login?error=token_generation_failed`);
+      res.redirect(`${FRONTEND_URL}/buyer-login?error=token_generation_failed`);
     }
   }
 );
@@ -130,6 +131,50 @@ router.get("/me", authMiddleware, (req: Request, res: Response) =>
  */
 router.post("/logout", authMiddleware, (req: Request, res: Response) =>
   authController.logout(req, res)
+);
+
+// ==========================================
+// Shopee-Clone SSO Routes
+// ==========================================
+
+/**
+ * @route   POST /api/auth/shopee-sso
+ * @desc    Shopee-Clone Single Sign-On
+ * @access  Public
+ * 
+ * This endpoint allows sellers from Shopee-Clone to instantly log into BVA.
+ * It will:
+ * 1. Find or create a BVA user based on the Shopee-Clone account
+ * 2. Link their shopeeId to the BVA user
+ * 3. Create a shop for them if they're a new SELLER
+ * 4. Trigger a sync of their products and sales from Shopee-Clone
+ * 5. Return a JWT for immediate authentication
+ * 
+ * Request body:
+ * {
+ *   "shopeeUserId": "string (required)",
+ *   "email": "string (required)",
+ *   "name": "string (optional)",
+ *   "role": "SELLER | BUYER | ADMIN | ANALYST (optional, default: SELLER)",
+ *   "apiKey": "string (required) - API key for fetching data from Shopee-Clone"
+ * }
+ */
+router.post("/shopee-sso", (req: Request, res: Response) =>
+  authController.shopeeSSOLogin(req, res)
+);
+
+/**
+ * @route   POST /api/auth/shopee-sync
+ * @desc    Manually trigger Shopee-Clone data sync
+ * @access  Private
+ * 
+ * Request body:
+ * {
+ *   "apiKey": "string (required) - API key for fetching data from Shopee-Clone"
+ * }
+ */
+router.post("/shopee-sync", authMiddleware, (req: Request, res: Response) =>
+  authController.triggerShopeeSync(req, res)
 );
 
 export default router;

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { useAuth } from '../../contexts/AuthContext';
 import shopeeLogo from '../../assets/LANDING-PAGE-LOGO/buyer-shopee-logo-sign-log.png';
 
 // Payment Methods
@@ -30,9 +31,23 @@ import appGalleryImg from '../../assets/APP-DOWNLOAD/buyer-app-gallery.png';
 
 const BuyerSignUp: React.FC = () => {
   const [phoneNumber, setPhoneNumber] = useState('');
+  const { loginWithGoogle, isAuthenticated } = useAuth();
+  const navigate = useNavigate();
+
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'auto' });
   }, []);
+
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (isAuthenticated) {
+      navigate('/');
+    }
+  }, [isAuthenticated, navigate]);
+
+  const handleGoogleSignUp = () => {
+    loginWithGoogle();
+  };
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -161,6 +176,7 @@ const BuyerSignUp: React.FC = () => {
 
                     <button
                       type="button"
+                      onClick={handleGoogleSignUp}
                       className="flex items-center justify-center gap-2 px-4 py-2.5 border border-gray-300 rounded hover:bg-gray-50 transition-colors"
                     >
                       <svg className="w-5 h-5" viewBox="0 0 24 24">
