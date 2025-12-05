@@ -25,6 +25,7 @@ datasource db {
 enum Role {
   ADMIN
   SELLER
+  BUYER
   ANALYST
 }
 
@@ -49,7 +50,9 @@ enum CampaignStatus {
 model User {
   id        String   @id @default(uuid())
   email     String   @unique
-  password  String
+  password  String?
+  googleId  String?  @unique
+  shopeeId  String?  @unique
   name      String?
   firstName String?
   lastName  String?

@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import { UserService } from "../service/user.service";
 import { generateToken } from "../utils/jwt";
 import bcrypt from "bcrypt";
+import jwt from "jsonwebtoken";
 
 const userService = new UserService();
 
@@ -123,6 +124,14 @@ export class UserController {
         });
       }
 
+      // Check if user has a password (not a Google OAuth user)
+      if (!user.password) {
+        return res.status(400).json({
+          success: false,
+          error: "This account uses Google OAuth. Password cannot be changed.",
+        });
+      }
+
       const isPasswordValid = await bcrypt.compare(currentPassword, user.password);
       if (!isPasswordValid) {
         return res.status(400).json({
@@ -143,6 +152,66 @@ export class UserController {
       res.status(500).json({
         success: false,
         error: error.message,
+      });
+    }
+  }
+
+  // Sync user from Shopee-Clone system
+  async syncShopeeUser(req: Request, res: Response) {
+    try {
+      const { email, name, role, shopeeId, password } = req.body;
+
+      // Validate required fields
+      if (!email || !role || !shopeeId) {
+        return res.status(400).json({
+          success: false,
+          error: "Email, role, and shopeeId are required",
+        });
+      }
+
+      // Validate role
+      if (role !== "SELLER" && role !== "BUYER") {
+        return res.status(400).json({
+          success: false,
+          error: "Role must be either 'SELLER' or 'BUYER'",
+        });
+      }
+
+      // Sync user (creates or updates)
+      const user = await userService.syncShopeeUser({
+        email,
+        name,
+        role,
+        shopeeId,
+        password,
+      });
+
+      // Generate JWT token with userId and role
+      const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key";
+      const JWT_EXPIRATION = process.env.JWT_EXPIRATION || "24h";
+      
+      const token = jwt.sign(
+        { userId: user.id, role: user.role },
+        JWT_SECRET,
+        { expiresIn: JWT_EXPIRATION } as jwt.SignOptions
+      );
+
+      // Remove password from response
+      const { password: _, ...userWithoutPassword } = user;
+
+      res.status(200).json({
+        success: true,
+        data: userWithoutPassword,
+        token,
+        message: role === "SELLER" 
+          ? "Seller account synced successfully. Shop created and being populated with sample data."
+          : "Buyer account synced successfully.",
+      });
+    } catch (error: any) {
+      console.error("Shopee sync error:", error);
+      res.status(500).json({
+        success: false,
+        error: error.message || "Failed to sync user from Shopee-Clone",
       });
     }
   }

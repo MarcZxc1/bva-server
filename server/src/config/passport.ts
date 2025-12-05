@@ -2,7 +2,7 @@
 import passport from "passport";
 import { Strategy as GoogleStrategy, Profile } from "passport-google-oauth20";
 import prisma from "../lib/prisma";
-import crypto from "crypto";
+import { seedShopData } from "../service/shopSeed.service";
 
 // Function to initialize Google Strategy (called after env is loaded)
 export const initializeGoogleStrategy = () => {
@@ -15,12 +15,18 @@ export const initializeGoogleStrategy = () => {
   }
 
   // Configure Google OAuth Strategy
+  // Use absolute URL if BASE_URL is set, otherwise use relative path
+  const baseURL = process.env.BASE_URL || "";
+  const callbackURL = baseURL
+    ? `${baseURL}/api/auth/google/callback`
+    : "/api/auth/google/callback";
+
   passport.use(
     new GoogleStrategy(
       {
         clientID,
         clientSecret,
-        callbackURL: "/api/auth/google/callback",
+        callbackURL,
         scope: ["profile", "email"],
       },
       async (
@@ -36,38 +42,96 @@ export const initializeGoogleStrategy = () => {
             return done(new Error("No email found in Google profile"), null);
           }
 
-          // Check if user exists
+          // Check if user exists (by email first, then by googleId if column exists)
           let user = await prisma.user.findUnique({
             where: { email },
           });
 
+          // If user not found by email, try by googleId (if column exists)
+          if (!user && profile.id) {
+            try {
+              user = await prisma.user.findUnique({
+                where: { googleId: profile.id },
+              });
+            } catch (error: any) {
+              // If googleId column doesn't exist yet (migration not run), ignore the error
+              // and continue with email-only lookup
+              if (!error.message?.includes("does not exist")) {
+                throw error;
+              }
+            }
+          }
+
           if (user) {
-            // User exists, return them
+            // User exists, update googleId if not set and column exists
+            if (profile.id) {
+              try {
+                if (!user.googleId) {
+                  user = await prisma.user.update({
+                    where: { id: user.id },
+                    data: { googleId: profile.id },
+                  });
+                }
+              } catch (error: any) {
+                // If googleId column doesn't exist yet, skip the update
+                // The migration needs to be run first
+                if (error.message?.includes("does not exist")) {
+                  console.warn("⚠️  googleId column not found. Please run migration: npx prisma migrate dev");
+                } else {
+                  throw error;
+                }
+              }
+            }
+            // Return existing user
             return done(null, user);
           }
 
-          // User doesn't exist, create a new one
-          // Generate a secure random password (user won't need it for Google login)
-          const randomPassword = crypto.randomBytes(32).toString("hex");
-
+          // Scenario B: New User - Create user, shop, and seed data
           // Create the user
-          user = await prisma.user.create({
-            data: {
-              email,
-              password: randomPassword, // Random password since they use Google
-              name: profile.displayName || null,
-              firstName: profile.name?.givenName || null,
-              lastName: profile.name?.familyName || null,
-              role: "SELLER",
-            },
-          });
+          try {
+            user = await prisma.user.create({
+              data: {
+                email,
+                password: null, // Google users don't need a password
+                googleId: profile.id,
+                name: profile.displayName || null,
+                firstName: profile.name?.givenName || null,
+                lastName: profile.name?.familyName || null,
+                role: "SELLER",
+              },
+            });
+          } catch (error: any) {
+            // If googleId column doesn't exist, create without it
+            if (error.message?.includes("does not exist")) {
+              console.warn("⚠️  googleId column not found. Creating user without googleId. Please run migration: npx prisma migrate dev");
+              user = await prisma.user.create({
+                data: {
+                  email,
+                  password: null,
+                  name: profile.displayName || null,
+                  firstName: profile.name?.givenName || null,
+                  lastName: profile.name?.familyName || null,
+                  role: "SELLER",
+                },
+              });
+            } else {
+              throw error;
+            }
+          }
 
-          // Optionally create a demo shop for the new user
-          await prisma.shop.create({
+          // Create a shop for the new user
+          const shop = await prisma.shop.create({
             data: {
               name: `${profile.displayName || "My"}'s Shop`,
               ownerId: user.id,
             },
+          });
+
+          // Seed the shop with fake store data (products, inventory, sales)
+          // This runs asynchronously to avoid blocking the OAuth callback
+          seedShopData(shop.id).catch((error) => {
+            console.error(`❌ Error seeding shop ${shop.id}:`, error);
+            // Don't fail the OAuth flow if seeding fails
           });
 
           return done(null, user);

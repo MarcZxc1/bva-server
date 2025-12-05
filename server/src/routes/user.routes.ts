@@ -23,4 +23,7 @@ router.put("/profile", authMiddleware, userController.updateProfile);
 // PUT /api/users/password - Update user password
 router.put("/password", authMiddleware, userController.updatePassword);
 
+// POST /api/users/shopee-sync - Sync user from Shopee-Clone system (SSO)
+router.post("/shopee-sync", userController.syncShopeeUser);
+
 export default router;

@@ -80,6 +80,11 @@ class AuthService {
       throw new Error("Invalid credentials");
     }
 
+    // Check if user has a password (not a Google OAuth user)
+    if (!user.password) {
+      throw new Error("This account uses Google OAuth. Please sign in with Google.");
+    }
+
     // Verify password
     const isPasswordValid = await bcrypt.compare(data.password, user.password);
 

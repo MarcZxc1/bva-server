@@ -80,6 +80,12 @@ export class AuthController {
             message: "Invalid email or password",
           });
         }
+        if (error.message.includes("Google OAuth")) {
+          return res.status(400).json({
+            success: false,
+            message: error.message,
+          });
+        }
       }
 
       console.error("Login error:", error);
