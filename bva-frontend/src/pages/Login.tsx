@@ -44,24 +44,33 @@ export default function Login() {
 
   // Handle token from Google OAuth callback
   useEffect(() => {
-    const token = searchParams.get("token");
-    const error = searchParams.get("error");
+    const handleOAuthCallback = async () => {
+      const token = searchParams.get("token");
+      const error = searchParams.get("error");
 
-    if (token) {
-      // Save token and redirect to dashboard
-      setToken(token);
-      toast.success("Google login successful!");
-      navigate("/dashboard", { replace: true });
-    }
+      if (token) {
+        try {
+          // Save token and fetch user data
+          await setToken(token);
+          toast.success("Google login successful!");
+          navigate("/dashboard", { replace: true });
+        } catch (err) {
+          console.error("OAuth token error:", err);
+          toast.error("Failed to complete login. Please try again.");
+        }
+      }
 
-    if (error) {
-      const errorMessages: Record<string, string> = {
-        google_auth_failed: "Google authentication failed. Please try again.",
-        no_user: "Could not retrieve user information.",
-        token_generation_failed: "Failed to generate authentication token.",
-      };
-      toast.error(errorMessages[error] || "Authentication error occurred.");
-    }
+      if (error) {
+        const errorMessages: Record<string, string> = {
+          google_auth_failed: "Google authentication failed. Please try again.",
+          no_user: "Could not retrieve user information.",
+          token_generation_failed: "Failed to generate authentication token.",
+        };
+        toast.error(errorMessages[error] || "Authentication error occurred.");
+      }
+    };
+
+    handleOAuthCallback();
   }, [searchParams, setToken, navigate]);
 
   const handleLogin = async (e: React.FormEvent) => {

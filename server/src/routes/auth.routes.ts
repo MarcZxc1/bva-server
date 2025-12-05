@@ -117,7 +117,12 @@ router.get("/google/callback", (req, res, next) => {
       }
 
       const token = jwt.sign(
-        { userId: user.id, role: user.role },
+        { 
+          userId: user.id, 
+          role: user.role,
+          email: user.email,
+          name: user.name || user.firstName || 'User'
+        },
         JWT_SECRET,
         { expiresIn: JWT_EXPIRATION } as jwt.SignOptions
       );
@@ -139,6 +144,50 @@ router.get("/google/callback", (req, res, next) => {
 // ==========================================
 // Standard Auth Routes
 // ==========================================
+
+/**
+ * @route   GET /api/auth/me
+ * @desc    Get current user info
+ * @access  Private
+ */
+router.get("/me", authMiddleware, async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).userId;
+    const user = await authService.getUserById(userId);
+    
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    // Get user's shops
+    const shops = await authService.getUserShops(userId);
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        id: user.id,
+        email: user.email,
+        name: user.name || user.firstName || 'User',
+        firstName: user.firstName,
+        lastName: user.lastName,
+        role: user.role,
+        shops: shops.map(shop => ({
+          id: shop.id,
+          name: shop.name,
+        })),
+      },
+    });
+  } catch (error) {
+    console.error("Get user error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to get user information",
+    });
+  }
+});
 
 /**
  * @route   POST /api/auth/register

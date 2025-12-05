@@ -189,6 +189,21 @@ class AuthService {
   }
 
   /**
+   * Get user's shops
+   */
+  async getUserShops(userId: string) {
+    const shops = await prisma.shop.findMany({
+      where: { ownerId: userId },
+      select: {
+        id: true,
+        name: true,
+      },
+    });
+
+    return shops;
+  }
+
+  /**
    * Shopee-Clone SSO Login
    * Find or create user based on Shopee-Clone data, then sync their products/sales
    */

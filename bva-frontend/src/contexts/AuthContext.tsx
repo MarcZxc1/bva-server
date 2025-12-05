@@ -77,22 +77,48 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   // Set token from external source (e.g., Google OAuth callback)
-  const setAuthToken = (newToken: string) => {
+  const setAuthToken = async (newToken: string) => {
     setToken(newToken);
     localStorage.setItem("auth_token", newToken);
     
-    // Decode JWT to get user info (basic decode, not verification)
+    // Fetch full user details from backend
     try {
-      const payload = JSON.parse(atob(newToken.split('.')[1]));
-      const basicUser: User = {
-        id: payload.userId,
-        email: payload.email || "google-user@example.com",
-        name: payload.name || "Google User",
-      };
-      setUser(basicUser);
-      localStorage.setItem("user", JSON.stringify(basicUser));
+      const response = await authApi.getCurrentUser();
+      if (response.success && response.data) {
+        const userData: User = {
+          id: response.data.id,
+          email: response.data.email,
+          name: response.data.name,
+          shops: response.data.shops,
+        };
+        setUser(userData);
+        localStorage.setItem("user", JSON.stringify(userData));
+      } else {
+        // Fallback: decode JWT to get basic user info
+        const payload = JSON.parse(atob(newToken.split('.')[1]));
+        const basicUser: User = {
+          id: payload.userId,
+          email: payload.email || "user@example.com",
+          name: payload.name || "User",
+        };
+        setUser(basicUser);
+        localStorage.setItem("user", JSON.stringify(basicUser));
+      }
     } catch (e) {
-      console.error("Failed to decode token:", e);
+      console.error("Failed to fetch user details:", e);
+      // Fallback: decode JWT to get basic user info
+      try {
+        const payload = JSON.parse(atob(newToken.split('.')[1]));
+        const basicUser: User = {
+          id: payload.userId,
+          email: payload.email || "user@example.com",
+          name: payload.name || "User",
+        };
+        setUser(basicUser);
+        localStorage.setItem("user", JSON.stringify(basicUser));
+      } catch (decodeError) {
+        console.error("Failed to decode token:", decodeError);
+      }
     }
   };
 
