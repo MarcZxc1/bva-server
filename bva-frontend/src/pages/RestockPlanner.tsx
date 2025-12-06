@@ -26,8 +26,8 @@ const getPriorityLabel = (priorityScore: number) => {
 
 export default function RestockPlanner() {
   const { user } = useAuth();
-  const DEFAULT_SHOP_ID = "2aad5d00-d302-4c57-86ad-99826e19e610";
-  const [shopId, setShopId] = useState(user?.shops?.[0]?.id || DEFAULT_SHOP_ID);
+  const [shopId, setShopId] = useState(user?.shops?.[0]?.id || "");
+  const hasShop = !!shopId;
   const [budget, setBudget] = useState("50000");
   const [goal, setGoal] = useState<"profit" | "volume" | "balanced">("balanced");
   const [restockDays, setRestockDays] = useState("14");
@@ -71,6 +71,33 @@ export default function RestockPlanner() {
 
   // Check if recommendations exist
   const hasRecommendations = restockData && restockData.recommendations && restockData.recommendations.length > 0;
+
+  // Show empty state if no shop
+  if (!hasShop) {
+    return (
+      <div className="space-y-6">
+        <div className="glass-card p-8">
+          <div className="space-y-2">
+            <h1 className="text-4xl font-bold text-foreground">📈 Restock Planner</h1>
+            <p className="text-muted-foreground">AI-powered demand forecasting and intelligent inventory planning</p>
+          </div>
+        </div>
+        <Card className="glass-card">
+          <CardContent className="py-12">
+            <div className="flex flex-col items-center justify-center text-center space-y-4">
+              <PackageOpen className="h-16 w-16 text-muted-foreground/50" />
+              <div className="space-y-2">
+                <h2 className="text-2xl font-bold text-foreground">No Shop Found</h2>
+                <p className="text-muted-foreground max-w-md">
+                  You need a shop to use the Restock Planner. Sellers automatically get a shop created during registration.
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

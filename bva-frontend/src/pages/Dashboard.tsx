@@ -6,16 +6,16 @@ import { useAuth } from "@/contexts/AuthContext";
 
 export default function Dashboard() {
   const { user } = useAuth();
-  const DEFAULT_SHOP_ID = "2aad5d00-d302-4c57-86ad-99826e19e610";
-  const shopId = user?.shops?.[0]?.id || DEFAULT_SHOP_ID;
+  const shopId = user?.shops?.[0]?.id;
+  const hasShop = !!shopId;
   
-  const { data: atRiskData, isLoading: atRiskLoading } = useAtRiskInventory(shopId, !!shopId);
-  const { data: analyticsData, isLoading: analyticsLoading } = useDashboardAnalytics(shopId);
+  const { data: atRiskData, isLoading: atRiskLoading } = useAtRiskInventory(shopId || "", hasShop);
+  const { data: analyticsData, isLoading: analyticsLoading } = useDashboardAnalytics(shopId || "", hasShop);
 
-  const isLoading = analyticsLoading || atRiskLoading;
+  const isLoading = (analyticsLoading || atRiskLoading) && hasShop;
 
   // Prepare sales data from API response
-  const salesData = analyticsData?.forecast?.forecasts?.[0]?.predictions.map((val, i) => ({
+  const salesData = analyticsData?.forecast?.forecasts?.[0]?.predictions?.map((val, i) => ({
     month: `Day ${i + 1}`,
     sales: Math.round(val.predicted_qty),
   })) || [];
@@ -29,16 +29,59 @@ export default function Dashboard() {
   })) || [];
 
   // Check for empty states
+  const hasNoShop = !hasShop;
   const hasNoSalesData = !salesData || salesData.length === 0;
   const hasNoInventory = !atRiskData?.at_risk || atRiskData.at_risk.length === 0;
+
+  // Show empty state if user has no shop
+  if (hasNoShop) {
+    return (
+      <div className="space-y-6">
+        {/* Welcome Header */}
+        <div className="glass-card p-8">
+          <div className="space-y-2">
+            <h1 className="text-4xl font-bold text-foreground">👋 Welcome, {user?.name || user?.email}!</h1>
+            <p className="text-muted-foreground">Get started with your Business Virtual Assistant</p>
+          </div>
+        </div>
+
+        {/* Empty State - No Shop */}
+        <Card className="glass-card border-primary/20">
+          <CardContent className="py-12">
+            <div className="flex flex-col items-center justify-center text-center space-y-4">
+              <PackageOpen className="h-16 w-16 text-muted-foreground/50" />
+              <div className="space-y-2">
+                <h2 className="text-2xl font-bold text-foreground">No Shop Found</h2>
+                <p className="text-muted-foreground max-w-md">
+                  You don't have a shop yet. Sellers automatically get a shop created during registration.
+                  If you're a buyer, you can browse products but won't have shop management features.
+                </p>
+              </div>
+              <div className="mt-6 p-6 bg-primary/10 rounded-lg border border-primary/20">
+                <h3 className="font-semibold text-foreground mb-3">What you can do:</h3>
+                <ul className="text-sm text-muted-foreground space-y-2 text-left">
+                  <li>• If you're a SELLER: Your shop should have been created automatically</li>
+                  <li>• Try refreshing the page or logging out and back in</li>
+                  <li>• Contact support if you believe this is an error</li>
+                </ul>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
       {/* Welcome Header */}
       <div className="glass-card p-8">
         <div className="space-y-2">
-          <h1 className="text-4xl font-bold text-foreground">👋 Welcome Back! Dashboard</h1>
-          <p className="text-muted-foreground">Overview of your multi-platform business performance</p>
+          <h1 className="text-4xl font-bold text-foreground">👋 Welcome Back, {user?.name || user?.email}!</h1>
+          <p className="text-muted-foreground">
+            Overview of your multi-platform business performance
+            {user?.shops?.[0] && ` - ${user.shops[0].name}`}
+          </p>
         </div>
       </div>
 
@@ -231,7 +274,7 @@ export default function Dashboard() {
         </CardContent>
       </Card>
 
-      {/* Quick Actions */}
+      {/* Quick Actions - Show when no data */}
       {(hasNoSalesData || hasNoInventory) && (
         <Card className="glass-card border-primary/20">
           <CardHeader>
@@ -240,12 +283,26 @@ export default function Dashboard() {
           <CardContent>
             <div className="space-y-3">
               <p className="text-sm text-muted-foreground">
-                To unlock powerful AI insights and forecasts, you need to sync your data from Shopee-Clone:
+                {hasNoSalesData && hasNoInventory 
+                  ? "Your shop is set up! Now you need data to see insights:"
+                  : hasNoSalesData
+                  ? "Add sales data to see AI-powered forecasts:"
+                  : "Your inventory looks good! Add more products to track:"}
               </p>
               <ul className="text-sm text-muted-foreground space-y-2 ml-4">
-                <li>• Connect your Shopee-Clone account via SSO</li>
-                <li>• Sync your products and sales history</li>
-                <li>• Get real-time AI-powered recommendations</li>
+                {hasNoSalesData && (
+                  <>
+                    <li>• Connect your Shopee-Clone account via SSO to sync sales</li>
+                    <li>• Or manually add sales records through the API</li>
+                  </>
+                )}
+                {hasNoInventory && (
+                  <>
+                    <li>• Add products to your inventory</li>
+                    <li>• Sync products from Shopee-Clone</li>
+                  </>
+                )}
+                <li>• Get real-time AI-powered recommendations once you have data</li>
               </ul>
             </div>
           </CardContent>
