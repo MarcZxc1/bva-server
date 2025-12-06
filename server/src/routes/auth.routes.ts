@@ -4,16 +4,22 @@ import passport from "../config/passport";
 import { authController } from "../controllers/auth.controller";
 import { authService } from "../service/auth.service";
 import jwt from "jsonwebtoken";
+import prisma from "../lib/prisma";
 
 const router = Router();
 
 // Allowed frontend URLs for redirection
 const ALLOWED_FRONTENDS = [
-  "http://localhost:5173", // Shopee Clone
+  "http://localhost:5173", // Vite default / Shopee Clone
+  "http://localhost:5174", // Alternative Vite port
   "http://localhost:8080", // BVA Frontend
+  "http://localhost:3001", // Alternative frontend port
   "https://bva-frontend.vercel.app",
   "https://shopee-clone.vercel.app"
 ];
+
+// Get frontend URL from environment or default
+const FRONTEND_URL = process.env.FRONTEND_URL || process.env.VITE_API_URL?.replace('/api', '') || "http://localhost:5173";
 
 const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key";
 const JWT_EXPIRATION = process.env.JWT_EXPIRATION || "24h";
@@ -82,61 +88,88 @@ router.get("/google", (req: Request, res: Response, next) => {
 router.get("/google/callback", (req, res, next) => {
   // Extract state and validate it
   const state = req.query.state as string;
-  let redirectUrl = ALLOWED_FRONTENDS[0]; // Default redirect
+  let redirectUrl = FRONTEND_URL; // Default to environment or localhost:5173
   let decodedState: { redirectUrl: string } | null = null;
 
   try {
     if (state) {
       decodedState = JSON.parse(Buffer.from(state, 'base64').toString('utf-8'));
-      if (decodedState && decodedState.redirectUrl && ALLOWED_FRONTENDS.includes(decodedState.redirectUrl)) {
-        redirectUrl = decodedState.redirectUrl;
+      if (decodedState && decodedState.redirectUrl) {
+        // Validate redirect URL is in allowed list
+        if (ALLOWED_FRONTENDS.includes(decodedState.redirectUrl)) {
+          redirectUrl = decodedState.redirectUrl;
+        } else {
+          console.warn(`⚠️  Redirect URL not in allowed list: ${decodedState.redirectUrl}, using default: ${redirectUrl}`);
+        }
       }
     }
   } catch (e) {
     console.error("Invalid state parameter:", e);
-    // Handle error, maybe redirect to a default error page
-    return res.redirect(`${ALLOWED_FRONTENDS[0]}/buyer-login?error=invalid_state`);
+    // Use default redirect URL on error
+    redirectUrl = FRONTEND_URL;
   }
   
-  const failureRedirect = `${redirectUrl}/buyer-login?error=google_auth_failed`;
+  const failureRedirect = `${redirectUrl}/login?error=google_auth_failed`;
 
   passport.authenticate("google", {
     session: false,
     failureRedirect: failureRedirect,
-    state: state,
   }) (req, res, (err: any) => {
     if (err) {
-      return next(err);
+      console.error("Google OAuth authentication error:", err);
+      return res.redirect(`${redirectUrl}/login?error=google_auth_failed&details=${encodeURIComponent(err.message || 'Authentication failed')}`);
     }
     
     try {
       const user = req.user as any;
 
       if (!user) {
-        return res.redirect(`${redirectUrl}/buyer-login?error=no_user`);
+        console.error("No user returned from Google OAuth");
+        return res.redirect(`${redirectUrl}/login?error=no_user`);
       }
 
-      const token = jwt.sign(
-        { 
-          userId: user.id, 
-          role: user.role,
-          email: user.email,
-          name: user.name || user.firstName || 'User'
-        },
-        JWT_SECRET,
-        { expiresIn: JWT_EXPIRATION } as jwt.SignOptions
-      );
-      
-      if(redirectUrl){
-        // BVA frontend is on port 8080, Shopee-Clone is on port 5173
-        // BVA handles token in /login page, Shopee handles it in root page
-        const destination = redirectUrl.includes('8080') ? '/login' : '/';
+      // Get user's shops for the token
+      prisma.shop.findMany({
+        where: { ownerId: user.id },
+        select: { id: true, name: true }
+      }).then(shops => {
+        const token = jwt.sign(
+          { 
+            userId: user.id, 
+            role: user.role,
+            email: user.email,
+            name: user.name || user.firstName || 'User',
+            shops: shops.map(s => ({ id: s.id, name: s.name }))
+          },
+          JWT_SECRET,
+          { expiresIn: JWT_EXPIRATION } as jwt.SignOptions
+        );
+        
+        // Determine destination based on frontend
+        // BVA frontend handles token in /login page
+        const destination = redirectUrl.includes('8080') || redirectUrl.includes('5173') ? '/login' : '/';
         res.redirect(`${redirectUrl}${destination}?token=${token}`);
-      }
+      }).catch(shopError => {
+        console.error("Error fetching user shops:", shopError);
+        // Still generate token even if shops fetch fails
+        const token = jwt.sign(
+          { 
+            userId: user.id, 
+            role: user.role,
+            email: user.email,
+            name: user.name || user.firstName || 'User'
+          },
+          JWT_SECRET,
+          { expiresIn: JWT_EXPIRATION } as jwt.SignOptions
+        );
+        const destination = redirectUrl.includes('8080') || redirectUrl.includes('5173') ? '/login' : '/';
+        res.redirect(`${redirectUrl}${destination}?token=${token}`);
+      });
 
-    } catch (error) {
+    } catch (error: any) {
       console.error("Google callback error:", error);
-      res.redirect(`${redirectUrl}/buyer-login?error=token_generation_failed`);
+      const errorMessage = error?.message || 'Token generation failed';
+      res.redirect(`${redirectUrl}/login?error=token_generation_failed&details=${encodeURIComponent(errorMessage)}`);
     }
   });
 });

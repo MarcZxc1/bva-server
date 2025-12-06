@@ -16,10 +16,10 @@ export const initializeGoogleStrategy = () => {
 
   // Configure Google OAuth Strategy
   // Use absolute URL if BASE_URL is set, otherwise use relative path
-  const baseURL = process.env.BASE_URL || "";
-  const callbackURL = baseURL
-    ? `${baseURL}/api/auth/google/callback`
-    : "/api/auth/google/callback";
+  const baseURL = process.env.BASE_URL || process.env.BACKEND_URL || "http://localhost:3000";
+  const callbackURL = `${baseURL}/api/auth/google/callback`;
+  
+  console.log(`🔗 Google OAuth callback URL: ${callbackURL}`);
 
   passport.use(
     new GoogleStrategy(
@@ -99,6 +99,24 @@ export const initializeGoogleStrategy = () => {
                 lastName: profile.name?.familyName || null,
                 role: "SELLER",
               },
+            }).catch(async (error: any) => {
+              // Handle race condition - if email already exists, fetch the user
+              if (error.code === 'P2002' && error.meta?.target?.includes('email')) {
+                const existingUser = await prisma.user.findUnique({
+                  where: { email },
+                });
+                if (existingUser) {
+                  // Update googleId if missing
+                  if (!existingUser.googleId && profile.id) {
+                    return await prisma.user.update({
+                      where: { id: existingUser.id },
+                      data: { googleId: profile.id },
+                    });
+                  }
+                  return existingUser;
+                }
+              }
+              throw error;
             });
           } catch (error: any) {
             // If googleId column doesn't exist, create without it

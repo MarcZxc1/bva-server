@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -37,8 +37,11 @@ const BACKEND_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
 
 export default function Login() {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const { login, register, setToken, isLoading } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const { login, register, setToken, isLoading, isAuthenticated } = useAuth();
+  
+  // Track OAuth processing to prevent infinite loops
+  const oauthProcessedRef = useRef(false);
   
   // Login form state
   const [loginEmail, setLoginEmail] = useState("");
@@ -53,36 +56,76 @@ export default function Login() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeTab, setActiveTab] = useState<"login" | "register">("login");
 
-  // Handle token from Google OAuth callback
+  // Redirect to dashboard if already authenticated (but not if processing OAuth callback)
   useEffect(() => {
-    const handleOAuthCallback = async () => {
-      const token = searchParams.get("token");
-      const error = searchParams.get("error");
+    const hasToken = searchParams.has("token");
+    const hasError = searchParams.has("error");
+    
+    // Only redirect if authenticated, no OAuth params, and not processing OAuth
+    if (isAuthenticated && !hasToken && !hasError && !oauthProcessedRef.current) {
+      console.log("✅ Already authenticated, redirecting to dashboard...");
+      navigate("/dashboard", { replace: true });
+    }
+  }, [isAuthenticated, searchParams, navigate]);
 
-      if (token) {
+  // Handle token from Google OAuth callback - SINGLE EFFECT, NO LOOPS
+  useEffect(() => {
+    // Prevent re-processing if already handled
+    if (oauthProcessedRef.current) {
+      return;
+    }
+
+    const token = searchParams.get("token");
+    const error = searchParams.get("error");
+
+    // Process token only once
+    if (token && !oauthProcessedRef.current) {
+      oauthProcessedRef.current = true; // Mark as processed immediately
+      
+      const processToken = async () => {
         try {
+          console.log("🔑 Processing OAuth token...");
+          
+          // Remove token from URL immediately to prevent re-processing
+          setSearchParams({}, { replace: true });
+          
           // Save token and fetch user data
           await setToken(token);
+          console.log("✅ Token saved and user data loaded");
           toast.success("Google login successful!");
-          navigate("/dashboard", { replace: true });
+          
+          // Navigate after a brief delay to ensure state is updated
+          setTimeout(() => {
+            console.log("🚀 Navigating to dashboard...");
+            navigate("/dashboard", { replace: true });
+          }, 200);
         } catch (err) {
           console.error("OAuth token error:", err);
           toast.error("Failed to complete login. Please try again.");
+          oauthProcessedRef.current = false; // Reset on error
+          setSearchParams({}, { replace: true }); // Clear URL
         }
-      }
+      };
+      
+      processToken();
+      return;
+    }
 
-      if (error) {
-        const errorMessages: Record<string, string> = {
-          google_auth_failed: "Google authentication failed. Please try again.",
-          no_user: "Could not retrieve user information.",
-          token_generation_failed: "Failed to generate authentication token.",
-        };
-        toast.error(errorMessages[error] || "Authentication error occurred.");
-      }
-    };
-
-    handleOAuthCallback();
-  }, [searchParams, setToken, navigate]);
+    // Process error only once
+    if (error && !oauthProcessedRef.current) {
+      oauthProcessedRef.current = true; // Mark as processed
+      
+      const errorMessages: Record<string, string> = {
+        google_auth_failed: "Google authentication failed. Please try again.",
+        no_user: "Could not retrieve user information.",
+        token_generation_failed: "Failed to generate authentication token.",
+      };
+      toast.error(errorMessages[error] || "Authentication error occurred.");
+      
+      // Clear error from URL
+      setSearchParams({}, { replace: true });
+    }
+  }, [searchParams, setToken, navigate, setSearchParams]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
