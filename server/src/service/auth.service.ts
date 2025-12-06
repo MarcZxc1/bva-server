@@ -53,6 +53,15 @@ class AuthService {
 
     // Create user with transaction to ensure shop creation for sellers
     const result = await prisma.$transaction(async (tx) => {
+      // Double-check email doesn't exist (race condition protection)
+      const existingUserInTx = await tx.user.findUnique({
+        where: { email: data.email }
+      });
+
+      if (existingUserInTx) {
+        throw new Error("Email already exists");
+      }
+
       // Create user
       const user = await tx.user.create({
         data: {
@@ -72,6 +81,12 @@ class AuthService {
           role: true,
           createdAt: true,
         },
+      }).catch((error: any) => {
+        // Handle Prisma unique constraint error
+        if (error.code === 'P2002' && error.meta?.target?.includes('email')) {
+          throw new Error("Email already exists");
+        }
+        throw error;
       });
 
       // If user is a SELLER, create an empty shop for them

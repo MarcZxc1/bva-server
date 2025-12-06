@@ -43,14 +43,19 @@ export class UserService {
       },
     });
 
-    if (!user || !user.password) {
-      throw new Error("User not found or password not set");
+    if (!user) {
+      throw new Error("Invalid email or password");
+    }
+
+    // Check if user has a password (not a Google OAuth user)
+    if (!user.password) {
+      throw new Error("This account uses Google OAuth. Please sign in with Google.");
     }
 
     const isPasswordValid = await bcrypt.compare(password, user.password);
 
     if (!isPasswordValid) {
-      throw new Error("Invalid password");
+      throw new Error("Invalid email or password");
     }
 
     return user;
@@ -155,15 +160,37 @@ export class UserService {
     const hashedPassword = password ? await bcrypt.hash(password, 10) : null;
 
     // Create user with appropriate role
-    user = await prisma.user.create({
-      data: {
-        email,
-        password: hashedPassword,
-        shopeeId,
-        name: name || null,
-        role: role === "SELLER" ? Role.SELLER : Role.BUYER,
-      },
-    });
+    // Handle race condition where email might be created between check and create
+    try {
+      user = await prisma.user.create({
+        data: {
+          email,
+          password: hashedPassword,
+          shopeeId,
+          name: name || null,
+          role: role === "SELLER" ? Role.SELLER : Role.BUYER,
+        },
+      });
+    } catch (error: any) {
+      // If email already exists (race condition), fetch the existing user
+      if (error.code === 'P2002' && error.meta?.target?.includes('email')) {
+        user = await prisma.user.findUnique({
+          where: { email },
+        });
+        if (!user) {
+          throw new Error("Failed to create user: email conflict");
+        }
+        // Update shopeeId if missing
+        if (!user.shopeeId && shopeeId) {
+          user = await prisma.user.update({
+            where: { id: user.id },
+            data: { shopeeId },
+          });
+        }
+        return user;
+      }
+      throw error;
+    }
 
     // CRITICAL: If role is SELLER, create shop and seed data
     if (role === "SELLER") {

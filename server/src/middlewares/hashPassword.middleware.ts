@@ -7,13 +7,20 @@ export const hashPasswordMiddleware = async (
   next: NextFunction
 ) => {
   try {
-    // Only hash if password is provided in the body
-    if (req.body.password) {
+    // Only hash if password is provided in the body and is a string
+    if (req.body.password && typeof req.body.password === 'string') {
       const saltRounds = 10;
       req.body.password = await bcrypt.hash(req.body.password, saltRounds);
+    } else if (req.body.password) {
+      // Password exists but is not a string (might already be hashed)
+      console.warn("Password middleware: password is not a string, skipping hash");
     }
     next();
   } catch (error) {
-    res.status(500).json({ error: "Error processing password" });
+    console.error("Password hashing error:", error);
+    res.status(500).json({ 
+      success: false,
+      error: "Error processing password" 
+    });
   }
 };

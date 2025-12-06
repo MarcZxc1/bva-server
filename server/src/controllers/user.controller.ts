@@ -12,6 +12,31 @@ export class UserController {
   async register(req: Request, res: Response) {
     try {
       const { email, password, name } = req.body;
+
+      // Validate input
+      if (!email || !password) {
+        return res.status(400).json({
+          success: false,
+          error: "Email and password are required",
+        });
+      }
+
+      // Basic email validation
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email)) {
+        return res.status(400).json({
+          success: false,
+          error: "Please provide a valid email address",
+        });
+      }
+
+      // Password length validation
+      if (password.length < 6) {
+        return res.status(400).json({
+          success: false,
+          error: "Password must be at least 6 characters long",
+        });
+      }
       
       // Check if email already exists
       const existingUser = await prisma.user.findUnique({
@@ -25,18 +50,44 @@ export class UserController {
         });
       }
       
+      // Validate password is hashed (should be from middleware)
+      if (!password || typeof password !== 'string') {
+        return res.status(400).json({
+          success: false,
+          error: "Password is required",
+        });
+      }
+
       // Use transaction to ensure shop creation happens with user
       const result = await prisma.$transaction(async (tx) => {
-        // Create user
-        const hashedPassword = await bcrypt.hash(password, 10);
-        const user = await tx.user.create({
-          data: {
-            email,
-            password: hashedPassword,
-            name: name ?? null,
-            role: "SELLER" // Default role
-          }
+        // Double-check email doesn't exist (race condition protection)
+        const existingUserInTx = await tx.user.findUnique({
+          where: { email }
         });
+
+        if (existingUserInTx) {
+          throw new Error("EMAIL_EXISTS");
+        }
+
+        // Create user
+        // Password is already hashed by hashPasswordMiddleware, so use it directly
+        let user;
+        try {
+          user = await tx.user.create({
+            data: {
+              email,
+              password: password, // Already hashed by middleware
+              name: name ?? null,
+              role: "SELLER" // Default role
+            }
+          });
+        } catch (error: any) {
+          // Handle Prisma unique constraint error (race condition)
+          if (error.code === 'P2002' && error.meta?.target?.includes('email')) {
+            throw new Error("EMAIL_EXISTS");
+          }
+          throw error;
+        }
 
         // Create shop for SELLER
         const shop = await tx.shop.create({
@@ -68,14 +119,15 @@ export class UserController {
         message: "User registered successfully",
       });
     } catch (error: any) {
-      // Handle Prisma unique constraint errors
-      if (error.code === 'P2002') {
+      // Handle Prisma unique constraint errors and race conditions
+      if (error.code === 'P2002' || error.message === "EMAIL_EXISTS") {
         return res.status(400).json({
           success: false,
           error: "Email already exists. Please use a different email or login instead.",
         });
       }
       
+      console.error("Registration error:", error);
       res.status(400).json({
         success: false,
         error: error.message || "Registration failed. Please try again.",
@@ -87,6 +139,15 @@ export class UserController {
   async login(req: Request, res: Response) {
     try {
       const { email, password } = req.body;
+
+      // Validate input
+      if (!email || !password) {
+        return res.status(400).json({
+          success: false,
+          error: "Email and password are required",
+        });
+      }
+
       const user = await userService.login(email, password);
 
       // Fetch user's shop if they're a seller
@@ -99,7 +160,7 @@ export class UserController {
       const { password: _, ...userWithoutPassword } = user;
       const token = generateToken(user.id, user.email, user.name || undefined, user.role, shopId);
 
-      res.json({
+      res.status(200).json({
         success: true,
         data: {
           ...userWithoutPassword,
@@ -109,9 +170,10 @@ export class UserController {
         message: "Login successful",
       });
     } catch (error: any) {
+      console.error("Login error:", error);
       res.status(401).json({
         success: false,
-        error: error.message,
+        error: error.message || "Invalid email or password",
       });
     }
   }
