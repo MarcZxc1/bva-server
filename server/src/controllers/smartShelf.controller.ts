@@ -80,14 +80,21 @@ export const getAtRiskInventory = async (req: Request, res: Response) => {
     });
 
     // 2. Prepare Data for ML Service
-    const inventoryItems: MLInventoryItem[] = products.map(p => ({
-      product_id: p.id,
-      sku: p.sku || `SKU-${p.id}`,
-      name: p.name,
-      quantity: p.inventories[0]?.quantity || 0,
-      price: p.price,
-      categories: p.description ? [p.description] : []
-    }));
+    const inventoryItems: MLInventoryItem[] = products.map(p => {
+      const item: MLInventoryItem = {
+        product_id: p.id,
+        sku: p.sku || `SKU-${p.id}`,
+        name: p.name,
+        quantity: p.inventories[0]?.quantity ?? p.stock ?? 0, // Use inventory quantity, fallback to product stock
+        price: p.price,
+        categories: p.description ? [p.description] : []
+      };
+      // Only include expiry_date if it exists
+      if (p.expiryDate) {
+        item.expiry_date = p.expiryDate.toISOString();
+      }
+      return item;
+    });
 
     const salesRecords: MLSalesRecord[] = [];
     sales.forEach(sale => {
@@ -110,25 +117,31 @@ export const getAtRiskInventory = async (req: Request, res: Response) => {
       inventory: inventoryItems,
       sales: salesRecords,
       thresholds: {
-        low_stock: 10,
-        expiry_days: 7,  // Changed from 30 to 7 to match default
+        low_stock: 5,  // Match seed script critical items (≤5 units)
+        expiry_days: 7,  // Match seed script near expiry items (3-7 days)
         slow_moving_window: 30
-        // Removed slow_moving_threshold to use default
+        // slow_moving_threshold defaults to 0.5 in ML service
       }
     } as MLAtRiskRequest);
 
-    // 4. Return at-risk items with meta
+    // 4. Convert scores from 0-1 to 0-100 for frontend display
+    const atRiskItems = (atRiskResult.at_risk || []).map(item => ({
+      ...item,
+      score: Math.round(item.score * 100) // Convert 0-1 to 0-100
+    }));
+
+    // 5. Return at-risk items with meta
     res.json({
       success: true,
       data: {
-        at_risk: atRiskResult.at_risk || [],
+        at_risk: atRiskItems,
         meta: {
           shop_id: shopId,
           total_products: products.length,
-          flagged_count: atRiskResult.at_risk?.length || 0,
+          flagged_count: atRiskItems.length,
           analysis_date: new Date().toISOString(),
           thresholds_used: {
-            low_stock: 10,
+            low_stock: 5,
             expiry_days: 7,
             slow_moving_window: 30,
             slow_moving_threshold: 0.5  // Default from ML service

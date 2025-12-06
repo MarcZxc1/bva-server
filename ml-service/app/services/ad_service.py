@@ -186,6 +186,8 @@ class AdService:
         
         if settings.GEMINI_API_KEY:
             try:
+                # Initialize client - use default API version (v1) for stable models
+                # v1alpha is only needed for experimental features, but Imagen isn't available there
                 self.client = genai.Client(api_key=settings.GEMINI_API_KEY)
                 self.gemini_configured = True
                 logger.info("gemini_configured", model=settings.GEMINI_MODEL)
@@ -289,26 +291,41 @@ class AdService:
                 return self._generate_fallback_copy(product_name, playbook_config, discount)
             
             # Use Gemini 2.0 Flash for fast, creative copy
-            response = self.client.models.generate_content(
-                model=settings.GEMINI_MODEL,
-                contents=[prompt],
-                config=types.GenerateContentConfig(
-                    temperature=0.9,  # High creativity
-                    top_p=0.95,
-                    top_k=40,
-                    max_output_tokens=300,
+            try:
+                response = self.client.models.generate_content(
+                    model=settings.GEMINI_MODEL,
+                    contents=[prompt],
+                    config=types.GenerateContentConfig(
+                        temperature=0.9,  # High creativity
+                        top_p=0.95,
+                        top_k=40,
+                        max_output_tokens=300,
+                    )
                 )
-            )
-            
-            ad_copy = response.text.strip()
-            
-            logger.info("ad_copy_generated", length=len(ad_copy))
-            
-            return ad_copy, playbook_config.hashtags
-            return ad_copy, playbook_config.hashtags
+                
+                ad_copy = response.text.strip()
+                
+                logger.info("ad_copy_generated", length=len(ad_copy))
+                
+                return ad_copy, playbook_config.hashtags
+                
+            except Exception as api_error:
+                # Check for quota/rate limit errors (429 RESOURCE_EXHAUSTED)
+                error_str = str(api_error)
+                if "429" in error_str or "RESOURCE_EXHAUSTED" in error_str or "quota" in error_str.lower():
+                    logger.warning(
+                        "gemini_quota_exceeded",
+                        error=error_str[:500],  # Truncate long error messages
+                        fallback="template",
+                        message="Gemini API quota exceeded, using template fallback"
+                    )
+                    return self._generate_fallback_copy(product_name, playbook_config, discount)
+                else:
+                    # Re-raise other errors to be caught by outer exception handler
+                    raise
             
         except Exception as e:
-            logger.error("ad_copy_generation_failed", error=str(e))
+            logger.error("ad_copy_generation_failed", error=str(e), error_type=type(e).__name__)
             # Fallback to template
             return self._generate_fallback_copy(product_name, playbook_config, discount)
     
@@ -319,7 +336,12 @@ class AdService:
         discount: Optional[str] = None,
         style: Optional[str] = None
     ) -> str:
-        """Generate AI-powered ad image using Gemini Image Generation."""
+        """
+         Generate AI-powered ad image using Google Imagen 4.0.
+        
+        Note: Uses settings.IMAGEN_MODEL (imagen-4.0-generate-001), NOT Gemini model.
+        Gemini models are for text generation only.
+        """
         try:
             # Build discount visual information
             discount_visual = ""
@@ -340,42 +362,26 @@ class AdService:
                 logger.warning("gemini_not_available", mode="placeholder_fallback")
                 return self._generate_placeholder_image(product_name, playbook_config)
             
-            # Try to use Gemini's image generation
-            try:
-                # Use Gemini 2.5 Flash Image model for image generation
-                response = self.client.models.generate_content(
-                    model="gemini-2.0-flash-exp-image-generation",
-                    contents=[prompt],
-                )
+            # NOTE: Imagen 4.0 is not currently available through google-genai SDK's generateContent
+            # The SDK primarily supports Gemini models for text/image input, not Imagen for image generation
+            # For now, we'll use placeholder images. In the future, you may need to use:
+            # - Vertex AI Imagen API directly (via google-cloud-aiplatform)
+            # - Or wait for SDK support
+            logger.warning(
+                "imagen_not_available_via_sdk",
+                model=settings.IMAGEN_MODEL,
+                message="Imagen models are not available through google-genai SDK generateContent method. Using placeholder image.",
+                fallback="placeholder"
+            )
+            return self._generate_placeholder_image(product_name, playbook_config)
                 
-                # Extract image from response
-                image_generated = False
-                image_url = None
-                
-                for part in response.parts:
-                    if part.inline_data is not None:
-                        # Convert the image to base64
-                        pil_image = part.as_image()
-                        buffered = io.BytesIO()
-                        pil_image.save(buffered, format="PNG")
-                        img_base64 = base64.b64encode(buffered.getvalue()).decode()
-                        
-                        image_url = f"data:image/png;base64,{img_base64}"
-                        image_generated = True
-                        logger.info("gemini_image_generated", size=len(img_base64))
-                        break
-                
-                if image_generated and image_url:
-                    return image_url
-                else:
-                    logger.warning("no_images_in_response", fallback="placeholder")
-                    return self._generate_placeholder_image(product_name, playbook_config)
-                    
-            except Exception as imagen_error:
-                logger.error("imagen_generation_failed", error=str(imagen_error), fallback="placeholder")
-                return self._generate_placeholder_image(product_name, playbook_config)
         except Exception as e:
-            logger.error("image_generation_failed", error=str(e))
+            logger.error(
+                "image_generation_failed",
+                error=str(e),
+                error_type=type(e).__name__,
+                product=product_name
+            )
             return self._generate_placeholder_image(product_name, playbook_config)
     
     def _generate_fallback_copy(

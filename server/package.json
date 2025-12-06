@@ -7,7 +7,11 @@
     "dev": "npx prisma generate && ts-node-dev --respawn --transpile-only --compiler-options '{\"module\":\"commonjs\"}' src/server.ts",
     "start": "node dist/server.js",
     "build": "tsc && cp -r src/generated dist/generated",
-    "seed": "ts-node prisma/seed.ts"
+    "seed": "ts-node prisma/seed.ts",
+    "studio": "npx prisma studio",
+    "db:view": "npx prisma studio",
+    "db:clear": "ts-node prisma/clear-db.ts",
+    "db:reset": "ts-node prisma/clear-db.ts && ts-node prisma/seed.ts"
   },
   "keywords": [],
   "author": "",

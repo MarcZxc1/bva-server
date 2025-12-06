@@ -1,531 +1,848 @@
 // File: prisma/seed.ts
 /**
- * Prisma Database Seeder
- *
- * Populates the database with realistic sample data for testing the
- * AI-powered restocking strategy feature.
- *
- * Generates: 
- * - 2 test users (admin and tester)
- * - 1 shop
- * - 50 products with varying prices, costs, and categories
- * - Inventory records (random stock levels 0-30)
- * - 60 days of sales history with realistic patterns:
- *   - Fast-moving items (high daily sales)
- *   - Slow-moving items (low daily sales)
- *   - Seasonal variations
- *
+ * Comprehensive Database Seeder
+ * 
+ * Deletes all existing data and creates 2 users with 12-30 products each,
+ * ensuring every table in the database is populated.
+ * 
  * Run with: npx prisma db seed
  */
 
-import { Role, Platform } from "../src/generated/prisma";
+import { Role, Platform, CampaignStatus } from "../src/generated/prisma";
 import prisma from "../src/lib/prisma";
 import bcrypt from "bcrypt";
 
-// Product categories
+// Sample product categories
 const CATEGORIES = [
-  "Condiments",
-  "Beverages",
-  "Snacks",
-  "Canned Goods",
-  "Dairy",
-  "Bakery",
-  "Household",
-  "Personal Care",
+  "Electronics",
+  "Clothing",
+  "Food & Beverages",
+  "Home & Garden",
+  "Sports & Outdoors",
+  "Books",
+  "Toys & Games",
+  "Health & Beauty",
+  "Automotive",
+  "Pet Supplies",
 ];
 
-// Sample products with realistic Filipino grocery items
-// 20 products optimized for SmartShelf and RestockPlanner testing
-const SAMPLE_PRODUCTS = [
-  // LOW STOCK ITEMS (Critical - Need immediate restocking)
-  {
-    name: "UFC Banana Catsup 320g",
-    category: "Condiments",
-    price: 45,
-    cost: 30,
-    lowStock: true, // 0-3 units
-  },
-  {
-    name: "Coke 1.5L",
-    category: "Beverages",
-    price: 65,
-    cost: 45,
-    lowStock: true, // 0-3 units
-  },
-  {
-    name: "Century Tuna 155g",
-    category: "Canned Goods",
-    price: 38,
-    cost: 25,
-    lowStock: true, // 0-3 units
-  },
-
-  // NEAR EXPIRY ITEMS (Need to sell fast with promotions)
-  {
-    name: "Bear Brand Milk 300ml",
-    category: "Dairy",
-    price: 32,
-    cost: 22,
-    nearExpiry: true, // Expires in 3-7 days
-  },
-  {
-    name: "Gardenia White Bread",
-    category: "Bakery",
-    price: 55,
-    cost: 38,
-    nearExpiry: true, // Expires in 3-7 days
-  },
-  {
-    name: "Ligo Sardines 155g",
-    category: "Canned Goods",
-    price: 28,
-    cost: 18,
-    nearExpiry: true, // Expires in 3-7 days
-  },
-
-  // SLOW MOVING ITEMS (Overstocked - Low sales velocity)
-  {
-    name: "Lorins Vinegar 385ml",
-    category: "Condiments",
-    price: 22,
-    cost: 14,
-    slowMoving: true, // 25-39 units, low sales
-  },
-  {
-    name: "Royal 1.5L",
-    category: "Beverages",
-    price: 58,
-    cost: 40,
-    slowMoving: true, // 25-39 units, low sales
-  },
-  {
-    name: "CDO Liver Spread 85g",
-    category: "Canned Goods",
-    price: 28,
-    cost: 18,
-    slowMoving: true, // 25-39 units, low sales
-  },
-
-  // FAST MOVING ITEMS (High demand - Good for restocking)
-  {
-    name: "Sprite 1.5L",
-    category: "Beverages",
-    price: 65,
-    cost: 45,
-  },
-  {
-    name: "Chippy BBQ Flavor",
-    category: "Snacks",
-    price: 15,
-    cost: 9,
-  },
-  {
-    name: "Piattos Cheese",
-    category: "Snacks",
-    price: 15,
-    cost: 9,
-  },
-  {
-    name: "C2 Green Tea 500ml",
-    category: "Beverages",
-    price: 28,
-    cost: 18,
-  },
-  {
-    name: "Skyflakes Crackers",
-    category: "Snacks",
-    price: 38,
-    cost: 25,
-  },
-
-  // NORMAL STOCK ITEMS (Balanced inventory)
-  {
-    name: "Datu Puti Soy Sauce 385ml",
-    category: "Condiments",
-    price: 28,
-    cost: 18,
-  },
-  {
-    name: "Silver Swan Soy Sauce 1L",
-    category: "Condiments",
-    price: 55,
-    cost: 38,
-  },
-  {
-    name: "Nestea Iced Tea 1L",
-    category: "Beverages",
-    price: 45,
-    cost: 30,
-  },
-  {
-    name: "Nova Multigrain",
-    category: "Snacks",
-    price: 15,
-    cost: 9,
-  },
-  {
-    name: "Safeguard Soap 135g",
-    category: "Personal Care",
-    price: 42,
-    cost: 28,
-  },
-  {
-    name: "Tide Detergent 65g",
-    category: "Household",
-    price: 12,
-    cost: 7,
-  },
+// Sample product names by category
+const PRODUCT_TEMPLATES = [
+  // Electronics
+  { name: "Wireless Mouse", category: "Electronics", basePrice: 25, baseCost: 15 },
+  { name: "USB-C Cable", category: "Electronics", basePrice: 12, baseCost: 6 },
+  { name: "Bluetooth Speaker", category: "Electronics", basePrice: 45, baseCost: 25 },
+  { name: "Phone Case", category: "Electronics", basePrice: 15, baseCost: 8 },
+  { name: "Screen Protector", category: "Electronics", basePrice: 8, baseCost: 3 },
+  { name: "Power Bank", category: "Electronics", basePrice: 30, baseCost: 18 },
+  
+  // Clothing
+  { name: "Cotton T-Shirt", category: "Clothing", basePrice: 20, baseCost: 10 },
+  { name: "Jeans", category: "Clothing", basePrice: 50, baseCost: 30 },
+  { name: "Sneakers", category: "Clothing", basePrice: 80, baseCost: 50 },
+  { name: "Hoodie", category: "Clothing", basePrice: 45, baseCost: 25 },
+  { name: "Baseball Cap", category: "Clothing", basePrice: 15, baseCost: 8 },
+  { name: "Socks Pack", category: "Clothing", basePrice: 10, baseCost: 5 },
+  
+  // Food & Beverages
+  { name: "Coffee Beans", category: "Food & Beverages", basePrice: 25, baseCost: 15 },
+  { name: "Energy Drink", category: "Food & Beverages", basePrice: 3, baseCost: 1.5 },
+  { name: "Protein Bar", category: "Food & Beverages", basePrice: 4, baseCost: 2 },
+  { name: "Bottled Water", category: "Food & Beverages", basePrice: 1.5, baseCost: 0.5 },
+  { name: "Snack Chips", category: "Food & Beverages", basePrice: 3.5, baseCost: 1.8 },
+  { name: "Chocolate Bar", category: "Food & Beverages", basePrice: 2.5, baseCost: 1.2 },
+  
+  // Home & Garden
+  { name: "Plant Pot", category: "Home & Garden", basePrice: 12, baseCost: 6 },
+  { name: "Garden Tool Set", category: "Home & Garden", basePrice: 35, baseCost: 20 },
+  { name: "LED Light Bulb", category: "Home & Garden", basePrice: 8, baseCost: 4 },
+  { name: "Storage Box", category: "Home & Garden", basePrice: 15, baseCost: 8 },
+  { name: "Kitchen Utensil Set", category: "Home & Garden", basePrice: 25, baseCost: 15 },
+  { name: "Throw Pillow", category: "Home & Garden", basePrice: 18, baseCost: 10 },
+  
+  // Sports & Outdoors
+  { name: "Yoga Mat", category: "Sports & Outdoors", basePrice: 30, baseCost: 18 },
+  { name: "Dumbbells Set", category: "Sports & Outdoors", basePrice: 60, baseCost: 40 },
+  { name: "Water Bottle", category: "Sports & Outdoors", basePrice: 12, baseCost: 6 },
+  { name: "Resistance Bands", category: "Sports & Outdoors", basePrice: 15, baseCost: 8 },
+  { name: "Jump Rope", category: "Sports & Outdoors", basePrice: 8, baseCost: 4 },
+  { name: "Exercise Ball", category: "Sports & Outdoors", basePrice: 25, baseCost: 15 },
+  
+  // Books
+  { name: "Novel", category: "Books", basePrice: 15, baseCost: 8 },
+  { name: "Cookbook", category: "Books", basePrice: 20, baseCost: 12 },
+  { name: "Self-Help Book", category: "Books", basePrice: 18, baseCost: 10 },
+  { name: "Notebook", category: "Books", basePrice: 5, baseCost: 2 },
+  { name: "Journal", category: "Books", basePrice: 12, baseCost: 6 },
+  { name: "Puzzle Book", category: "Books", basePrice: 8, baseCost: 4 },
+  
+  // Toys & Games
+  { name: "Board Game", category: "Toys & Games", basePrice: 35, baseCost: 20 },
+  { name: "Puzzle Set", category: "Toys & Games", basePrice: 15, baseCost: 8 },
+  { name: "Action Figure", category: "Toys & Games", basePrice: 25, baseCost: 15 },
+  { name: "Building Blocks", category: "Toys & Games", basePrice: 30, baseCost: 18 },
+  { name: "Card Game", category: "Toys & Games", basePrice: 10, baseCost: 5 },
+  { name: "Stuffed Animal", category: "Toys & Games", basePrice: 20, baseCost: 12 },
+  
+  // Health & Beauty
+  { name: "Face Mask", category: "Health & Beauty", basePrice: 8, baseCost: 4 },
+  { name: "Shampoo", category: "Health & Beauty", basePrice: 12, baseCost: 6 },
+  { name: "Body Lotion", category: "Health & Beauty", basePrice: 15, baseCost: 8 },
+  { name: "Toothbrush", category: "Health & Beauty", basePrice: 5, baseCost: 2 },
+  { name: "Hand Sanitizer", category: "Health & Beauty", basePrice: 6, baseCost: 3 },
+  { name: "Lip Balm", category: "Health & Beauty", basePrice: 4, baseCost: 2 },
+  
+  // Automotive
+  { name: "Car Air Freshener", category: "Automotive", basePrice: 5, baseCost: 2 },
+  { name: "Phone Mount", category: "Automotive", basePrice: 15, baseCost: 8 },
+  { name: "Car Charger", category: "Automotive", basePrice: 12, baseCost: 6 },
+  { name: "Tire Gauge", category: "Automotive", basePrice: 10, baseCost: 5 },
+  { name: "Car Mat Set", category: "Automotive", basePrice: 40, baseCost: 25 },
+  { name: "Windshield Wiper", category: "Automotive", basePrice: 18, baseCost: 10 },
+  
+  // Pet Supplies
+  { name: "Dog Toy", category: "Pet Supplies", basePrice: 12, baseCost: 6 },
+  { name: "Cat Litter", category: "Pet Supplies", basePrice: 20, baseCost: 12 },
+  { name: "Pet Food Bowl", category: "Pet Supplies", basePrice: 15, baseCost: 8 },
+  { name: "Leash", category: "Pet Supplies", basePrice: 18, baseCost: 10 },
+  { name: "Pet Bed", category: "Pet Supplies", basePrice: 35, baseCost: 20 },
+  { name: "Treats", category: "Pet Supplies", basePrice: 8, baseCost: 4 },
 ];
 
 /**
-
-  // Household
-  { name: "Tide Powder 1kg", category: "Household", price: 125, cost: 88 },
-  {
-    name: "Downy Fabric Softener 1L",
-    category: "Household",
-    price: 145,
-    cost: 105,
-  },
-  {
-    name: "Joy Dishwashing Liquid 250ml",
-    category: "Household",
-    price: 35,
-    cost: 22,
-  },
-  { name: "Zonrox Bleach 500ml", category: "Household", price: 28, cost: 18 },
-  { name: "Domex Toilet Cleaner", category: "Household", price: 48, cost: 32 },
-
-  // Personal Care
-  {
-    name: "Safeguard Bar Soap",
-    category: "Personal Care",
-    price: 38,
-    cost: 25,
-  },
-  {
-    name: "Palmolive Shampoo 180ml",
-    category: "Personal Care",
-    price: 68,
-    cost: 48,
-  },
-  {
-    name: "Colgate Toothpaste 150g",
-    category: "Personal Care",
-    price: 75,
-    cost: 52,
-  },
-  {
-    name: "Close-Up Toothpaste 100g",
-    category: "Personal Care",
-    price: 55,
-    cost: 38,
-  },
-  {
-    name: "Johnson Baby Powder 200g",
-    category: "Personal Care",
-    price: 95,
-    cost: 68,
-  },
-
-  // Additional fast-moving items
-  { name: "Lucky Me Pancit Canton", category: "Snacks", price: 12, cost: 7 },
-  { name: "Nissin Cup Noodles", category: "Snacks", price: 25, cost: 16 },
-  { name: "Mang Juan Chicharron", category: "Snacks", price: 15, cost: 9 },
-  { name: "Magic Sarap 8g", category: "Condiments", price: 8, cost: 5 },
-  { name: "AJI-NO-MOTO 10g", category: "Condiments", price: 8, cost: 5 },
-  { name: "Knorr Pork Cube", category: "Condiments", price: 35, cost: 23 },
-  {
-    name: "Del Monte Tomato Sauce",
-    category: "Condiments",
-    price: 28,
-    cost: 18,
-  },
-  { name: "San Mig Light 330ml", category: "Beverages", price: 45, cost: 32 },
-  { name: "Red Horse Beer 500ml", category: "Beverages", price: 55, cost: 40 },
-  { name: "Tang Orange 25g", category: "Beverages", price: 12, cost: 7 },
-
-  // ===== AT-RISK INVENTORY ITEMS =====
-  // These products will have specific characteristics to trigger at-risk detection
-
-  // LOW STOCK items (will be given 0-3 units)
-  {
-    name: "Fresh Milk 1L (Low Stock)",
-    category: "Dairy",
-    price: 95,
-    cost: 68,
-    lowStock: true,
-  },
-  {
-    name: "Butter Unsalted (Low Stock)",
-    category: "Dairy",
-    price: 125,
-    cost: 90,
-    lowStock: true,
-  },
-  {
-    name: "Premium Coffee 200g (Low Stock)",
-    category: "Beverages",
-    price: 185,
-    cost: 130,
-    lowStock: true,
-  },
-
-  // NEAR EXPIRY items (will get expiry dates 3-7 days from now)
-  {
-    name: "Fresh Yogurt Cup",
-    category: "Dairy",
-    price: 45,
-    cost: 28,
-    nearExpiry: true,
-  },
-  {
-    name: "Sliced Bread White",
-    category: "Bakery",
-    price: 52,
-    cost: 35,
-    nearExpiry: true,
-  },
-  {
-    name: "Fresh Orange Juice 1L",
-    category: "Beverages",
-    price: 115,
-    cost: 80,
-    nearExpiry: true,
-  },
-  {
-    name: "Deli Meat Ham 200g",
-    category: "Dairy",
-    price: 165,
-    cost: 120,
-];
-
-/**
- * Generate random sales data with realistic patterns
+ * Generate random number between min and max (inclusive)
  */
-function generateSalesPattern(
-  productIndex: number,
-  days: number = 60,
-  productData?: any
-): number[] {
-  const sales: number[] = [];
+function randomInt(min: number, max: number): number {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
 
-  // Default base velocity
-  let baseVelocity: number;
-
-  // Check for at-risk flags first
-  if (productData?.slowMoving) {
-    baseVelocity = 0.2 + Math.random() * 0.8; // 0.2-1 units/day (very slow)
-  }
-  // Fast movers (20% of products)
-  else if (productIndex < SAMPLE_PRODUCTS.length * 0.2) {
-    baseVelocity = 15 + Math.random() * 10; // 15-25 units/day
-  }
-  // Medium movers (50% of products)
-  else if (productIndex < SAMPLE_PRODUCTS.length * 0.7) {
-    baseVelocity = 5 + Math.random() * 8; // 5-13 units/day
-  }
-  // Slow movers (30% of products)
-  else {
-    baseVelocity = 1 + Math.random() * 3; // 1-4 units/day
-  }
-
-  for (let day = 0; day < days; day++) {
-    // Add weekly seasonality (higher on weekends)
-    const dayOfWeek = day % 7;
-    const weekendBoost = dayOfWeek === 5 || dayOfWeek === 6 ? 1.3 : 1.0;
-
-    // Add some random variation (±30%)
-    const randomFactor = 0.7 + Math.random() * 0.6;
-
-    // Calculate daily sales
-    const dailySales = Math.max(
-      0,
-      Math.round(baseVelocity * weekendBoost * randomFactor)
-    );
-    sales.push(dailySales);
-  }
-
-  return sales;
+/**
+ * Generate random date within last N days
+ */
+function randomDate(daysAgo: number): Date {
+  const date = new Date();
+  date.setDate(date.getDate() - randomInt(0, daysAgo));
+  return date;
 }
 
 /**
  * Main seed function
  */
 async function main() {
-  console.log("🌱 Starting database seed...");
+  console.log("🌱 Starting comprehensive database seed...");
 
-  // Clear existing data (optional - comment out if you want to preserve data)
+  // Clear existing data in correct order (respecting foreign key constraints)
   console.log("🗑️  Clearing existing data...");
-  await prisma.sale.deleteMany();
+  
   await prisma.inventoryLog.deleteMany();
   await prisma.inventory.deleteMany();
   await prisma.forecast.deleteMany();
+  await prisma.sale.deleteMany();
   await prisma.campaign.deleteMany();
   await prisma.integration.deleteMany();
   await prisma.product.deleteMany();
+  await prisma.notification.deleteMany();
   await prisma.shop.deleteMany();
   await prisma.user.deleteMany();
 
-  // Create test users
-  console.log("👤 Creating test users...");
+  console.log("✅ All existing data cleared");
 
-  // Hash the password properly
+  // Hash password
   const hashedPassword = await bcrypt.hash("password123", 10);
 
-  const adminUser = await prisma.user.create({
+  // Create 2 users
+  console.log("👤 Creating 2 users...");
+  
+  const user1 = await prisma.user.create({
     data: {
-      email: "admin@test.com",
+      email: "user1@test.com",
       password: hashedPassword,
-      name: "Test Admin",
-      role: Role.ADMIN,
-    },
-  });
-  console.log(`✅ Created admin user: ${adminUser.email}`);
-
-  const testerUser = await prisma.user.create({
-    data: {
-      email: "tester@test.com",
-      password: hashedPassword,
-      name: "Test Seller",
+      name: "User One",
+      firstName: "User",
+      lastName: "One",
       role: Role.SELLER,
     },
   });
-  console.log(`✅ Created tester user: ${testerUser.email}`);
 
-  const user = adminUser; // Keep reference for backwards compatibility
-
-  // Create shop
-  console.log("🏪 Creating shop...");
-  const shop = await prisma.shop.create({
+  const user2 = await prisma.user.create({
     data: {
-      id: "2aad5d00-d302-4c57-86ad-99826e19e610", // Fixed ID for frontend consistency
-      name: "Main Store",
-      ownerId: user.id,
+      email: "user2@test.com",
+      password: hashedPassword,
+      name: "User Two",
+      firstName: "User",
+      lastName: "Two",
+      role: Role.SELLER,
     },
   });
-  console.log(`✅ Created shop: ${shop.name} (ID: ${shop.id})`);
 
-  // Create products
-  console.log(`📦 Creating ${SAMPLE_PRODUCTS.length} products...`);
-  const products = [];
+  console.log(`✅ Created users: ${user1.email}, ${user2.email}`);
 
-  for (let i = 0; i < SAMPLE_PRODUCTS.length; i++) {
-    const productData = SAMPLE_PRODUCTS[i]!;
-    const sku = `SKU-${String(i + 1).padStart(4, "0")}`;
+  // Create multiple notifications for each user
+  console.log("🔔 Creating notifications...");
+  
+  const notificationTypes = [
+    { title: "Welcome!", message: "Welcome to BVA! Your shop has been set up.", type: "info" },
+    { title: "New Product Added", message: "You've successfully added a new product to your shop.", type: "success" },
+    { title: "Low Stock Alert", message: "Some of your products are running low on stock.", type: "warning" },
+    { title: "Sale Completed", message: "Congratulations! You've completed a sale.", type: "success" },
+    { title: "Campaign Created", message: "Your marketing campaign has been created.", type: "info" },
+  ];
 
-    // Set expiry date for near-expiry items
-    let expiryDate = null;
-    if (productData.nearExpiry) {
-      expiryDate = new Date();
-      expiryDate.setDate(
-        expiryDate.getDate() + (3 + Math.floor(Math.random() * 5))
-      ); // 3-7 days from now
+  for (const notif of notificationTypes) {
+    await prisma.notification.create({
+      data: {
+        userId: user1.id,
+        ...notif,
+        isRead: Math.random() > 0.5,
+      },
+    });
+    await prisma.notification.create({
+      data: {
+        userId: user2.id,
+        ...notif,
+        isRead: Math.random() > 0.5,
+      },
+    });
+  }
+
+  console.log(`✅ Created ${notificationTypes.length * 2} notifications`);
+
+  // Create 2 shops (one per user)
+  console.log("🏪 Creating 2 shops...");
+  
+  const shop1 = await prisma.shop.create({
+    data: {
+      name: "Shop One",
+      ownerId: user1.id,
+    },
+  });
+
+  const shop2 = await prisma.shop.create({
+    data: {
+      name: "Shop Two",
+      ownerId: user2.id,
+    },
+  });
+
+  console.log(`✅ Created shops: ${shop1.name}, ${shop2.name}`);
+
+  // Create 12-30 products for each shop
+  const productsPerShop = randomInt(12, 30);
+  console.log(`📦 Creating ${productsPerShop} products for Shop One...`);
+  
+  const shop1Products: any[] = [];
+  const usedTemplates1 = new Set<number>();
+  
+  // Define critical item types
+  const numLowStock = Math.min(3, Math.floor(productsPerShop * 0.15)); // 15% low stock
+  const numNearExpiry = Math.min(3, Math.floor(productsPerShop * 0.15)); // 15% near expiry
+  const numSlowMoving = Math.min(3, Math.floor(productsPerShop * 0.15)); // 15% slow moving
+  
+  for (let i = 0; i < productsPerShop; i++) {
+    // Pick a random template that hasn't been used yet
+    let templateIndex;
+    do {
+      templateIndex = randomInt(0, PRODUCT_TEMPLATES.length - 1);
+    } while (usedTemplates1.has(templateIndex) && usedTemplates1.size < PRODUCT_TEMPLATES.length);
+    usedTemplates1.add(templateIndex);
+    
+    const template = PRODUCT_TEMPLATES[templateIndex]!;
+    if (!template) {
+      throw new Error(`Template at index ${templateIndex} not found`);
     }
-
+    const variation = randomInt(1, 5); // Add variation to product names
+    const priceVariation = 0.8 + Math.random() * 0.4; // ±20% price variation
+    const costVariation = 0.8 + Math.random() * 0.4;
+    
+    // Determine if this is a critical item
+    let stockLevel: number;
+    let expiryDate: Date | null = null;
+    let isCritical = false;
+    let criticalType = "";
+    
+    if (i < numLowStock) {
+      // Low stock items (0-5 units) - CRITICAL
+      stockLevel = randomInt(0, 5);
+      isCritical = true;
+      criticalType = "LOW_STOCK";
+    } else if (i < numLowStock + numNearExpiry) {
+      // Near expiry items (expiring in 3-7 days) - CRITICAL
+      stockLevel = randomInt(10, 30);
+      expiryDate = new Date(Date.now() + randomInt(3, 7) * 24 * 60 * 60 * 1000);
+      isCritical = true;
+      criticalType = "NEAR_EXPIRY";
+    } else if (i < numLowStock + numNearExpiry + numSlowMoving) {
+      // Slow-moving items (high stock 50-100 units) - CRITICAL
+      stockLevel = randomInt(50, 100);
+      isCritical = true;
+      criticalType = "SLOW_MOVING";
+    } else {
+      // Normal items
+      stockLevel = randomInt(10, 50);
+      expiryDate = template.category === "Food & Beverages" && Math.random() > 0.5 
+        ? new Date(Date.now() + randomInt(30, 90) * 24 * 60 * 60 * 1000)
+        : null;
+    }
+    
+    const productName = isCritical 
+      ? `${template.name} [${criticalType}]`
+      : `${template.name} ${variation > 1 ? `(Variant ${variation})` : ""}`;
+    
     const product = await prisma.product.create({
       data: {
-        shopId: shop.id,
-        sku,
-        name: productData.name,
-        description: `${productData.name} - ${productData.category}`,
-        price: productData.price,
-        cost: productData.cost,
-        expiryDate,
+        shopId: shop1.id,
+        sku: `SHOP1-SKU-${String(i + 1).padStart(3, "0")}`,
+        name: productName,
+        description: isCritical 
+          ? `⚠️ CRITICAL: ${criticalType} - ${template.name.toLowerCase()} - ${template.category}`
+          : `High-quality ${template.name.toLowerCase()} - ${template.category}`,
+        price: Math.round(template.basePrice * priceVariation * 100) / 100,
+        cost: Math.round(template.baseCost * costVariation * 100) / 100,
+        category: template.category,
+        stock: stockLevel,
+        expiryDate: expiryDate,
       },
     });
+    
+    shop1Products.push(product);
+  }
 
-    products.push(product);
-
-    // Create inventory with appropriate stock level based on risk factors
-    let stockLevel: number;
-    if (productData.lowStock) {
-      stockLevel = Math.floor(Math.random() * 4); // 0-3 units (critically low)
-    } else if (productData.nearExpiry) {
-      stockLevel = 15 + Math.floor(Math.random() * 20); // 15-34 units (need to sell fast)
-    } else if (productData.slowMoving) {
-      stockLevel = 25 + Math.floor(Math.random() * 15); // 25-39 units (overstocked)
-    } else {
-      stockLevel = Math.floor(Math.random() * 31); // 0-30 units (normal)
+  console.log(`📦 Creating ${productsPerShop} products for Shop Two...`);
+  
+  const shop2Products: any[] = [];
+  const usedTemplates2 = new Set<number>();
+  
+  // Define critical item types for shop 2
+  const numLowStock2 = Math.min(3, Math.floor(productsPerShop * 0.15)); // 15% low stock
+  const numNearExpiry2 = Math.min(3, Math.floor(productsPerShop * 0.15)); // 15% near expiry
+  const numSlowMoving2 = Math.min(3, Math.floor(productsPerShop * 0.15)); // 15% slow moving
+  
+  for (let i = 0; i < productsPerShop; i++) {
+    let templateIndex;
+    do {
+      templateIndex = randomInt(0, PRODUCT_TEMPLATES.length - 1);
+    } while (usedTemplates2.has(templateIndex) && usedTemplates2.size < PRODUCT_TEMPLATES.length);
+    usedTemplates2.add(templateIndex);
+    
+    const template = PRODUCT_TEMPLATES[templateIndex]!;
+    if (!template) {
+      throw new Error(`Template at index ${templateIndex} not found`);
     }
+    const variation = randomInt(1, 5);
+    const priceVariation = 0.8 + Math.random() * 0.4;
+    const costVariation = 0.8 + Math.random() * 0.4;
+    
+    // Determine if this is a critical item
+    let stockLevel: number;
+    let expiryDate: Date | null = null;
+    let isCritical = false;
+    let criticalType = "";
+    
+    if (i < numLowStock2) {
+      // Low stock items (0-5 units) - CRITICAL
+      stockLevel = randomInt(0, 5);
+      isCritical = true;
+      criticalType = "LOW_STOCK";
+    } else if (i < numLowStock2 + numNearExpiry2) {
+      // Near expiry items (expiring in 3-7 days) - CRITICAL
+      stockLevel = randomInt(10, 30);
+      expiryDate = new Date(Date.now() + randomInt(3, 7) * 24 * 60 * 60 * 1000);
+      isCritical = true;
+      criticalType = "NEAR_EXPIRY";
+    } else if (i < numLowStock2 + numNearExpiry2 + numSlowMoving2) {
+      // Slow-moving items (high stock 50-100 units) - CRITICAL
+      stockLevel = randomInt(50, 100);
+      isCritical = true;
+      criticalType = "SLOW_MOVING";
+    } else {
+      // Normal items
+      stockLevel = randomInt(10, 50);
+      expiryDate = template.category === "Food & Beverages" && Math.random() > 0.5 
+        ? new Date(Date.now() + randomInt(30, 90) * 24 * 60 * 60 * 1000)
+        : null;
+    }
+    
+    const productName = isCritical 
+      ? `${template.name} [${criticalType}]`
+      : `${template.name} ${variation > 1 ? `(Variant ${variation})` : ""}`;
+    
+    const product = await prisma.product.create({
+      data: {
+        shopId: shop2.id,
+        sku: `SHOP2-SKU-${String(i + 1).padStart(3, "0")}`,
+        name: productName,
+        description: isCritical 
+          ? `⚠️ CRITICAL: ${criticalType} - ${template.name.toLowerCase()} - ${template.category}`
+          : `Premium ${template.name.toLowerCase()} - ${template.category}`,
+        price: Math.round(template.basePrice * priceVariation * 100) / 100,
+        cost: Math.round(template.baseCost * costVariation * 100) / 100,
+        category: template.category,
+        stock: stockLevel,
+        expiryDate: expiryDate,
+      },
+    });
+    
+    shop2Products.push(product);
+  }
 
-    await prisma.inventory.create({
+  console.log(`✅ Created ${shop1Products.length + shop2Products.length} products total`);
+
+  // Create inventory for each product
+  console.log("📊 Creating inventory records...");
+  
+  const allInventories: any[] = [];
+  
+  for (const product of [...shop1Products, ...shop2Products]) {
+    // Set threshold based on stock level for critical items
+    let threshold: number;
+    if (product.stock <= 5) {
+      // Low stock items - threshold should be higher than current stock
+      threshold = randomInt(10, 20);
+    } else if (product.stock >= 50) {
+      // Slow-moving items - threshold should be much lower
+      threshold = randomInt(5, 15);
+    } else {
+      // Normal items
+      threshold = randomInt(5, 20);
+    }
+    
+    const inventory = await prisma.inventory.create({
       data: {
         productId: product.id,
-        quantity: stockLevel,
-        location: "Main Warehouse",
+        quantity: product.stock,
+        threshold: threshold,
+        batchNumber: `BATCH-${product.sku}`,
+        location: randomInt(1, 3) === 1 ? "Warehouse A" : randomInt(1, 2) === 1 ? "Warehouse B" : "Main Store",
       },
     });
+    allInventories.push(inventory);
+  }
 
-    if ((i + 1) % 10 === 0) {
-      console.log(`  Created ${i + 1}/${SAMPLE_PRODUCTS.length} products...`);
+  console.log(`✅ Created ${allInventories.length} inventory records`);
+
+  // Create multiple inventory logs for each inventory
+  console.log("📝 Creating inventory logs...");
+  
+  for (const inventory of allInventories) {
+    // Create initial stock log
+    await prisma.inventoryLog.create({
+      data: {
+        inventoryId: inventory.id,
+        delta: inventory.quantity,
+        reason: "Initial stock",
+        timestamp: randomDate(30),
+      },
+    });
+    
+    // Create some additional logs (restocks, sales, adjustments)
+    const numLogs = randomInt(2, 5);
+    let currentQty = inventory.quantity;
+    
+    for (let i = 0; i < numLogs; i++) {
+      const delta = randomInt(-10, 20);
+      currentQty = Math.max(0, currentQty + delta);
+      
+      const reasons = [
+        "Restock from supplier",
+        "Sale completed",
+        "Stock adjustment",
+        "Returned items",
+        "Damaged goods removed",
+      ];
+      
+      const reasonIndex = randomInt(0, reasons.length - 1);
+      const reason = reasons[reasonIndex];
+      if (!reason) {
+        throw new Error(`Reason at index ${reasonIndex} not found`);
+      }
+      
+      await prisma.inventoryLog.create({
+        data: {
+          inventoryId: inventory.id as string,
+          delta,
+          reason: reason,
+          timestamp: randomDate(30),
+        },
+      });
     }
   }
-  console.log(`✅ Created ${products.length} products with inventory`);
 
-  // Generate exactly 20 sales records (1 per product for recent sales data)
-  console.log("📊 Generating 20 sales records (1 per product)...");
-  let totalSalesRecords = 0;
+  console.log(`✅ Created inventory logs`);
 
-  // Create one recent sale for each product
-  for (let i = 0; i < products.length; i++) {
-    const product = products[i]!;
-    const productData = SAMPLE_PRODUCTS[i]!;
+  // Create multiple sales for each shop
+  console.log("💰 Creating sales records...");
+  
+  const platforms = [Platform.SHOPEE, Platform.LAZADA, Platform.TIKTOK, Platform.OTHER];
+  
+  // Helper function to check if product is slow-moving
+  const isSlowMoving = (product: any): boolean => {
+    return product.stock >= 50 && product.name.includes("[SLOW_MOVING]");
+  };
+  
+  // Helper function to check if product is low stock
+  const isLowStock = (product: any): boolean => {
+    return product.stock <= 5 && product.name.includes("[LOW_STOCK]");
+  };
+  
+  // Create 15-25 sales for shop1
+  const shop1Sales = randomInt(15, 25);
+  for (let i = 0; i < shop1Sales; i++) {
+    const numItems = randomInt(1, 4);
+    const selectedProducts: any[] = [];
+    const usedProductIndices = new Set<number>();
     
-    // Generate a sale date within the last 7 days
-    const saleDate = new Date();
-    saleDate.setDate(saleDate.getDate() - Math.floor(Math.random() * 7));
-
-    // Determine quantity based on product type
-    let quantity: number;
-    if (productData.lowStock) {
-      quantity = 1 + Math.floor(Math.random() * 3); // 1-3 units (showing demand despite low stock)
-    } else if (productData.nearExpiry) {
-      quantity = 2 + Math.floor(Math.random() * 5); // 2-6 units (moderate sales)
-    } else if (productData.slowMoving) {
-      quantity = 1 + Math.floor(Math.random() * 2); // 1-2 units (slow sales)
-    } else {
-      quantity = 3 + Math.floor(Math.random() * 8); // 3-10 units (normal/fast moving)
+    // Prefer low stock items (they have demand) and avoid slow-moving items
+    const availableProducts = shop1Products.filter((p, idx) => {
+      if (isSlowMoving(p)) {
+        // Only include slow-moving items 10% of the time (they sell rarely)
+        return Math.random() < 0.1;
+      }
+      return true;
+    });
+    
+    for (let j = 0; j < numItems && j < availableProducts.length; j++) {
+      let productIndex;
+      let attempts = 0;
+      do {
+        // Prefer low stock items (they're selling)
+        if (Math.random() < 0.3) {
+          const lowStockProducts = availableProducts.filter((p, idx) => 
+            isLowStock(p) && !usedProductIndices.has(shop1Products.indexOf(p))
+          );
+          if (lowStockProducts.length > 0) {
+            const selected = lowStockProducts[randomInt(0, lowStockProducts.length - 1)];
+            productIndex = shop1Products.indexOf(selected);
+            break;
+          }
+        }
+        productIndex = shop1Products.findIndex((p, idx) => 
+          availableProducts.includes(p) && !usedProductIndices.has(idx)
+        );
+        if (productIndex === -1) {
+          productIndex = randomInt(0, shop1Products.length - 1);
+        }
+        attempts++;
+      } while (usedProductIndices.has(productIndex) && attempts < 10);
+      
+      if (productIndex >= 0 && productIndex < shop1Products.length) {
+        usedProductIndices.add(productIndex);
+        selectedProducts.push(shop1Products[productIndex]);
+      }
     }
-
-    // Create sale record
+    
+    if (selectedProducts.length === 0) continue;
+    
+    const items = selectedProducts.map(p => ({
+      productId: p.id,
+      sku: p.sku,
+      name: p.name,
+      quantity: isSlowMoving(p) ? randomInt(1, 2) : randomInt(1, 5), // Slow-moving: lower quantity
+      price: p.price,
+    }));
+    
+    const total = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    const profit = items.reduce((sum, item) => {
+      const product = shop1Products.find(p => p.id === item.productId);
+      return sum + ((item.price - (product?.cost || 0)) * item.quantity);
+    }, 0);
+    
+    const platformIndex = randomInt(0, platforms.length - 1);
+    const platform = platforms[platformIndex];
+    if (!platform) {
+      throw new Error(`Platform at index ${platformIndex} not found`);
+    }
+    
     await prisma.sale.create({
       data: {
-        shopId: shop.id,
-        platform: Platform.OTHER,
-        platformOrderId: `ORDER-${saleDate.toISOString().split("T")[0]}-${
-          product.sku
-        }-${Math.random().toString(36).substring(7)}`,
-        items: JSON.stringify([
-          {
-            productId: product.id,
-            sku: product.sku,
-            name: product.name,
-            quantity: quantity,
-            price: product.price,
-          },
-        ]),
-        total: product.price * quantity,
-        createdAt: saleDate,
+        shopId: shop1.id,
+        platform: platform,
+        platformOrderId: `ORDER-SHOP1-${String(i + 1).padStart(4, "0")}`,
+        items: JSON.stringify(items),
+        total,
+        revenue: total,
+        profit,
+        customerName: `Customer ${i + 1}`,
+        customerEmail: `customer${i + 1}@example.com`,
+        status: "completed",
+        createdAt: randomDate(60),
       },
     });
-
-    totalSalesRecords++;
   }
-  console.log(`✅ Created ${totalSalesRecords} sales records`);
+  
+  // Create 15-25 sales for shop2
+  const shop2Sales = randomInt(15, 25);
+  for (let i = 0; i < shop2Sales; i++) {
+    const numItems = randomInt(1, 4);
+    const selectedProducts: any[] = [];
+    const usedProductIndices = new Set<number>();
+    
+    // Prefer low stock items and avoid slow-moving items
+    const availableProducts2 = shop2Products.filter((p, idx) => {
+      if (isSlowMoving(p)) {
+        return Math.random() < 0.1; // Only 10% chance
+      }
+      return true;
+    });
+    
+    for (let j = 0; j < numItems && j < availableProducts2.length; j++) {
+      let productIndex;
+      let attempts = 0;
+      do {
+        // Prefer low stock items
+        if (Math.random() < 0.3) {
+          const lowStockProducts = availableProducts2.filter((p, idx) => 
+            isLowStock(p) && !usedProductIndices.has(shop2Products.indexOf(p))
+          );
+          if (lowStockProducts.length > 0) {
+            const selected = lowStockProducts[randomInt(0, lowStockProducts.length - 1)];
+            productIndex = shop2Products.indexOf(selected);
+            break;
+          }
+        }
+        productIndex = shop2Products.findIndex((p, idx) => 
+          availableProducts2.includes(p) && !usedProductIndices.has(idx)
+        );
+        if (productIndex === -1) {
+          productIndex = randomInt(0, shop2Products.length - 1);
+        }
+        attempts++;
+      } while (usedProductIndices.has(productIndex) && attempts < 10);
+      
+      if (productIndex >= 0 && productIndex < shop2Products.length) {
+        usedProductIndices.add(productIndex);
+        selectedProducts.push(shop2Products[productIndex]);
+      }
+    }
+    
+    if (selectedProducts.length === 0) continue;
+    
+    const items = selectedProducts.map(p => ({
+      productId: p.id,
+      sku: p.sku,
+      name: p.name,
+      quantity: isSlowMoving(p) ? randomInt(1, 2) : randomInt(1, 5), // Slow-moving: lower quantity
+      price: p.price,
+    }));
+    
+    const total = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    const profit = items.reduce((sum, item) => {
+      const product = shop2Products.find(p => p.id === item.productId);
+      return sum + ((item.price - (product?.cost || 0)) * item.quantity);
+    }, 0);
+    
+    const platformIndex2 = randomInt(0, platforms.length - 1);
+    const platform2 = platforms[platformIndex2];
+    if (!platform2) {
+      throw new Error(`Platform at index ${platformIndex2} not found`);
+    }
+    
+    await prisma.sale.create({
+      data: {
+        shopId: shop2.id,
+        platform: platform2,
+        platformOrderId: `ORDER-SHOP2-${String(i + 1).padStart(4, "0")}`,
+        items: JSON.stringify(items),
+        total,
+        revenue: total,
+        profit,
+        customerName: `Customer ${i + 1}`,
+        customerEmail: `customer${i + 1}@example.com`,
+        status: "completed",
+        createdAt: randomDate(60),
+      },
+    });
+  }
 
-  console.log("\n✨ Database seeding completed!");
+  console.log(`✅ Created ${shop1Sales + shop2Sales} sales records`);
+
+  // Create forecasts for each product (multiple forecasts per product)
+  console.log("📈 Creating forecasts...");
+  
+  const forecastMethods = ["linear", "exponential", "xgboost", "auto"];
+  
+  for (const product of [...shop1Products, ...shop2Products]) {
+    // Create 3-7 forecasts per product (different dates and methods)
+    const numForecasts = randomInt(3, 7);
+    for (let i = 0; i < numForecasts; i++) {
+      const forecastDate = new Date();
+      forecastDate.setDate(forecastDate.getDate() + randomInt(1, 30));
+      
+      const methodIndex = randomInt(0, forecastMethods.length - 1);
+      const method = forecastMethods[methodIndex];
+      if (!method) {
+        throw new Error(`Forecast method at index ${methodIndex} not found`);
+      }
+      
+      await prisma.forecast.create({
+        data: {
+          productId: product.id,
+          date: forecastDate,
+          predicted: randomInt(5, 50),
+          method: method,
+        },
+      });
+    }
+  }
+
+  console.log(`✅ Created forecasts for all products`);
+
+  // Create multiple campaigns for each shop
+  console.log("📢 Creating campaigns...");
+  
+  const campaignTemplates = [
+    { name: "Flash Sale", status: CampaignStatus.PUBLISHED },
+    { name: "New Arrival Promotion", status: CampaignStatus.SCHEDULED },
+    { name: "Holiday Special", status: CampaignStatus.DRAFT },
+    { name: "Clearance Sale", status: CampaignStatus.PUBLISHED },
+    { name: "Buy One Get One", status: CampaignStatus.DRAFT },
+  ];
+  
+  for (const template of campaignTemplates) {
+    await prisma.campaign.create({
+      data: {
+        shopId: shop1.id,
+        name: `${template.name} - Shop One`,
+        content: JSON.stringify({
+          title: template.name,
+          description: `Special promotion for Shop One customers`,
+          discount: randomInt(10, 50),
+        }),
+        status: template.status,
+        scheduledAt: template.status === CampaignStatus.SCHEDULED 
+          ? new Date(Date.now() + randomInt(1, 7) * 24 * 60 * 60 * 1000)
+          : null,
+      },
+    });
+    
+    await prisma.campaign.create({
+      data: {
+        shopId: shop2.id,
+        name: `${template.name} - Shop Two`,
+        content: JSON.stringify({
+          title: template.name,
+          description: `Special promotion for Shop Two customers`,
+          discount: randomInt(10, 50),
+        }),
+        status: template.status,
+        scheduledAt: template.status === CampaignStatus.SCHEDULED 
+          ? new Date(Date.now() + randomInt(1, 7) * 24 * 60 * 60 * 1000)
+          : null,
+      },
+    });
+  }
+
+  console.log(`✅ Created ${campaignTemplates.length * 2} campaigns`);
+
+  // Create integrations for each shop (multiple platforms)
+  console.log("🔗 Creating integrations...");
+  
+  // Shop1 integrations
+  await prisma.integration.create({
+    data: {
+      shopId: shop1.id,
+      platform: Platform.SHOPEE,
+      settings: JSON.stringify({
+        apiKey: "shopee-key-1",
+        enabled: true,
+        syncEnabled: true,
+      }),
+    },
+  });
+  
+  await prisma.integration.create({
+    data: {
+      shopId: shop1.id,
+      platform: Platform.LAZADA,
+      settings: JSON.stringify({
+        apiKey: "lazada-key-1",
+        enabled: true,
+        syncEnabled: false,
+      }),
+    },
+  });
+  
+  // Shop2 integrations
+  await prisma.integration.create({
+    data: {
+      shopId: shop2.id,
+      platform: Platform.SHOPEE,
+      settings: JSON.stringify({
+        apiKey: "shopee-key-2",
+        enabled: true,
+        syncEnabled: true,
+      }),
+    },
+  });
+  
+  await prisma.integration.create({
+    data: {
+      shopId: shop2.id,
+      platform: Platform.TIKTOK,
+      settings: JSON.stringify({
+        apiKey: "tiktok-key-2",
+        enabled: true,
+        syncEnabled: true,
+      }),
+    },
+  });
+
+  console.log(`✅ Created 4 integrations`);
+
+  // Get final counts
+  const userCount = await prisma.user.count();
+  const notificationCount = await prisma.notification.count();
+  const shopCount = await prisma.shop.count();
+  const productCount = await prisma.product.count();
+  const inventoryCount = await prisma.inventory.count();
+  const inventoryLogCount = await prisma.inventoryLog.count();
+  const saleCount = await prisma.sale.count();
+  const forecastCount = await prisma.forecast.count();
+  const campaignCount = await prisma.campaign.count();
+  const integrationCount = await prisma.integration.count();
+
+  // Count critical items
+  const lowStockCount = await prisma.product.count({
+    where: {
+      stock: { lte: 5 },
+    },
+  });
+  
+  const nearExpiryCount = await prisma.product.count({
+    where: {
+      expiryDate: {
+        lte: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        gte: new Date(),
+      },
+    },
+  });
+  
+  const slowMovingCount = await prisma.product.count({
+    where: {
+      stock: { gte: 50 },
+    },
+  });
+
+  console.log("\n✨ Comprehensive database seeding completed!");
   console.log("\n📊 Summary:");
-  console.log(`   Users: 1`);
-  console.log(`   Shops: 1`);
-  console.log(`   Products: ${products.length}`);
-  console.log(`   Inventory Records: ${products.length}`);
-  console.log(`   Sales Records: ${totalSalesRecords}`);
-  console.log("\n🎯 You can now test the restocking strategy API!");
-  console.log("\nTest credentials:");
-  console.log("   Email: admin@test.com");
-  console.log("   Password: password123");
-  console.log(`   Shop ID: ${shop.id}`);
+  console.log(`   Users: ${userCount}`);
+  console.log(`   Notifications: ${notificationCount}`);
+  console.log(`   Shops: ${shopCount}`);
+  console.log(`   Products: ${productCount} (${productsPerShop} per shop)`);
+  console.log(`   Inventory Records: ${inventoryCount}`);
+  console.log(`   Inventory Logs: ${inventoryLogCount}`);
+  console.log(`   Sales Records: ${saleCount}`);
+  console.log(`   Forecasts: ${forecastCount}`);
+  console.log(`   Campaigns: ${campaignCount}`);
+  console.log(`   Integrations: ${integrationCount}`);
+  console.log("\n⚠️  Critical Items:");
+  console.log(`   Low Stock (≤5 units): ${lowStockCount}`);
+  console.log(`   Near Expiry (≤7 days): ${nearExpiryCount}`);
+  console.log(`   Slow Moving (≥50 units): ${slowMovingCount}`);
+  console.log("\n🎯 Test credentials:");
+  console.log("   User 1 - Email: user1@test.com, Password: password123");
+  console.log("   User 2 - Email: user2@test.com, Password: password123");
+  console.log(`   Shop 1 ID: ${shop1.id}`);
+  console.log(`   Shop 2 ID: ${shop2.id}`);
 }
 
 // Execute seed
