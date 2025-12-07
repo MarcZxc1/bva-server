@@ -31,20 +31,29 @@ const BuyerNavbar: React.FC = () => {
       <div className="border-b border-white/20">
         <div className="max-w-[1200px] mx-auto px-5">
           <div className="flex justify-between items-center py-2 text-xs">
-            {/* Left Side */}
+            {/* Left Side - Seller Login */}
             <div className="flex items-center gap-3">
-              <Link to="/login" className="hover:text-gray-200">Seller Centre</Link>
+              <Link 
+                to="/login" 
+                className="px-3 py-1.5 bg-white/10 hover:bg-white/20 rounded-md text-sm font-medium transition-all duration-200 hover:scale-105 border border-white/20 hover:border-white/40"
+              >
+                Seller Centre
+              </Link>
+              <Link 
+                to="/login" 
+                className="px-3 py-1.5 bg-shopee-orange-dark hover:bg-shopee-orange-dark/90 rounded-md text-sm font-semibold transition-all duration-200 hover:scale-105 shadow-sm hover:shadow-md"
+              >
+                Start Selling
+              </Link>
               <span className="text-white/40">|</span>
-              <Link to="/login" className="hover:text-gray-200">Start Selling</Link>
+              <a href="#" className="hover:text-gray-200 text-sm transition-colors">Download</a>
               <span className="text-white/40">|</span>
-              <a href="#" className="hover:text-gray-200">Download</a>
-              <span className="text-white/40">|</span>
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1 text-sm">
                 <span>Follow us on</span>
-                <a href="#" className="hover:text-gray-200">
+                <a href="#" className="hover:text-gray-200 transition-colors">
                   <Facebook size={14} />
                 </a>
-                <a href="#" className="hover:text-gray-200">
+                <a href="#" className="hover:text-gray-200 transition-colors">
                   <Instagram size={14} />
                 </a>
               </div>
@@ -66,9 +75,18 @@ const BuyerNavbar: React.FC = () => {
               </a>
               {!isAuthenticated && (
                 <>
-                  <Link to="/signup" className="hover:text-gray-200">Sign Up</Link>
-                  <span className="text-white/40">|</span>
-                  <Link to="/buyer-login" className="hover:text-gray-200">Login</Link>
+                  <Link 
+                    to="/signup" 
+                    className="px-4 py-1.5 bg-white/10 hover:bg-white/20 rounded-md text-sm font-medium transition-all duration-200 hover:scale-105 border border-white/20 hover:border-white/40"
+                  >
+                    Sign Up
+                  </Link>
+                  <Link 
+                    to="/buyer-login" 
+                    className="px-4 py-1.5 bg-white text-shopee-orange hover:bg-gray-50 rounded-md text-sm font-semibold transition-all duration-200 hover:scale-105 shadow-sm hover:shadow-md"
+                  >
+                    Login
+                  </Link>
                 </>
               )}
               {isAuthenticated && userName && (
