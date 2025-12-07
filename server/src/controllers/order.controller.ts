@@ -57,6 +57,13 @@ export const getMyOrders = async (req: Request, res: Response) => {
 export const getSellerOrders = async (req: Request, res: Response) => {
   try {
     const { shopId } = req.params;
+    if (!shopId) {
+      return res.status(400).json({
+        success: false,
+        error: "Shop ID is required",
+      });
+    }
+
     const { status, startDate, endDate } = req.query;
 
     const orders = await orderService.getSellerOrders(shopId, {
@@ -81,7 +88,20 @@ export const getSellerOrders = async (req: Request, res: Response) => {
 export const updateOrderStatus = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    if (!id) {
+      return res.status(400).json({
+        success: false,
+        error: "Order ID is required",
+      });
+    }
+
     const { status } = req.body;
+    if (!status) {
+      return res.status(400).json({
+        success: false,
+        error: "Status is required",
+      });
+    }
 
     const order = await orderService.updateOrderStatus(id, status);
     res.json({
@@ -100,6 +120,13 @@ export const updateOrderStatus = async (req: Request, res: Response) => {
 export const getOrderById = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    if (!id) {
+      return res.status(400).json({
+        success: false,
+        error: "Order ID is required",
+      });
+    }
+
     const order = await orderService.getOrderById(id);
     res.json({
       success: true,

@@ -27,7 +27,7 @@ const app: Application = express();
 // Configure CORS to allow both frontends
 app.use(cors({
   origin: [
-    "http://localhost:5173", // Shopee Clone
+    "http://localhost:5174", // Shopee Clone
     "http://localhost:8080", // BVA Frontend
     "https://bva-frontend.vercel.app",
     "https://shopee-clone.vercel.app"

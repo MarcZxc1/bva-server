@@ -1,5 +1,6 @@
 import prisma from "../lib/prisma";
 import { Platform } from "../generated/prisma";
+import { notifyNewOrder, notifyLowStock, notifyInventoryUpdate, OrderNotificationData } from "../services/socket.service";
 
 export async function createOrder(data: {
   userId: string;
@@ -16,7 +17,14 @@ export async function createOrder(data: {
   const productIds = data.items.map(item => item.productId);
   const products = await prisma.product.findMany({
     where: { id: { in: productIds } },
-    select: { id: true, shopId: true, shop: { select: { name: true } } },
+    select: { 
+      id: true, 
+      name: true,
+      shopId: true, 
+      stock: true,
+      cost: true,
+      shop: { select: { name: true } } 
+    },
   });
 
   if (products.length !== productIds.length) {
@@ -35,17 +43,18 @@ export async function createOrder(data: {
     ordersByShop.get(product.shopId)!.push(item);
   }
 
-  // Create orders for each shop
+  // Create orders for each shop using transactions
   const createdOrders = [];
+  const LOW_STOCK_THRESHOLD = 5; // Alert if stock goes below this
+
   for (const [shopId, items] of ordersByShop.entries()) {
     const shopTotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
     const product = products.find(p => p.shopId === shopId);
 
     // Calculate profit
-    const productDetails = await prisma.product.findMany({
-      where: { id: { in: items.map(i => i.productId) } },
-      select: { id: true, cost: true },
-    });
+    const productDetails = products.filter(p => 
+      items.some(i => i.productId === p.id)
+    );
 
     let profit = 0;
     for (const item of items) {
@@ -55,55 +64,128 @@ export async function createOrder(data: {
       }
     }
 
-    const order = await prisma.sale.create({
-      data: {
-        shopId,
-        platform: Platform.SHOPEE,
-        items: items as any,
-        total: shopTotal,
-        revenue: shopTotal,
-        profit,
-        customerEmail: data.userId, // Store user ID as email for now
-        status: "pending",
-      },
-    });
-
-    // Update product stock
-    for (const item of items) {
-      await prisma.product.update({
-        where: { id: item.productId },
+    // Use transaction to ensure atomicity
+    const order = await prisma.$transaction(async (tx) => {
+      // Create sale record
+      const sale = await tx.sale.create({
         data: {
-          stock: {
-            decrement: item.quantity,
-          },
+          shopId,
+          platform: Platform.SHOPEE,
+          items: items as any,
+          total: shopTotal,
+          revenue: shopTotal,
+          profit,
+          customerEmail: data.userId,
+          status: "pending",
         },
       });
 
-      // Update inventory
-      const inventory = await prisma.inventory.findFirst({
-        where: { productId: item.productId },
-        orderBy: { updatedAt: "desc" },
-      });
+      // Update product stock and inventory atomically
+      const inventoryUpdates: Array<{
+        productId: string;
+        productName: string;
+        newStock: number;
+      }> = [];
 
-      if (inventory) {
-        await prisma.inventory.update({
-          where: { id: inventory.id },
+      for (const item of items) {
+        const product = productDetails.find(p => p.id === item.productId);
+        if (!product) continue;
+
+        // Update product stock
+        const updatedProduct = await tx.product.update({
+          where: { id: item.productId },
           data: {
-            quantity: {
+            stock: {
               decrement: item.quantity,
             },
           },
-        });
-
-        await prisma.inventoryLog.create({
-          data: {
-            inventoryId: inventory.id,
-            delta: -item.quantity,
-            reason: "Order placed",
+          select: {
+            id: true,
+            name: true,
+            stock: true,
           },
         });
+
+        inventoryUpdates.push({
+          productId: updatedProduct.id,
+          productName: updatedProduct.name,
+          newStock: updatedProduct.stock,
+        });
+
+        // Check for low stock alert
+        if (updatedProduct.stock <= LOW_STOCK_THRESHOLD && updatedProduct.stock > 0) {
+          // Emit low stock alert (non-blocking)
+          setImmediate(() => {
+            notifyLowStock({
+              shopId,
+              productId: updatedProduct.id,
+              productName: updatedProduct.name,
+              currentStock: updatedProduct.stock,
+              threshold: LOW_STOCK_THRESHOLD,
+            });
+          });
+        }
+
+        // Update inventory
+        const inventory = await tx.inventory.findFirst({
+          where: { productId: item.productId },
+          orderBy: { updatedAt: "desc" },
+        });
+
+        if (inventory) {
+          await tx.inventory.update({
+            where: { id: inventory.id },
+            data: {
+              quantity: {
+                decrement: item.quantity,
+              },
+            },
+          });
+
+          await tx.inventoryLog.create({
+            data: {
+              inventoryId: inventory.id,
+              delta: -item.quantity,
+              reason: "Order placed",
+            },
+          });
+        }
       }
-    }
+
+      // Emit inventory updates
+      if (inventoryUpdates.length > 0) {
+        setImmediate(() => {
+          notifyInventoryUpdate(shopId, inventoryUpdates);
+        });
+      }
+
+      return sale;
+    });
+
+    // Prepare order notification data
+    const orderNotificationData: OrderNotificationData = {
+      shopId,
+      orderId: order.id,
+      total: order.total,
+      revenue: order.revenue || order.total,
+      profit: order.profit || 0,
+      items: items.map(item => {
+        const product = productDetails.find(p => p.id === item.productId);
+        return {
+          productId: item.productId,
+          productName: product?.name || "Unknown Product",
+          quantity: item.quantity,
+          price: item.price,
+        };
+      }),
+      customerEmail: data.userId,
+      createdAt: order.createdAt,
+    };
+
+    // Emit new order notification (non-blocking)
+    setImmediate(() => {
+      notifyNewOrder(orderNotificationData);
+    });
 
     createdOrders.push({
       ...order,

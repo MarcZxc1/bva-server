@@ -4,6 +4,12 @@ import * as sellerService from "../service/seller.service";
 export const getSellerDashboard = async (req: Request, res: Response) => {
   try {
     const { shopId } = req.params;
+    if (!shopId) {
+      return res.status(400).json({
+        success: false,
+        error: "Shop ID is required",
+      });
+    }
     const dashboard = await sellerService.getSellerDashboard(shopId);
     res.json({
       success: true,
@@ -21,6 +27,12 @@ export const getSellerDashboard = async (req: Request, res: Response) => {
 export const getSellerIncome = async (req: Request, res: Response) => {
   try {
     const { shopId } = req.params;
+    if (!shopId) {
+      return res.status(400).json({
+        success: false,
+        error: "Shop ID is required",
+      });
+    }
     const { startDate, endDate, status } = req.query;
 
     const income = await sellerService.getSellerIncome(shopId, {

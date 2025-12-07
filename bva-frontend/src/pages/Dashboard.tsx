@@ -1,8 +1,9 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { TrendingUp, TrendingDown, Package, AlertCircle, DollarSign, ShoppingCart, Loader2, PackageOpen, BarChart3, RefreshCw } from "lucide-react";
+import { TrendingUp, TrendingDown, Package, AlertCircle, DollarSign, ShoppingCart, Loader2, PackageOpen, BarChart3, RefreshCw, Wifi, WifiOff } from "lucide-react";
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import { useAtRiskInventory, useDashboardAnalytics } from "@/hooks/useSmartShelf";
+import { useRealtimeDashboard } from "@/hooks/useRealtimeDashboard";
 import { useAuth } from "@/contexts/AuthContext";
 import { useState } from "react";
 import { apiClient } from "@/lib/api-client";
@@ -15,6 +16,12 @@ export default function Dashboard() {
   
   const { data: atRiskData, isLoading: atRiskLoading, refetch: refetchAtRisk } = useAtRiskInventory(shopId || "", hasShop);
   const { data: analyticsData, isLoading: analyticsLoading, refetch: refetchAnalytics } = useDashboardAnalytics(shopId || "", hasShop);
+  
+  // Enable real-time updates
+  const { isConnected } = useRealtimeDashboard({ 
+    shopId: shopId || undefined, 
+    enabled: hasShop 
+  });
 
   const isLoading = (analyticsLoading || atRiskLoading) && hasShop;
 
@@ -102,12 +109,28 @@ export default function Dashboard() {
     <div className="space-y-6">
       {/* Welcome Header */}
       <div className="glass-card p-8">
-        <div className="space-y-2">
-          <h1 className="text-4xl font-bold text-foreground">👋 Welcome Back, {user?.name || user?.email}!</h1>
-          <p className="text-muted-foreground">
-            Overview of your multi-platform business performance
-            {user?.shops?.[0] && ` - ${user.shops[0].name}`}
-          </p>
+        <div className="flex items-start justify-between">
+          <div className="space-y-2">
+            <h1 className="text-4xl font-bold text-foreground">👋 Welcome Back, {user?.name || user?.email}!</h1>
+            <p className="text-muted-foreground">
+              Overview of your multi-platform business performance
+              {user?.shops?.[0] && ` - ${user.shops[0].name}`}
+            </p>
+          </div>
+          {/* Real-time Connection Status */}
+          <div className="flex items-center gap-2 text-sm">
+            {isConnected ? (
+              <>
+                <Wifi className="h-4 w-4 text-green-500" />
+                <span className="text-green-500 font-medium">Live</span>
+              </>
+            ) : (
+              <>
+                <WifiOff className="h-4 w-4 text-gray-400" />
+                <span className="text-gray-400">Offline</span>
+              </>
+            )}
+          </div>
         </div>
       </div>
 

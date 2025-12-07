@@ -46,6 +46,12 @@ export const getProductsByShop = async (req: Request, res: Response) => {
 export const getProductById = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    if (!id) {
+      return res.status(400).json({
+        success: false,
+        error: "Product ID is required",
+      });
+    }
     const product = await productService.getProductById(id);
     res.json({
       success: true,
@@ -90,6 +96,12 @@ export const createProduct = async (req: Request, res: Response) => {
 export const updateProduct = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    if (!id) {
+      return res.status(400).json({
+        success: false,
+        error: "Product ID is required",
+      });
+    }
     const product = await productService.updateProduct(id, req.body);
     res.json({
       success: true,
@@ -107,6 +119,12 @@ export const updateProduct = async (req: Request, res: Response) => {
 export const deleteProduct = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    if (!id) {
+      return res.status(400).json({
+        success: false,
+        error: "Product ID is required",
+      });
+    }
     await productService.deleteProduct(id);
     res.json({
       success: true,

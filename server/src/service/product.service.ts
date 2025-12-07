@@ -134,12 +134,12 @@ export async function createProduct(data: {
       shopId: data.shopId,
       sku,
       name: data.name,
-      description: data.description,
+      description: data.description ?? null,
       price: data.price,
-      cost: data.cost,
+      cost: data.cost ?? null,
       stock: data.stock || 0,
-      category: data.category,
-      imageUrl: data.imageUrl,
+      category: data.category ?? null,
+      imageUrl: data.imageUrl ?? null,
     },
   });
 
