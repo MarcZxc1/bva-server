@@ -166,20 +166,7 @@ const MyOrders = () => {
     console.log('Apply filters', { searchType, orderId, shippingChannel });
   };
 
-  useEffect(() => {
-    if (shopId) {
-      fetchOrders();
-    }
-  }, [shopId, activeTab]);
-
-  // Real-time updates
-  const { isConnected } = useRealtimeOrders({
-    shopId: shopId || undefined,
-    enabled: !!shopId,
-    onOrderUpdate: fetchOrders,
-  });
-
-  const fetchOrders = async () => {
+  const fetchOrders = useCallback(async () => {
     if (!shopId) return;
     
     try {
@@ -216,7 +203,20 @@ const MyOrders = () => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [shopId, activeTab]);
+
+  useEffect(() => {
+    if (shopId) {
+      fetchOrders();
+    }
+  }, [shopId, activeTab, fetchOrders]);
+
+  // Real-time updates
+  const { isConnected } = useRealtimeOrders({
+    shopId: shopId || undefined,
+    enabled: !!shopId,
+    onOrderUpdate: fetchOrders,
+  });
 
   const handleUpdateStatus = async (orderId: string, newStatus: string) => {
     try {
