@@ -448,7 +448,6 @@ export default function Settings() {
         onOpenChange={setShowAgreementDialog}
         platform={selectedPlatform}
         onAgree={handleAgreeToIntegration}
-        onGenerateApiKey={handleGenerateApiKey}
       />
     </div>
   );

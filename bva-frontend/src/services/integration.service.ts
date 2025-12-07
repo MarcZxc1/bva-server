@@ -15,7 +15,6 @@ export interface Integration {
 
 export interface CreateIntegrationRequest {
   platform: "SHOPEE" | "LAZADA" | "TIKTOK" | "OTHER";
-  apiKey: string;
   settings?: Record<string, any>;
 }
 
@@ -86,12 +85,6 @@ class IntegrationService {
     return apiClient.post<SyncResponse>(`/api/integrations/${id}/sync`);
   }
 
-  /**
-   * Generate API key
-   */
-  async generateApiKey(): Promise<{ apiKey: string; message: string }> {
-    return apiClient.post<{ apiKey: string; message: string }>("/api/auth/generate-api-key");
-  }
 }
 
 export const integrationService = new IntegrationService();
