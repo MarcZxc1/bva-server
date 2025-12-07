@@ -2,7 +2,6 @@
 import passport from "passport";
 import { Strategy as GoogleStrategy, Profile } from "passport-google-oauth20";
 import prisma from "../lib/prisma";
-import { seedShopData } from "../service/shopSeed.service";
 
 // Function to initialize Google Strategy (called after env is loaded)
 export const initializeGoogleStrategy = () => {
@@ -137,20 +136,16 @@ export const initializeGoogleStrategy = () => {
             }
           }
 
-          // Create a shop for the new user
-          const shop = await prisma.shop.create({
-            data: {
-              name: `${profile.displayName || "My"}'s Shop`,
-              ownerId: user.id,
-            },
-          });
-
-          // Seed the shop with fake store data (products, inventory, sales)
-          // This runs asynchronously to avoid blocking the OAuth callback
-          seedShopData(shop.id).catch((error) => {
-            console.error(`❌ Error seeding shop ${shop.id}:`, error);
-            // Don't fail the OAuth flow if seeding fails
-          });
+          // Create a shop for the new user (only if they're a SELLER)
+          // No automatic data seeding - data will come from Shopee-Clone webhooks
+          if (user.role === "SELLER") {
+            await prisma.shop.create({
+              data: {
+                name: `${profile.displayName || "My"}'s Shop`,
+                ownerId: user.id,
+              },
+            });
+          }
 
           return done(null, user);
         } catch (error) {

@@ -3,9 +3,11 @@
  * 
  * Handles complex database aggregations for analytics and reporting.
  * Uses Prisma's aggregation features to calculate metrics from sales data.
+ * Implements Redis caching for optimized performance.
  */
 
 import prisma from "../lib/prisma";
+import { CacheService } from "../lib/redis";
 import type { Prisma } from "../generated/prisma";
 
 export interface SalesOverTimeData {
@@ -46,8 +48,14 @@ export class ReportsService {
     endDate: Date,
     interval: "day" | "month" = "day"
   ): Promise<SalesOverTimeData[]> {
-    // Fetch sales in the date range - ALWAYS filtered by shopId
-    const sales = await prisma.sale.findMany({
+    const cacheKey = `sales:${shopId}:${startDate.toISOString()}:${endDate.toISOString()}:${interval}`;
+    
+    // Try cache first (15 min TTL for sales data)
+    return CacheService.getOrSet(
+      cacheKey,
+      async () => {
+        // Fetch sales in the date range - ALWAYS filtered by shopId
+        const sales = await prisma.sale.findMany({
       where: {
         shopId, // Critical: ensures user-specific data only
         createdAt: {
@@ -126,6 +134,9 @@ export class ReportsService {
 
     // Sort by date
     return filledData.sort((a, b) => a.date.localeCompare(b.date));
+      },
+      900 // 15 minutes cache TTL
+    );
   }
 
   /**
@@ -230,7 +241,13 @@ export class ReportsService {
     startDate?: Date,
     endDate?: Date
   ): Promise<ProfitAnalysisData> {
-    const whereClause: Prisma.SaleWhereInput = {
+    const cacheKey = `profit:${shopId}:${startDate?.toISOString() || 'all'}:${endDate?.toISOString() || 'all'}`;
+    
+    // Try cache first (15 min TTL)
+    return CacheService.getOrSet(
+      cacheKey,
+      async () => {
+        const whereClause: Prisma.SaleWhereInput = {
       shopId, // Always filter by shopId - ensures user-specific data
       status: "completed",
     };
@@ -316,16 +333,19 @@ export class ReportsService {
     const profitMargin =
       totalRevenue > 0 ? (totalProfit / totalRevenue) * 100 : 0;
 
-    return {
-      totalRevenue,
-      totalCost,
-      totalProfit,
-      profitMargin,
-      period: {
-        start: startDate || new Date(0),
-        end: endDate || new Date(),
+        return {
+          totalRevenue,
+          totalCost,
+          totalProfit,
+          profitMargin,
+          period: {
+            start: startDate || new Date(0),
+            end: endDate || new Date(),
+          },
+        };
       },
-    };
+      900 // 15 minutes cache TTL
+    );
   }
 
   /**
@@ -338,7 +358,13 @@ export class ReportsService {
     startDate?: Date,
     endDate?: Date
   ): Promise<PlatformComparisonData[]> {
-    const whereClause: any = {
+    const cacheKey = `platform:${shopId}:${startDate?.toISOString() || 'all'}:${endDate?.toISOString() || 'all'}`;
+    
+    // Try cache first (15 min TTL)
+    return CacheService.getOrSet(
+      cacheKey,
+      async () => {
+        const whereClause: any = {
       shopId, // Critical: ensures user-specific data only
       status: "completed",
     };
@@ -430,8 +456,11 @@ export class ReportsService {
         data.revenue > 0 ? (data.profit / data.revenue) * 100 : 0,
     }));
 
-    // Sort by revenue descending
-    return result.sort((a, b) => b.revenue - a.revenue);
+        // Sort by revenue descending
+        return result.sort((a, b) => b.revenue - a.revenue);
+      },
+      900 // 15 minutes cache TTL
+    );
   }
 
   /**
@@ -444,8 +473,14 @@ export class ReportsService {
     stockTurnover: number;
     currency: string;
   }> {
-    // Get profit analysis for all time
-    const profitAnalysis = await this.getProfitAnalysis(shopId);
+    const cacheKey = `dashboard:${shopId}`;
+    
+    // Try cache first (10 min TTL for dashboard)
+    return CacheService.getOrSet(
+      cacheKey,
+      async () => {
+        // Get profit analysis for all time
+        const profitAnalysis = await this.getProfitAnalysis(shopId);
 
     // Calculate stock turnover
     // Stock Turnover = COGS / Average Inventory Value
@@ -474,12 +509,15 @@ export class ReportsService {
         ? profitAnalysis.totalCost / currentInventoryValue
         : 0;
 
-    return {
-      totalRevenue: profitAnalysis.totalRevenue,
-      profitMargin: profitAnalysis.profitMargin,
-      stockTurnover: Math.round(stockTurnover * 100) / 100, // Round to 2 decimal places
-      currency: "PHP",
-    };
+        return {
+          totalRevenue: profitAnalysis.totalRevenue,
+          profitMargin: profitAnalysis.profitMargin,
+          stockTurnover: Math.round(stockTurnover * 100) / 100, // Round to 2 decimal places
+          currency: "PHP",
+        };
+      },
+      600 // 10 minutes cache TTL
+    );
   }
 }
 

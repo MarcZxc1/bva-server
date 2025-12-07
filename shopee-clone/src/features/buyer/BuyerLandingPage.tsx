@@ -1,10 +1,11 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Image as ImageIcon } from 'lucide-react';
+import { Play } from 'lucide-react';
 import BuyerNavbar from './components/BuyerNavbar';
 import HeroBanner from './components/HeroBanner';
 import FeatureIcons from './components/FeatureIcons';
 import CategoryCard from './components/CategoryCard';
+import apiClient from '../../services/api';
 
 // Payment Methods
 import spayImg from '../../assets/PAYMENTS/buyer-spay.png';
@@ -59,7 +60,93 @@ const categories: Category[] = [
   { id: 18, name: 'Motors', image: '🏍️' },
 ];
 
+interface ApiProduct {
+  id: string;
+  name: string;
+  price: number;
+  imageUrl?: string | null;
+  shopName?: string;
+  category?: string | null;
+  stock?: number;
+  description?: string | null;
+}
+
+interface DisplayProduct {
+  id: string;
+  name: string;
+  price: number;
+  originalPrice?: number;
+  discount?: number;
+  sold: number;
+  image: string;
+  shopName: string;
+  badges: string[];
+  hasVideo: boolean;
+}
+
 const BuyerLandingPage: React.FC = () => {
+  const [products, setProducts] = useState<DisplayProduct[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchProducts = async () => {
+      try {
+        setIsLoading(true);
+        setError(null);
+        const apiProducts: ApiProduct[] = await apiClient.getProducts();
+        
+        // Transform API products to match the original design structure
+        const transformedProducts: DisplayProduct[] = apiProducts.map((product) => {
+          // Calculate discount (random 10-50% for demo, or based on cost if available)
+          const discount = Math.floor(Math.random() * 40) + 10;
+          const originalPrice = Math.round(product.price * (1 + discount / 100));
+          
+          // Generate sold count (random for demo, or use actual sales data if available)
+          const sold = Math.floor(Math.random() * 5000) + 100;
+          
+          // Determine badges based on product properties
+          const badges: string[] = [];
+          if (product.stock && product.stock > 50) {
+            badges.push('Preferred');
+          }
+          if (Math.random() > 0.7) {
+            badges.push('COD');
+          }
+          if (Math.random() > 0.8) {
+            badges.push('SPayLater');
+          }
+          
+          // Use imageUrl if available, otherwise use emoji fallback
+          const image = product.imageUrl || '📦';
+          
+          return {
+            id: product.id,
+            name: product.name,
+            price: product.price,
+            originalPrice,
+            discount,
+            sold,
+            image,
+            shopName: product.shopName || 'Shop',
+            badges,
+            hasVideo: Math.random() > 0.9, // 10% chance of having video
+          };
+        });
+        
+        setProducts(transformedProducts);
+      } catch (err: any) {
+        console.error('Error fetching products:', err);
+        setError(err.message || 'Failed to load products');
+        setProducts([]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchProducts();
+  }, []);
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Navbar */}
@@ -145,50 +232,116 @@ const BuyerLandingPage: React.FC = () => {
             <div className="h-1 bg-shopee-orange w-full mt-3"></div>
           </div>
           
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
-            {[...Array(12)].map((_, item) => {
-              // Simulating database connection - some products have images, some don't
-              const hasImage = item % 3 !== 0; // Every 3rd product will show placeholder
-              
-              return (
+          {isLoading ? (
+            <div className="text-center py-12">
+              <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-shopee-orange"></div>
+              <p className="mt-4 text-gray-500">Loading products...</p>
+            </div>
+          ) : error ? (
+            <div className="text-center py-12">
+              <p className="text-red-500">{error}</p>
+              <button
+                onClick={() => window.location.reload()}
+                className="mt-4 text-shopee-orange hover:text-shopee-orange-dark"
+              >
+                Retry
+              </button>
+            </div>
+          ) : products.length === 0 ? (
+            <div className="text-center py-12">
+              <p className="text-gray-500">No products available</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
+              {products.map((product) => (
                 <Link
-                  to={`/product/${item + 1}`}
-                  key={item}
-                  className="bg-white border border-gray-200 hover:shadow-md transition-all cursor-pointer"
+                  to={`/product/${product.id}`}
+                  key={product.id}
+                  className="bg-white border border-gray-200 hover:border-shopee-orange transition-all cursor-pointer group flex flex-col"
                 >
-                  <div className="aspect-square bg-gray-50 flex items-center justify-center">
-                    {hasImage ? (
-                      <span className="text-gray-300 text-5xl">
-                        {['👕', '📱', '👟', '💄', '🎧', '⌚'][item % 6]}
-                      </span>
+                  {/* Product Image */}
+                  <div className="relative aspect-square bg-gray-50 overflow-hidden">
+                    {product.image && (product.image.startsWith('http') || product.image.startsWith('/') || product.image.startsWith('data:')) ? (
+                      <img
+                        src={product.image}
+                        alt={product.name}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        onError={(e) => {
+                          // Fallback to emoji if image fails to load
+                          const target = e.target as HTMLImageElement;
+                          target.style.display = 'none';
+                          const parent = target.parentElement;
+                          if (parent && !parent.querySelector('.image-fallback')) {
+                            const fallback = document.createElement('div');
+                            fallback.className = 'image-fallback w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200';
+                            fallback.innerHTML = '<span class="text-5xl opacity-50">📦</span>';
+                            parent.appendChild(fallback);
+                          }
+                        }}
+                      />
                     ) : (
-                      <div className="flex flex-col items-center justify-center gap-2">
-                        <ImageIcon size={48} className="text-gray-300" />
-                        <span className="text-xs text-gray-400 text-center px-2">Missing Image</span>
+                      <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200">
+                        <span className="text-5xl opacity-50">{product.image || '📦'}</span>
+                      </div>
+                    )}
+                    
+                    {/* Discount Badge */}
+                    {product.discount && product.discount > 0 && (
+                      <div className="absolute top-2 right-2 bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded z-10">
+                        -{product.discount}%
+                      </div>
+                    )}
+                    
+                    {/* Video Play Icon */}
+                    {product.hasVideo && (
+                      <div className="absolute bottom-2 left-2 bg-black/60 rounded-full p-1.5 z-10">
+                        <Play size={14} className="text-white" fill="white" />
+                      </div>
+                    )}
+                    
+                    {/* Badges */}
+                    {product.badges && product.badges.length > 0 && (
+                      <div className="absolute top-2 left-2 flex flex-col gap-1 z-10">
+                        {product.badges.includes('Preferred') && (
+                          <span className="bg-yellow-400 text-yellow-900 text-[10px] font-semibold px-1.5 py-0.5 rounded">Preferred</span>
+                        )}
+                        {product.badges.includes('COD') && (
+                          <span className="bg-blue-500 text-white text-[10px] font-semibold px-1.5 py-0.5 rounded">COD</span>
+                        )}
+                        {product.badges.includes('SPayLater') && (
+                          <span className="bg-purple-500 text-white text-[10px] font-semibold px-1.5 py-0.5 rounded">SPayLater</span>
+                        )}
                       </div>
                     )}
                   </div>
-                  <div className="p-2">
-                    <div className="text-xs text-gray-700 line-clamp-2 mb-1 h-8">
-                      Product Name Here Sample Text
+                  
+                  {/* Product Info */}
+                  <div className="p-2 flex-1 flex flex-col">
+                    <div className="text-shopee-orange text-lg font-medium mb-1">
+                      ₱{product.price.toLocaleString()}
                     </div>
-                    <div className="flex items-center gap-1 mb-1">
-                      <span className="text-shopee-orange text-sm font-medium">₱{(Math.random() * 1000 + 100).toFixed(0)}</span>
+                    {product.originalPrice && product.originalPrice > product.price && (
+                      <div className="flex items-center gap-1 mb-1">
+                        <span className="text-gray-400 text-[10px] line-through">₱{product.originalPrice.toLocaleString()}</span>
+                      </div>
+                    )}
+                    <div className="text-xs text-gray-600 line-clamp-2 flex-1 mb-1">
+                      {product.name}
                     </div>
-                    <div className="flex items-center justify-between text-xs text-gray-500">
-                      <span>⭐ 4.8</span>
-                      <span>{Math.floor(Math.random() * 1000)}+ sold</span>
+                    {/* Sold Count */}
+                    <div className="text-xs text-gray-400 mt-auto">
+                      {product.sold >= 10000 ? '10K++++' : product.sold}+ sold
                     </div>
                   </div>
                 </Link>
-              );
-            })}
-          </div>
+              ))}
+            </div>
+          )}
 
-          {/* Login To See More Button */}
+          {/* See More Button */}
           <div className="mt-8 text-center">
-            <button className="border border-gray-300 px-12 py-3 text-gray-700 hover:bg-gray-50 transition-colors text-sm">
-              Login To See More
+            <button className="bg-gray-200 text-gray-700 px-12 py-3 hover:bg-gray-300 transition-colors text-sm rounded">
+              See More
             </button>
             <div className="h-1 bg-shopee-orange w-full mt-8"></div>
           </div>

@@ -19,6 +19,11 @@ import notificationRoutes from "./routes/notification.routes";
 import reportsRoutes from "./routes/reports.routes";
 import authRoutes from "./routes/auth.routes";
 import campaignRoutes from "./routes/campaign.routes";
+import orderRoutes from "./routes/order.routes";
+import sellerRoutes from "./routes/seller.routes";
+import integrationRoutes from "./routes/integration.routes";
+import externalRoutes from "./routes/external.routes";
+import webhookRoutes from "./routes/webhook.routes";
 
 const app: Application = express();
 
@@ -58,7 +63,9 @@ app.get("/", (req: Request, res: Response) => {
       smartShelf: "/api/smart-shelf",
       notifications: "/api/v1/notifications",
       reports: "/api/reports",
-      campaigns: "/api/campaigns"
+      campaigns: "/api/campaigns",
+      orders: "/api/orders",
+      seller: "/api/seller"
     }
   });
 });
@@ -70,6 +77,15 @@ app.get("/health", (req: Request, res: Response) => {
 
 app.use("/test", (req, res) => {
   res.send("WORKING!");
+});
+
+// Debug route to test product routes
+app.post("/test-products", (req, res) => {
+  res.json({ 
+    message: "POST route test successful",
+    timestamp: new Date().toISOString(),
+    body: req.body 
+  });
 });
 // Register your Ad Router
 // All routes in adRouter will be prefixed with /api/v1/ads
@@ -99,6 +115,21 @@ app.use("/api/auth", authRoutes);
 
 // Register Campaign Router
 app.use("/api/campaigns", campaignRoutes);
+
+// Register Order Router
+app.use("/api/orders", orderRoutes);
+
+// Register Seller Router
+app.use("/api/seller", sellerRoutes);
+
+// Register Integration Router
+app.use("/api/integrations", integrationRoutes);
+
+// Register External API Router (for Shopee-Clone to expose data to BVA)
+app.use("/api/external", externalRoutes);
+
+// Register Webhook Router (for Shopee-Clone to send real-time updates)
+app.use("/api/webhooks", webhookRoutes);
 
 // --- 3. Export the App ---
 // We export the app so server.ts can import it

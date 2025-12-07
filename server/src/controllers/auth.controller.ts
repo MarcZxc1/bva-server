@@ -120,10 +120,14 @@ export class AuthController {
       }
 
       const user = await authService.getUserById(userId);
+      const shops = await authService.getUserShops(userId);
 
       return res.status(200).json({
         success: true,
-        data: user,
+        data: {
+          ...user,
+          shops,
+        },
       });
     } catch (error) {
       console.error("GetMe error:", error);

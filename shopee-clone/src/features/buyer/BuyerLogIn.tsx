@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import React, { useEffect, useState, useCallback } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import shopeeLogo from '../../assets/LANDING-PAGE-LOGO/buyer-shopee-logo-sign-log.png';
 import { QrCode, Eye, EyeOff } from 'lucide-react';
@@ -30,66 +30,19 @@ import appStoreImg from '../../assets/APP-DOWNLOAD/buyer-app-store.png';
 import googlePlayImg from '../../assets/APP-DOWNLOAD/buyer-google-play.png';
 import appGalleryImg from '../../assets/APP-DOWNLOAD/buyer-app-gallery.png';
 
-const BuyerLogIn: React.FC = () => {
+const BuyerLogIn: React.FC = React.memo(() => {
+  const { login, isLoading, error, handleGoogleAuth } = useAuth();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [error, setError] = useState('');
-  const [searchParams] = useSearchParams();
-  const { login, loginWithGoogle, isLoading, isAuthenticated, setAuthFromToken } = useAuth();
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'auto' });
   }, []);
 
-  const navigate = useNavigate();
-
-  // Check for OAuth callback token or error in URL
-  useEffect(() => {
-    const token = searchParams.get('token');
-    const urlError = searchParams.get('error');
-
-    if (urlError) {
-      setError(decodeURIComponent(urlError).replace(/_/g, ' '));
-      // Clean up URL
-      window.history.replaceState({}, document.title, window.location.pathname);
-    }
-
-    if (token) {
-      setAuthFromToken(token)
-        .then(() => {
-          window.history.replaceState({}, document.title, window.location.pathname);
-          navigate('/');
-        })
-        .catch(() => {
-          setError('Failed to authenticate. Please try again.');
-          window.history.replaceState({}, document.title, window.location.pathname);
-        });
-    }
-  }, [searchParams, setAuthFromToken, navigate]);
-
-  // Redirect if already authenticated
-  useEffect(() => {
-    if (isAuthenticated) {
-      navigate('/');
-    }
-  }, [isAuthenticated, navigate]);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-
-    try {
-      await login(username, password);
-      navigate('/');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Login failed');
-    }
-  };
-
-  const handleGoogleLogin = () => {
-    loginWithGoogle();
-  };
+  const handleGoogleLogin = useCallback(() => {
+    handleGoogleAuth('BUYER');
+  }, [handleGoogleAuth]);
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -184,13 +137,25 @@ const BuyerLogIn: React.FC = () => {
                   <QrCode size={18} className="text-yellow-500" />
                 </button>
 
-                {error && (
-                  <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded text-red-600 text-sm">
-                    {error}
-                  </div>
-                )}
-
-                <form className="space-y-4" onSubmit={handleSubmit}>
+                <form
+                  className="space-y-4"
+                  onSubmit={async (e) => {
+                    e.preventDefault();
+                    if (!username.trim() || !password.trim()) {
+                      return;
+                    }
+                    try {
+                      await login(username.trim(), password);
+                    } catch (error: any) {
+                      // Error is handled by AuthContext and displayed via error state
+                    }
+                  }}
+                >
+                  {error && (
+                    <div className="p-3 bg-red-50 border border-red-200 rounded text-red-700 text-sm">
+                      {error}
+                    </div>
+                  )}
                   <div>
                     <input
                       type="text"
@@ -198,6 +163,8 @@ const BuyerLogIn: React.FC = () => {
                       value={username}
                       onChange={(e) => setUsername(e.target.value)}
                       className="w-full px-4 py-3 border border-gray-300 rounded focus:outline-none focus:border-shopee-orange text-gray-700"
+                      disabled={isLoading}
+                      autoComplete="username"
                     />
                   </div>
                   <div className="relative">
@@ -207,12 +174,15 @@ const BuyerLogIn: React.FC = () => {
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       className="w-full px-4 py-3 pr-10 border border-gray-300 rounded focus:outline-none focus:border-shopee-orange text-gray-700"
+                      disabled={isLoading}
+                      autoComplete="current-password"
                     />
                     <button
                       type="button"
                       onClick={() => setShowPassword((v) => !v)}
                       className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
                       aria-label="Toggle password visibility"
+                      disabled={isLoading}
                     >
                       {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                     </button>
@@ -220,10 +190,10 @@ const BuyerLogIn: React.FC = () => {
 
                   <button
                     type="submit"
-                    disabled={isLoading}
                     className="w-full bg-shopee-orange text-white py-3 rounded font-medium hover:bg-shopee-orange-dark transition-colors uppercase disabled:opacity-50 disabled:cursor-not-allowed"
+                    disabled={isLoading || !username.trim() || !password.trim()}
                   >
-                    {isLoading ? 'Logging in...' : 'Log In'}
+                    {isLoading ? 'LOGGING IN...' : 'Log In'}
                   </button>
 
                   <div>
@@ -248,8 +218,9 @@ const BuyerLogIn: React.FC = () => {
                     </button>
                     <button
                       type="button"
+                      className="flex items-center justify-center gap-2 px-4 py-2.5 border border-gray-300 rounded hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                       onClick={handleGoogleLogin}
-                      className="flex items-center justify-center gap-2 px-4 py-2.5 border border-gray-300 rounded hover:bg-gray-50 transition-colors"
+                      disabled={isLoading}
                     >
                       <svg className="w-5 h-5" viewBox="0 0 24 24">
                         <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -422,6 +393,8 @@ const BuyerLogIn: React.FC = () => {
       </div>
     </div>
   );
-};
+});
+
+BuyerLogIn.displayName = 'BuyerLogIn';
 
 export default BuyerLogIn;

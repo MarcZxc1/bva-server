@@ -20,96 +20,83 @@ bva-server/
 
 ### Prerequisites
 - Node.js 18+
-- PostgreSQL
+- PostgreSQL 14+
 - Python 3.9+ (for ML service)
-- Docker (optional)
+- Redis 6+ (optional but recommended)
+- Docker & Docker Compose (optional, for easy database setup)
 
-### Installation
-
-#### Option 1: Run All Services at Once (Recommended)
+### Quick Installation
 
 ```bash
-# Install root dependencies
-npm install
+# Clone repository
+git clone <repository-url>
+cd bva-server
 
-# Install all workspace dependencies
+# Install all dependencies
 npm run install:all
 
-# Run all services (server, bva-frontend, shopee-clone)
-npm run dev
+# Start all services (Database, ML Service, Server, Frontends)
+npm start
+# or
+./start-all.sh
 ```
 
 This will start:
 - **Backend Server** on `http://localhost:3000`
 - **BVA Frontend** on `http://localhost:8080`
-- **Shopee Clone** on `http://localhost:5174`
+- **Shopee Clone** on `http://localhost:5173`
+- **ML Service** on `http://localhost:8001`
 
-#### Option 2: Run Services Individually
+### 📖 Complete Setup Guide
 
-1. **Backend Server**
-   ```bash
-   cd server
-   npm install
-   npx prisma generate
-   npx prisma migrate dev
-   npm run dev
-   ```
+For detailed setup instructions, environment variables, database configuration, and troubleshooting, see:
 
-2. **BVA Frontend**
-   ```bash
-   cd bva-frontend
-   npm install
-   npm run dev
-   ```
-
-3. **Shopee Clone**
-   ```bash
-   cd shopee-clone
-   npm install
-   npm run dev
-   ```
-
-4. **ML Service** (separate)
-   ```bash
-   cd ml-service
-   python -m venv venv
-   source venv/bin/activate
-   pip install -r requirements.txt
-   uvicorn app.main:app --reload
-   ```
+**[📘 SETUP.md](./SETUP.md)** - Complete setup documentation
 
 ### Available Commands
 
 | Command | Description |
 |---------|-------------|
-| `npm run dev` | Run all services concurrently |
+| `npm start` | Start all services (uses `start-all.sh`) |
+| `npm run dev` | Run all Node.js services concurrently |
 | `npm run dev:server` | Run only backend server |
 | `npm run dev:frontend` | Run only BVA frontend |
 | `npm run dev:shopee` | Run only Shopee clone |
-| `npm run build` | Build all services |
+| `npm run build` | Build all services for production |
+| `npm run install:all` | Install dependencies for all workspaces |
 
 ## 📚 Documentation
 
-- **Development Setup**: See `DEV_SETUP.md` for detailed setup instructions
-- **Monorepo Pros/Cons**: See `MONOREPO_PROs_CONS.md` for analysis of the monorepo approach
+### Main Documentation
 
-All documentation is located in the `docs/` directory:
+- **[SETUP.md](./SETUP.md)** - **Complete setup guide** (start here!)
+- **[README_START.md](./README_START.md)** - Quick start guide for running services
+- **[PORT_CONFIGURATION.md](./PORT_CONFIGURATION.md)** - Port configuration reference
 
-- **Setup Guides:**
-  - `LINUX_SETUP.md` - Linux environment setup
-  - `DOCKER_DEPLOYMENT.md` - Docker deployment guide
-  - `SETUP_COMPLETE.md` - Initial setup checklist
+### Setup & Configuration
 
-- **Integration Guides:**
-  - `SSO_IMPLEMENTATION_REPORT.md` - Single Sign-On implementation
-  - `SHOPEE_README.md` - Shopee integration
-  - `FACEBOOK_INSTAGRAM_INTEGRATION.md` - Social media integration
-  - `GEMINI_SETUP_GUIDE.md` - Google Gemini AI setup
+- `SETUP.md` - Complete setup guide with environment variables
+- `DOCKER_DEPLOYMENT.md` - Docker deployment guide
+- `GEMINI_SETUP_GUIDE.md` - Google Gemini AI setup
+- `server/VIEW_DATABASE.md` - Database viewing guide
+- `server/CLEAR_DATABASE.md` - Database clearing guide
 
-- **Project Documentation:**
-  - `PROJECT_DOCUMENTATION.md` - Project overview
-  - `QUICK_REFERENCE.md` - Quick reference guide
-  - `MVP_INTEGRATION_SUMMARY.md` - MVP features
+### Integration Guides
+
+- `SHOPEE_CLONE_INTEGRATION.md` - Shopee Clone integration
+- `SHOPEE_CLONE_SETUP.md` - Shopee Clone setup
+- `AUTHENTICATION_IMPLEMENTATION.md` - Authentication system
+- `REALTIME_IMPLEMENTATION.md` - WebSocket real-time updates
+- `INTEGRATION_ARCHITECTURE.md` - Integration architecture
+- `FACEBOOK_INSTAGRAM_INTEGRATION.md` - Social media integration
+
+### Project Documentation
+
+- `PROJECT_DOCUMENTATION.md` - Project overview
+- `QUICK_REFERENCE.md` - Quick reference guide
+- `MVP_INTEGRATION_SUMMARY.md` - MVP features
+- `FEATURE_ALIGNMENT_VERIFICATION.md` - Feature alignment
+- `DATA_JOURNEY_ANALYSIS.md` - Data flow analysis
 
 ## 🔧 Scripts
 
@@ -129,19 +116,24 @@ Configuration files are in the `config/` directory:
 
 ## 🐛 Troubleshooting
 
-### Register Endpoint Issues
+For detailed troubleshooting, see the **[SETUP.md](./SETUP.md#troubleshooting)** guide.
 
-If you're getting 400 errors on registration:
+### Quick Fixes
 
-1. **Double Password Hashing Fixed:** The password is now only hashed once (in middleware)
-2. **Frontend Error Handling:** The API client now properly handles error responses
-3. **Check Email Uniqueness:** Make sure the email isn't already registered
+- **Port Already in Use:** Change ports in respective config files or kill the process
+- **Database Connection:** Verify `DATABASE_URL` in `server/.env` and ensure PostgreSQL is running
+- **ML Service Not Starting:** Check Python virtual environment and dependencies
+- **CORS Issues:** Verify `FRONTEND_URL` in `server/.env` matches your frontend URL
+- **Google OAuth:** Ensure redirect URIs are configured in Google Cloud Console
 
-### Common Issues
+### Service URLs
 
-- **Database Connection:** Check `DATABASE_URL` in `.env`
-- **Port Conflicts:** Default ports: 3000 (backend), 5173 (frontend), 8001 (ML service)
-- **CORS Issues:** Backend CORS is configured for `http://localhost:5173`
+Once running, access:
+- **BVA Dashboard:** http://localhost:8080
+- **Shopee Clone:** http://localhost:5173
+- **Backend API:** http://localhost:3000/api
+- **ML Service Docs:** http://localhost:8001/docs
+- **Prisma Studio:** Run `npx prisma studio` in `server/` directory
 
 ## 📝 License
 

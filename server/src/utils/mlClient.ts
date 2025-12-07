@@ -202,7 +202,30 @@ export class MLServiceClient {
   private handleError(error: any): never {
     if (error.response) {
       // ML-service returned an error response
-      const detail = error.response.data?.detail || error.response.data?.message;
+      const data = error.response.data;
+      let detail: string = 'Unknown error';
+      
+      try {
+        if (typeof data?.detail === 'string') {
+          detail = data.detail;
+        } else if (data?.detail && typeof data.detail === 'object') {
+          detail = JSON.stringify(data.detail);
+        } else if (typeof data?.message === 'string') {
+          detail = data.message;
+        } else if (data?.error && typeof data.error === 'string') {
+          detail = data.error;
+        } else if (typeof error.message === 'string' && error.message) {
+          detail = `ML Service error: ${error.message}`;
+        } else if (data && typeof data === 'string') {
+          detail = data;
+        } else if (data && typeof data === 'object') {
+          detail = JSON.stringify(data);
+        }
+      } catch (parseError) {
+        // If JSON.stringify fails, use a fallback
+        detail = `ML Service error (${error.response.status}): Unable to parse error response`;
+      }
+      
       const status = error.response.status;
       
       if (status === 503) {
@@ -211,9 +234,12 @@ export class MLServiceClient {
         );
       }
       
-      throw new Error(
-        detail || `ML Service error (${status}): ${error.message}`
-      );
+      // Ensure detail is never empty
+      if (!detail || detail.trim() === '') {
+        detail = `ML Service error (${status}): Unknown error occurred`;
+      }
+      
+      throw new Error(detail);
     } else if (error.request) {
       // No response received - service is down
       throw new Error(
@@ -221,7 +247,8 @@ export class MLServiceClient {
       );
     } else {
       // Request setup error
-      throw new Error(`Request failed: ${error.message}`);
+      const errorMessage = error?.message || error?.toString() || 'Unknown error';
+      throw new Error(`Request failed: ${errorMessage}`);
     }
   }
 }

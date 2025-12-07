@@ -1,18 +1,16 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-
-// API Base URL - BVA Server for OAuth, or Shopee-Clone backend
-const BVA_API_URL = import.meta.env.VITE_BVA_API_URL || 'http://localhost:3000';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useMemo } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import apiClient from '../services/api';
 
 interface User {
   id: string;
+  userId?: string | bigint;
   email: string;
+  username?: string;
   name?: string;
-  firstName?: string;
-  lastName?: string;
-  role: string;
-  shopeeId?: string;
-  googleId?: string;
-  createdAt?: string;
+  role: 'ADMIN' | 'SELLER' | 'BUYER' | 'ANALYST';
+  shops?: Array<{ id: string; name: string }>;
+  phoneNumber?: string;
 }
 
 interface AuthContextType {
@@ -20,18 +18,26 @@ interface AuthContextType {
   token: string | null;
   isLoading: boolean;
   isAuthenticated: boolean;
-  login: (email: string, password: string) => Promise<void>;
-  loginWithGoogle: () => void;
-  register: (email: string, password: string, name?: string) => Promise<void>;
+  error: string | null;
+  login: (identifier: string, password: string) => Promise<void>;
+  register: (data: {
+    username: string;
+    email: string;
+    password: string;
+    phoneNumber?: string;
+    role?: 'BUYER' | 'SELLER';
+  }) => Promise<void>;
   logout: () => void;
-  setAuthFromToken: (token: string) => Promise<void>;
+  updateUser: (userData: Partial<User>) => void;
+  handleGoogleAuth: (role?: 'BUYER' | 'SELLER') => void;
+  handleGoogleCallback: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
-  if (!context) {
+  if (context === undefined) {
     throw new Error('useAuth must be used within an AuthProvider');
   }
   return context;
@@ -41,182 +47,226 @@ interface AuthProviderProps {
   children: ReactNode;
 }
 
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const navigate = useNavigate();
+  const location = useLocation();
 
-  // Check for existing token on mount
+  // Check for Google OAuth callback token on mount
   useEffect(() => {
-    const initAuth = async () => {
-      const storedToken = localStorage.getItem('shopee_token');
-      if (storedToken) {
-        try {
-          await setAuthFromToken(storedToken);
-        } catch (error) {
-          console.error('Failed to restore auth:', error);
-          localStorage.removeItem('shopee_token');
-        }
-      }
-      setIsLoading(false);
-    };
+    const urlParams = new URLSearchParams(location.search);
+    const tokenParam = urlParams.get('token');
+    const errorParam = urlParams.get('error');
 
-    initAuth();
-  }, []);
-
-  // Check for OAuth callback token in URL
-  useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const callbackToken = urlParams.get('token');
-    const error = urlParams.get('error');
-
-    if (error) {
-      console.error('OAuth error:', error);
+    if (tokenParam) {
+      handleGoogleCallbackToken(tokenParam);
       // Clean up URL
-      window.history.replaceState({}, document.title, window.location.pathname);
-      return;
+      window.history.replaceState({}, '', location.pathname);
+    } else if (errorParam) {
+      setError(errorParam === 'google_auth_failed' ? 'Google authentication failed. Please try again.' : errorParam);
+      setIsLoading(false);
+      window.history.replaceState({}, '', location.pathname);
+    } else {
+      // Check for existing token
+      const storedToken = localStorage.getItem('auth_token');
+      if (storedToken) {
+        setToken(storedToken);
+        apiClient.setToken(storedToken);
+        fetchUser();
+      } else {
+        setIsLoading(false);
+      }
     }
+  }, [location]);
 
-    if (callbackToken) {
-      setAuthFromToken(callbackToken)
-        .then(() => {
-          // Clean up URL after successful auth
-          window.history.replaceState({}, document.title, window.location.pathname);
-        })
-        .catch((error) => {
-          console.error('Failed to set auth from callback token:', error);
-        });
+  const fetchUser = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      const userData = await apiClient.getMe();
+      // Normalize user data structure
+      const normalizedUser: User = {
+        id: userData.id || userData.userId?.toString() || '',
+        userId: userData.userId || userData.id,
+        email: userData.email,
+        username: userData.username,
+        name: userData.name || userData.firstName,
+        role: userData.role,
+        shops: userData.shops || [],
+        phoneNumber: userData.phoneNumber,
+      };
+      setUser(normalizedUser);
+    } catch (error: any) {
+      console.error('Failed to fetch user:', error);
+      setError(error.message || 'Failed to fetch user');
+      setToken(null);
+      apiClient.setToken(null);
+      localStorage.removeItem('auth_token');
+    } finally {
+      setIsLoading(false);
     }
   }, []);
 
-  const setAuthFromToken = async (newToken: string): Promise<void> => {
+  const handleGoogleCallbackToken = useCallback(async (tokenParam: string) => {
     try {
-      // Fetch user profile with the token
-      const response = await fetch(`${BVA_API_URL}/api/auth/me`, {
-        headers: {
-          'Authorization': `Bearer ${newToken}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch user profile');
+      setIsLoading(true);
+      setError(null);
+      setToken(tokenParam);
+      apiClient.setToken(tokenParam);
+      await fetchUser();
+      // Redirect based on role
+      const decoded = JSON.parse(atob(tokenParam.split('.')[1]));
+      if (decoded.role === 'SELLER') {
+        navigate('/dashboard');
+      } else {
+        navigate('/');
       }
+    } catch (error: any) {
+      console.error('Failed to process Google OAuth token:', error);
+      setError('Failed to process authentication token');
+      setIsLoading(false);
+    }
+  }, [navigate, fetchUser]);
 
-      const data = await response.json();
+  const login = useCallback(async (identifier: string, password: string) => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      // Server accepts email, but identifier can be email or username
+      // Try as email first (server expects email)
+      const response = await apiClient.login(identifier.trim(), password);
+      setToken(response.token);
+      apiClient.setToken(response.token);
       
-      if (data.success && data.data) {
-        setUser(data.data);
-        setToken(newToken);
-        localStorage.setItem('shopee_token', newToken);
+      // Fetch full user data including shops
+      const userData = await apiClient.getMe();
+      
+      // Normalize user data
+      const normalizedUser: User = {
+        id: userData.id || userData.userId?.toString() || '',
+        userId: userData.userId || userData.id,
+        email: userData.email,
+        username: userData.username,
+        name: userData.name || userData.firstName,
+        role: userData.role,
+        shops: userData.shops || [],
+        phoneNumber: userData.phoneNumber,
+      };
+      setUser(normalizedUser);
+      
+      // Redirect based on role
+      if (normalizedUser.role === 'SELLER') {
+        navigate('/dashboard');
       } else {
-        throw new Error('Invalid response format');
+        navigate('/');
       }
-    } catch (error) {
-      console.error('setAuthFromToken error:', error);
-      throw error;
-    }
-  };
-
-  const login = async (email: string, password: string): Promise<void> => {
-    setIsLoading(true);
-    try {
-      const response = await fetch(`${BVA_API_URL}/api/auth/login`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email, password }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || 'Login failed');
-      }
-
-      if (data.success && data.data) {
-        setUser(data.data.user);
-        setToken(data.data.token);
-        localStorage.setItem('shopee_token', data.data.token);
-      } else {
-        throw new Error('Invalid response format');
-      }
-    } catch (error) {
-      console.error('Login error:', error);
+    } catch (error: any) {
+      setError(error.message || 'Login failed. Please check your credentials.');
       throw error;
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [navigate]);
 
-  const loginWithGoogle = (): void => {
-    const state = window.location.origin;
-    // The callback will redirect back to this app with a token
-    window.location.href = `${BVA_API_URL}/api/auth/google?state=${state}`;
-  };
-
-  const register = async (email: string, password: string, name?: string): Promise<void> => {
-    setIsLoading(true);
+  const register = useCallback(async (data: {
+    username?: string;
+    email: string;
+    password: string;
+    phoneNumber?: string;
+    role?: 'BUYER' | 'SELLER';
+    name?: string;
+  }) => {
     try {
-      const response = await fetch(`${BVA_API_URL}/api/auth/register`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ 
-          email, 
-          password, 
-          name,
-          role: 'SELLER' // Default role for Shopee sellers
-        }),
+      setIsLoading(true);
+      setError(null);
+      const response = await apiClient.register({
+        ...data,
+        name: data.name || data.username,
       });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || 'Registration failed');
-      }
-
-      if (data.success && data.data) {
-        setUser(data.data.user);
-        setToken(data.data.token);
-        localStorage.setItem('shopee_token', data.data.token);
+      setToken(response.token);
+      apiClient.setToken(response.token);
+      
+      // Fetch full user data including shops
+      const userData = await apiClient.getMe();
+      
+      // Normalize user data
+      const normalizedUser: User = {
+        id: userData.id || userData.userId?.toString() || '',
+        userId: userData.userId || userData.id,
+        email: userData.email,
+        username: userData.username,
+        name: userData.name || userData.firstName,
+        role: userData.role,
+        shops: userData.shops || [],
+        phoneNumber: userData.phoneNumber,
+      };
+      setUser(normalizedUser);
+      
+      // Redirect based on role
+      if (normalizedUser.role === 'SELLER') {
+        navigate('/dashboard');
       } else {
-        throw new Error('Invalid response format');
+        navigate('/');
       }
-    } catch (error) {
-      console.error('Register error:', error);
+    } catch (error: any) {
+      setError(error.message || 'Registration failed. Please try again.');
       throw error;
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [navigate]);
 
-  const logout = (): void => {
+  const logout = useCallback(() => {
     setUser(null);
     setToken(null);
-    localStorage.removeItem('shopee_token');
-    localStorage.removeItem('demoUser');
-  };
+    apiClient.setToken(null);
+    localStorage.removeItem('auth_token');
+    navigate('/');
+  }, [navigate]);
 
-  const value: AuthContextType = {
+  const updateUser = useCallback((userData: Partial<User>) => {
+    setUser(prev => prev ? { ...prev, ...userData } : null);
+  }, []);
+
+  const handleGoogleAuth = useCallback((role: 'BUYER' | 'SELLER' = 'BUYER') => {
+    const currentUrl = window.location.origin;
+    const state = encodeURIComponent(currentUrl);
+    const googleAuthUrl = `${API_BASE_URL}/api/auth/google?state=${state}&role=${role}`;
+    window.location.href = googleAuthUrl;
+  }, []);
+
+  const handleGoogleCallback = useCallback(() => {
+    // This is handled in useEffect via URL params
+    const urlParams = new URLSearchParams(location.search);
+    const tokenParam = urlParams.get('token');
+    if (tokenParam) {
+      handleGoogleCallbackToken(tokenParam);
+    }
+  }, [location, handleGoogleCallbackToken]);
+
+  const contextValue = useMemo(() => ({
     user,
     token,
     isLoading,
     isAuthenticated: !!user && !!token,
+    error,
     login,
-    loginWithGoogle,
     register,
     logout,
-    setAuthFromToken,
-  };
+    updateUser,
+    handleGoogleAuth,
+    handleGoogleCallback,
+  }), [user, token, isLoading, error, login, register, logout, updateUser, handleGoogleAuth, handleGoogleCallback]);
 
   return (
-    <AuthContext.Provider value={value}>
+    <AuthContext.Provider value={contextValue}>
       {children}
     </AuthContext.Provider>
   );
 };
 
-export default AuthContext;

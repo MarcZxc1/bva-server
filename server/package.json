@@ -7,11 +7,11 @@
     "dev": "npx prisma generate && ts-node-dev --respawn --transpile-only --compiler-options '{\"module\":\"commonjs\"}' src/server.ts",
     "start": "node dist/server.js",
     "build": "tsc && cp -r src/generated dist/generated",
-    "seed": "ts-node prisma/seed.ts",
     "studio": "npx prisma studio",
     "db:view": "npx prisma studio",
     "db:clear": "ts-node prisma/clear-db.ts",
-    "db:reset": "ts-node prisma/clear-db.ts && ts-node prisma/seed.ts"
+    "db:clear-sales": "ts-node prisma/clear-sales-inventory.ts",
+    "db:clear-products": "ts-node prisma/clear-products.ts"
   },
   "keywords": [],
   "author": "",
@@ -23,6 +23,7 @@
     "@types/node": "^24.7.2",
     "@types/passport": "^1.0.17",
     "@types/passport-google-oauth20": "^2.0.17",
+    "@types/socket.io": "^3.0.1",
     "@types/supertest": "^6.0.3",
     "jest": "^30.2.0",
     "prisma": "^6.17.1",
@@ -53,6 +54,7 @@
     "pg": "^8.16.3",
     "pino": "^10.0.0",
     "pino-pretty": "^13.1.2",
+    "socket.io": "^4.8.1",
     "zod": "^4.1.12"
   }
 }

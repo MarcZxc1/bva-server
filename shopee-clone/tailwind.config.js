@@ -7,10 +7,8 @@ export default {
   theme: {
     extend: {
       colors: {
-        shopee: {
-          orange: '#ee4d2d',
-          'orange-dark': '#d73211',
-        },
+        'shopee-orange': '#ee4d2d',
+        'shopee-orange-dark': '#d73211',
       },
     },
   },

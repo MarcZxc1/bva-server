@@ -51,7 +51,14 @@ const Sidebar = () => {
               </li>
               <li className="nav-item">Mass Ship</li>
               <li className="nav-item">Handover Centre</li>
-              <li className="nav-item">Return/Refund/Cancel</li>
+              <li>
+                <Link 
+                  to="/return-refund-cancel" 
+                  className={`nav-item ${isActive('/return-refund-cancel') ? 'active' : ''}`}
+                >
+                  Return/Refund/Cancel
+                </Link>
+              </li>
               <li className="nav-item">Shipping Setting</li>
             </ul>
           )}
@@ -69,8 +76,14 @@ const Sidebar = () => {
           </div>
           {expandedSections.product && (
             <ul className="nav-items">
-              <li className="nav-item">My Products</li>
-              <li className="nav-item">Add New Product</li>
+              <li>
+                <Link 
+                  to="/products" 
+                  className={`nav-item ${isActive('/products') ? 'active' : ''}`}
+                >
+                  My Products
+                </Link>
+              </li>
               <li className="nav-item">Shopee Standard Product</li>
             </ul>
           )}

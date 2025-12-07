@@ -10,10 +10,8 @@ const router = Router();
 
 // Allowed frontend URLs for redirection
 const ALLOWED_FRONTENDS = [
-  "http://localhost:5173", // Vite default / Shopee Clone
-  "http://localhost:5174", // Alternative Vite port
+  "http://localhost:5173", // Shopee Clone
   "http://localhost:8080", // BVA Frontend
-  "http://localhost:3001", // Alternative frontend port
   "https://bva-frontend.vercel.app",
   "https://shopee-clone.vercel.app"
 ];

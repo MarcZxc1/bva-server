@@ -81,12 +81,19 @@ export const getAtRiskInventory = async (req: Request, res: Response) => {
 
     // 2. Prepare Data for ML Service
     const inventoryItems: MLInventoryItem[] = products.map(p => {
+      // Get quantity from inventory or product stock, ensure it's never negative
+      let quantity = p.inventories[0]?.quantity ?? p.stock ?? 0;
+      // Clamp negative values to 0 (ML service requires quantity >= 0)
+      if (quantity < 0) {
+        quantity = 0;
+      }
+      
       const item: MLInventoryItem = {
         product_id: p.id,
         sku: p.sku || `SKU-${p.id}`,
         name: p.name,
-        quantity: p.inventories[0]?.quantity ?? p.stock ?? 0, // Use inventory quantity, fallback to product stock
-        price: p.price,
+        quantity: quantity,
+        price: Math.max(0, p.price), // Ensure price is also non-negative
         categories: p.description ? [p.description] : []
       };
       // Only include expiry_date if it exists
@@ -101,55 +108,66 @@ export const getAtRiskInventory = async (req: Request, res: Response) => {
       const items = typeof sale.items === "string" ? JSON.parse(sale.items) : sale.items;
       if (Array.isArray(items)) {
         items.forEach((item: any) => {
+          // Ensure quantities and prices are non-negative
+          const qty = Math.max(0, item.quantity || 1);
+          const price = Math.max(0, item.price || 0);
+          
           salesRecords.push({
             product_id: item.productId,
             date: sale.createdAt.toISOString(),
-            qty: item.quantity || 1,
-            revenue: (item.price || 0) * (item.quantity || 1)
+            qty: qty,
+            revenue: price * qty
           });
         });
       }
     });
 
     // 3. Call ML Service
-    const atRiskResult = await mlClient.post<MLAtRiskResponse>("/api/v1/smart-shelf/at-risk", {
-      shop_id: shopId,
-      inventory: inventoryItems,
-      sales: salesRecords,
-      thresholds: {
-        low_stock: 5,  // Match seed script critical items (≤5 units)
-        expiry_days: 7,  // Match seed script near expiry items (3-7 days)
-        slow_moving_window: 30
-        // slow_moving_threshold defaults to 0.5 in ML service
-      }
-    } as MLAtRiskRequest);
+    try {
+      const atRiskResult = await mlClient.post<MLAtRiskResponse>("/api/v1/smart-shelf/at-risk", {
+        shop_id: shopId,
+        inventory: inventoryItems,
+        sales: salesRecords,
+        thresholds: {
+          low_stock: 5,  // Match seed script critical items (≤5 units)
+          expiry_days: 7,  // Match seed script near expiry items (3-7 days)
+          slow_moving_window: 30
+          // slow_moving_threshold defaults to 0.5 in ML service
+        }
+      } as MLAtRiskRequest);
 
-    // 4. Convert scores from 0-1 to 0-100 for frontend display
-    const atRiskItems = (atRiskResult.at_risk || []).map(item => ({
-      ...item,
-      score: Math.round(item.score * 100) // Convert 0-1 to 0-100
-    }));
+      // 4. Convert scores from 0-1 to 0-100 for frontend display
+      const atRiskItems = (atRiskResult.at_risk || []).map(item => ({
+        ...item,
+        score: Math.round(item.score * 100) // Convert 0-1 to 0-100
+      }));
 
-    // 5. Return at-risk items with meta
-    res.json({
-      success: true,
-      data: {
-        at_risk: atRiskItems,
-        meta: {
-          shop_id: shopId,
-          total_products: products.length,
-          flagged_count: atRiskItems.length,
-          analysis_date: new Date().toISOString(),
-          thresholds_used: {
-            low_stock: 5,
-            expiry_days: 7,
-            slow_moving_window: 30,
-            slow_moving_threshold: 0.5  // Default from ML service
+      // 5. Return at-risk items with meta
+      return res.json({
+        success: true,
+        data: {
+          at_risk: atRiskItems,
+          meta: {
+            shop_id: shopId,
+            total_products: products.length,
+            flagged_count: atRiskItems.length,
+            analysis_date: new Date().toISOString(),
+            thresholds_used: {
+              low_stock: 5,
+              expiry_days: 7,
+              slow_moving_window: 30,
+              slow_moving_threshold: 0.5  // Default from ML service
+            }
           }
         }
-      }
-    });
-
+      });
+    } catch (error: any) {
+      console.error("Error in getAtRiskInventory:", error);
+      return res.status(500).json({
+        success: false,
+        error: error.message || "Failed to analyze at-risk inventory",
+      });
+    }
   } catch (error: any) {
     console.error("Error in getAtRiskInventory:", error);
     res.status(500).json({

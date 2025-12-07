@@ -2,7 +2,8 @@
 import prisma from "../lib/prisma";
 
 // Shopee-Clone API base URL
-const SHOPEE_CLONE_API_URL = process.env.SHOPEE_CLONE_API_URL || "http://localhost:3001";
+// Note: Shopee-Clone uses the same server (port 3000) but we need to use the external API endpoints
+const SHOPEE_CLONE_API_URL = process.env.SHOPEE_CLONE_API_URL || "http://localhost:3000";
 
 // Interfaces for Shopee-Clone API responses
 interface ShopeeProduct {
@@ -48,8 +49,9 @@ interface ShopeeApiResponse<T> {
 class ShopeeIntegrationService {
   /**
    * Sync all data from Shopee-Clone for a user
+   * Uses JWT token for authentication (no API key needed)
    */
-  async syncAllData(userId: string, apiKey: string): Promise<{ products: number; sales: number }> {
+  async syncAllData(userId: string, token: string): Promise<{ products: number; sales: number }> {
     console.log(`🔄 Starting Shopee-Clone sync for user ${userId}`);
 
     // Get the user's shop
@@ -63,8 +65,8 @@ class ShopeeIntegrationService {
 
     // Sync products and sales in parallel
     const [productsCount, salesCount] = await Promise.all([
-      this.syncProducts(shop.id, apiKey),
-      this.syncSales(shop.id, apiKey),
+      this.syncProducts(shop.id, token),
+      this.syncSales(shop.id, token),
     ]);
 
     console.log(`✅ Shopee-Clone sync complete: ${productsCount} products, ${salesCount} sales`);
@@ -74,17 +76,18 @@ class ShopeeIntegrationService {
 
   /**
    * Fetch and sync products from Shopee-Clone
+   * Uses JWT token for authentication
    */
-  async syncProducts(shopId: string, apiKey: string): Promise<number> {
+  async syncProducts(shopId: string, token: string): Promise<number> {
     try {
       console.log(`📦 Syncing products for shop ${shopId}...`);
 
+      // Use external API endpoint for products (or regular products endpoint with auth)
       const response = await fetch(`${SHOPEE_CLONE_API_URL}/api/products`, {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${apiKey}`,
-          "X-API-Key": apiKey,
+          "Authorization": `Bearer ${token}`,
         },
       });
 
@@ -155,15 +158,16 @@ class ShopeeIntegrationService {
 
   /**
    * Fetch and sync sales/orders from Shopee-Clone
+   * Uses JWT token for authentication
    */
-  async syncSales(shopId: string, apiKey: string): Promise<number> {
+  async syncSales(shopId: string, token: string): Promise<number> {
     try {
       console.log(`💰 Syncing sales for shop ${shopId}...`);
 
-      // Try different endpoints that Shopee-Clone might use
+      // Use seller orders endpoint with JWT token
       const endpoints = [
+        `/api/orders/shop/${shopId}`,
         "/api/orders",
-        "/api/sales",
         "/api/seller/orders",
       ];
 
@@ -175,8 +179,7 @@ class ShopeeIntegrationService {
             method: "GET",
             headers: {
               "Content-Type": "application/json",
-              "Authorization": `Bearer ${apiKey}`,
-              "X-API-Key": apiKey,
+              "Authorization": `Bearer ${token}`,
             },
           });
 
@@ -318,15 +321,16 @@ class ShopeeIntegrationService {
 
   /**
    * Fetch products from Shopee-Clone (without saving)
+   * Uses JWT token for authentication
    */
-  async fetchProducts(apiKey: string): Promise<ShopeeProduct[]> {
+  async fetchProducts(token: string): Promise<ShopeeProduct[]> {
     try {
+      // Use products endpoint with JWT token
       const response = await fetch(`${SHOPEE_CLONE_API_URL}/api/products`, {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${apiKey}`,
-          "X-API-Key": apiKey,
+          "Authorization": `Bearer ${token}`,
         },
       });
 
@@ -344,15 +348,20 @@ class ShopeeIntegrationService {
 
   /**
    * Fetch sales from Shopee-Clone (without saving)
+   * Uses JWT token for authentication
    */
-  async fetchSales(apiKey: string): Promise<ShopeeOrder[]> {
+  async fetchSales(token: string, shopId?: string): Promise<ShopeeOrder[]> {
     try {
-      const response = await fetch(`${SHOPEE_CLONE_API_URL}/api/orders`, {
+      // Use seller orders endpoint with JWT token
+      const endpoint = shopId 
+        ? `${SHOPEE_CLONE_API_URL}/api/orders/shop/${shopId}`
+        : `${SHOPEE_CLONE_API_URL}/api/orders`;
+      
+      const response = await fetch(endpoint, {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${apiKey}`,
-          "X-API-Key": apiKey,
+          "Authorization": `Bearer ${token}`,
         },
       });
 
@@ -370,9 +379,10 @@ class ShopeeIntegrationService {
 
   /**
    * Trigger a manual sync for a user
+   * Uses JWT token for authentication
    */
-  async triggerSync(userId: string, apiKey: string): Promise<{ products: number; sales: number }> {
-    return this.syncAllData(userId, apiKey);
+  async triggerSync(userId: string, token: string): Promise<{ products: number; sales: number }> {
+    return this.syncAllData(userId, token);
   }
 }
 

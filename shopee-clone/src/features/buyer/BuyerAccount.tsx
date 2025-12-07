@@ -1,20 +1,45 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { User, LogOut, FileText, Bell, Gift, Coins } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import BuyerNavbar from './components/BuyerNavbar';
 import BuyerFooter from './components/BuyerFooter';
+import { useAuth } from '../../contexts/AuthContext';
+import apiClient from '../../services/api';
 
 const BuyerAccount: React.FC = () => {
+  const { user, logout, isAuthenticated } = useAuth();
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<'profile' | 'banks' | 'addresses' | 'password' | 'privacy' | 'notifications'>('profile');
   const [formData, setFormData] = useState({
-    username: 'jashley.denzel',
-    name: 'Denzel Bolito',
-    email: 'de**********@gmail.com',
-    phone: '**********85',
+    username: '',
+    name: '',
+    email: '',
+    phone: '',
     gender: 'other',
-    dateOfBirth: '**/**/2004',
+    dateOfBirth: '',
     profileImage: null as string | null,
   });
+  const [, setIsLoading] = useState(false);
+  const [, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      navigate('/buyer-login');
+      return;
+    }
+
+    if (user) {
+      setFormData({
+        username: user.username || '',
+        name: user.name || '',
+        email: user.email || '',
+        phone: user.phoneNumber || '',
+        gender: 'other',
+        dateOfBirth: '',
+        profileImage: null,
+      });
+    }
+  }, [user, isAuthenticated, navigate]);
 
   React.useEffect(() => {
     // Add style to make navbar static on this page
@@ -60,13 +85,27 @@ const BuyerAccount: React.FC = () => {
     input.click();
   };
 
-  const handleSave = () => {
-    alert('Profile updated successfully!');
+  const handleSave = async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      await apiClient.updateProfile({
+        name: formData.name,
+        email: formData.email,
+        phoneNumber: formData.phone,
+      });
+      // Show success message (you can use a toast library here)
+      alert('Profile updated successfully!');
+    } catch (err: any) {
+      setError(err.message || 'Failed to update profile');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('demoUser');
-    window.location.href = '/';
+    logout();
+    navigate('/');
   };
 
   return (

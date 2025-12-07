@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useEffect, useState, useCallback } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import shopeeLogo from '../../assets/LANDING-PAGE-LOGO/buyer-shopee-logo-sign-log.png';
 
@@ -29,25 +29,49 @@ import appStoreImg from '../../assets/APP-DOWNLOAD/buyer-app-store.png';
 import googlePlayImg from '../../assets/APP-DOWNLOAD/buyer-google-play.png';
 import appGalleryImg from '../../assets/APP-DOWNLOAD/buyer-app-gallery.png';
 
-const BuyerSignUp: React.FC = () => {
+const BuyerSignUp: React.FC = React.memo(() => {
+  const { register, isLoading, error, handleGoogleAuth } = useAuth();
   const [phoneNumber, setPhoneNumber] = useState('');
-  const { loginWithGoogle, isAuthenticated } = useAuth();
-  const navigate = useNavigate();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [username, setUsername] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [step, setStep] = useState(1); // Step 1: Phone, Step 2: Email/Password
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'auto' });
   }, []);
 
-  // Redirect if already authenticated
-  useEffect(() => {
-    if (isAuthenticated) {
-      navigate('/');
-    }
-  }, [isAuthenticated, navigate]);
+  const handleGoogleSignup = useCallback(() => {
+    handleGoogleAuth('BUYER');
+  }, [handleGoogleAuth]);
 
-  const handleGoogleSignUp = () => {
-    loginWithGoogle();
-  };
+  const handlePhoneSubmit = useCallback((e: React.FormEvent) => {
+    e.preventDefault();
+    if (phoneNumber.trim().length < 10) {
+      return;
+    }
+    setStep(2);
+  }, [phoneNumber]);
+
+  const handleFinalSubmit = useCallback(async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email.trim() || !password.trim() || password.length < 6) {
+      return;
+    }
+
+    try {
+      await register({
+        email: email.trim(),
+        password: password,
+        phoneNumber: phoneNumber.trim(),
+        role: 'BUYER',
+        username: username.trim() || phoneNumber.trim(),
+      });
+    } catch (error: any) {
+      // Error is handled by AuthContext and displayed via error state
+    }
+  }, [email, password, username, phoneNumber, register]);
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -139,23 +163,103 @@ const BuyerSignUp: React.FC = () => {
               <div className="bg-white rounded-lg shadow-2xl p-8 w-[400px]">
                 <h2 className="text-2xl font-medium text-gray-800 mb-6">Sign Up</h2>
                 
-                <form className="space-y-4">
-                  <div>
-                    <input
-                      type="tel"
-                      placeholder="Phone Number"
-                      value={phoneNumber}
-                      onChange={(e) => setPhoneNumber(e.target.value)}
-                      className="w-full px-4 py-3 border border-gray-300 rounded focus:outline-none focus:border-shopee-orange text-gray-700"
-                    />
+                {error && (
+                  <div className="p-3 bg-red-50 border border-red-200 rounded text-red-700 text-sm mb-4">
+                    {error}
                   </div>
+                )}
 
-                  <button
-                    type="submit"
-                    className="w-full bg-shopee-orange text-white py-3 rounded font-medium hover:bg-shopee-orange-dark transition-colors"
-                  >
-                    NEXT
-                  </button>
+                {step === 1 ? (
+                  <form className="space-y-4" onSubmit={handlePhoneSubmit}>
+                    <div>
+                      <input
+                        type="tel"
+                        placeholder="Phone Number"
+                        value={phoneNumber}
+                        onChange={(e) => setPhoneNumber(e.target.value)}
+                        className="w-full px-4 py-3 border border-gray-300 rounded focus:outline-none focus:border-shopee-orange text-gray-700"
+                        disabled={isLoading}
+                        autoComplete="tel"
+                      />
+                    </div>
+
+                    <button
+                      type="submit"
+                      className="w-full bg-shopee-orange text-white py-3 rounded font-medium hover:bg-shopee-orange-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      disabled={isLoading || phoneNumber.trim().length < 10}
+                    >
+                      NEXT
+                    </button>
+                  </form>
+                ) : (
+                  <form className="space-y-4" onSubmit={handleFinalSubmit}>
+                    <div>
+                      <input
+                        type="text"
+                        placeholder="Username (optional)"
+                        value={username}
+                        onChange={(e) => setUsername(e.target.value)}
+                        className="w-full px-4 py-3 border border-gray-300 rounded focus:outline-none focus:border-shopee-orange text-gray-700"
+                        disabled={isLoading}
+                        autoComplete="username"
+                      />
+                    </div>
+                    <div>
+                      <input
+                        type="email"
+                        placeholder="Email"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        className="w-full px-4 py-3 border border-gray-300 rounded focus:outline-none focus:border-shopee-orange text-gray-700"
+                        disabled={isLoading}
+                        autoComplete="email"
+                        required
+                      />
+                    </div>
+                    <div className="relative">
+                      <input
+                        type={showPassword ? 'text' : 'password'}
+                        placeholder="Password (min 6 characters)"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        className="w-full px-4 py-3 pr-10 border border-gray-300 rounded focus:outline-none focus:border-shopee-orange text-gray-700"
+                        disabled={isLoading}
+                        autoComplete="new-password"
+                        required
+                        minLength={6}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword((v) => !v)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                        disabled={isLoading}
+                      >
+                        {showPassword ? '👁️' : '👁️‍🗨️'}
+                      </button>
+                      {password.length > 0 && password.length < 6 && (
+                        <p className="text-xs text-red-500 mt-1">Password must be at least 6 characters</p>
+                      )}
+                    </div>
+
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setStep(1)}
+                        className="flex-1 bg-gray-200 text-gray-700 py-3 rounded font-medium hover:bg-gray-300 transition-colors"
+                        disabled={isLoading}
+                      >
+                        Back
+                      </button>
+                      <button
+                        type="submit"
+                        className="flex-1 bg-shopee-orange text-white py-3 rounded font-medium hover:bg-shopee-orange-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        disabled={isLoading || !email.trim() || password.length < 6}
+                      >
+                        {isLoading ? 'SIGNING UP...' : 'SIGN UP'}
+                      </button>
+                    </div>
+                  </form>
+                )}
 
                   <div className="relative flex items-center justify-center my-6">
                     <div className="border-t border-gray-300 flex-1"></div>
@@ -176,8 +280,9 @@ const BuyerSignUp: React.FC = () => {
 
                     <button
                       type="button"
-                      onClick={handleGoogleSignUp}
-                      className="flex items-center justify-center gap-2 px-4 py-2.5 border border-gray-300 rounded hover:bg-gray-50 transition-colors"
+                      className="flex items-center justify-center gap-2 px-4 py-2.5 border border-gray-300 rounded hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      onClick={handleGoogleSignup}
+                      disabled={isLoading}
                     >
                       <svg className="w-5 h-5" viewBox="0 0 24 24">
                         <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -200,7 +305,6 @@ const BuyerSignUp: React.FC = () => {
                     Have an account?{' '}
                     <Link to="/buyer-login" className="text-shopee-orange hover:underline font-medium">Log In</Link>
                   </div>
-                </form>
               </div>
             </div>
           </div>
@@ -386,6 +490,8 @@ const BuyerSignUp: React.FC = () => {
       </div>
     </div>
   );
-};
+});
+
+BuyerSignUp.displayName = 'BuyerSignUp';
 
 export default BuyerSignUp;

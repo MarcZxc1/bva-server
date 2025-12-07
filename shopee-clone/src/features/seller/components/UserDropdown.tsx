@@ -1,5 +1,6 @@
 import { useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../../contexts/AuthContext';
 import './SellerDashboard.css';
 
 interface UserDropdownProps {
@@ -10,6 +11,9 @@ interface UserDropdownProps {
 const UserDropdown = ({ isOpen, onClose }: UserDropdownProps) => {
   const dropdownRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
+  const { user, logout } = useAuth();
+
+  const userName = user?.name || user?.username || user?.email || 'User';
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -45,7 +49,7 @@ const UserDropdown = ({ isOpen, onClose }: UserDropdownProps) => {
             </div>
           </div>
         </div>
-        <div className="dropdown-username">theavidbookshop</div>
+        <div className="dropdown-username">{userName}</div>
       </div>
       <div className="dropdown-separator"></div>
       <div className="dropdown-menu">
@@ -76,6 +80,7 @@ const UserDropdown = ({ isOpen, onClose }: UserDropdownProps) => {
           className="dropdown-item" 
           onClick={() => {
             onClose();
+            logout();
             navigate('/login');
           }}
         >

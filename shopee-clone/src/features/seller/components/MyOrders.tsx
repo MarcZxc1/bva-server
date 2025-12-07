@@ -1,10 +1,39 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import SellerLayout from './SellerLayout';
 import Breadcrumb from './Breadcrumb';
+import { useAuth } from '../../../contexts/AuthContext';
+import apiClient from '../../../services/api';
+import { useRealtimeOrders } from '../../../hooks/useRealtimeOrders';
+import { Wifi } from 'lucide-react';
 import './MyOrders.css';
 
+interface Order {
+  id: string;
+  shopId: string;
+  shopName: string;
+  items: Array<{
+    productId: string;
+    productName?: string;
+    quantity: number;
+    price: number;
+  }>;
+  total: number;
+  revenue?: number;
+  profit?: number;
+  status: string;
+  customerName?: string;
+  customerEmail?: string;
+  createdAt: string;
+  platform?: string;
+}
+
 const MyOrders = () => {
-  const [activeTab, setActiveTab] = useState('toship');
+  const { user } = useAuth();
+  const shopId = user?.shops?.[0]?.id;
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState('all');
   const [activeSubTab, setActiveSubTab] = useState('toprocess');
   const [activePriorityTab, setActivePriorityTab] = useState('all');
   const [activeCompletedTab, setActiveCompletedTab] = useState('all');
@@ -137,6 +166,93 @@ const MyOrders = () => {
     console.log('Apply filters', { searchType, orderId, shippingChannel });
   };
 
+  const fetchOrders = useCallback(async () => {
+    if (!shopId) return;
+    
+    try {
+      setIsLoading(true);
+      setError(null);
+      
+      // Map tab to status filter
+      let statusFilter: string | undefined;
+      switch (activeTab) {
+        case 'unpaid':
+          statusFilter = 'pending';
+          break;
+        case 'toship':
+          statusFilter = 'pending';
+          break;
+        case 'shipping':
+          statusFilter = 'shipping';
+          break;
+        case 'completed':
+          statusFilter = 'completed';
+          break;
+        case 'return':
+          statusFilter = 'return-refund';
+          break;
+        default:
+          statusFilter = undefined;
+      }
+      
+      const data = await apiClient.getSellerOrders(shopId, { status: statusFilter });
+      setOrders(data || []);
+    } catch (err: any) {
+      console.error('Error fetching orders:', err);
+      setError(err.message || 'Failed to load orders');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [shopId, activeTab]);
+
+  useEffect(() => {
+    if (shopId) {
+      fetchOrders();
+    }
+  }, [shopId, activeTab, fetchOrders]);
+
+  // Real-time updates
+  const { isConnected } = useRealtimeOrders({
+    shopId: shopId || undefined,
+    enabled: !!shopId,
+    onOrderUpdate: fetchOrders,
+  });
+
+  const [confirmingDelivery, setConfirmingDelivery] = useState<string | null>(null);
+
+  const handleShipNow = async (orderId: string) => {
+    try {
+      await apiClient.updateOrderStatus(orderId, 'to-receive');
+      // Send webhook to BVA server
+      const { webhookService } = await import('../../../services/webhook.service');
+      await webhookService.sendOrderStatusChanged(orderId, 'to-receive');
+      fetchOrders(); // Refresh orders
+      alert('Order shipped! The buyer will be notified.');
+    } catch (err: any) {
+      alert(err.message || 'Failed to ship order');
+    }
+  };
+
+  const handleConfirmDelivery = async (orderId: string) => {
+    setConfirmingDelivery(orderId);
+    
+    // Simulate 3-second loading
+    await new Promise(resolve => setTimeout(resolve, 3000));
+    
+    try {
+      await apiClient.updateOrderStatus(orderId, 'completed');
+      // Send webhook to BVA server
+      const { webhookService } = await import('../../../services/webhook.service');
+      await webhookService.sendOrderStatusChanged(orderId, 'completed');
+      fetchOrders(); // Refresh orders
+      alert('Delivery confirmed! Order marked as completed.');
+    } catch (err: any) {
+      alert(err.message || 'Failed to confirm delivery');
+    } finally {
+      setConfirmingDelivery(null);
+    }
+  };
+
   const handleReset = () => {
     setSearchType('orderid');
     setOrderId('');
@@ -146,12 +262,83 @@ const MyOrders = () => {
     setShippingMethodInput('All Orders');
   };
 
+  const filteredOrders = orders.filter(order => {
+    if (orderId) {
+      const searchLower = orderId.toLowerCase();
+      switch (searchType) {
+        case 'orderid':
+          return order.id.toLowerCase().includes(searchLower);
+        case 'buyername':
+          return order.customerName?.toLowerCase().includes(searchLower) ||
+                 order.customerEmail?.toLowerCase().includes(searchLower);
+        case 'product':
+          const items = Array.isArray(order.items) ? order.items : [];
+          return items.some(item => 
+            item.productName?.toLowerCase().includes(searchLower)
+          );
+        default:
+          return true;
+      }
+    }
+    return true;
+  });
+
+  const getStatusLabel = (status: string) => {
+    switch (status) {
+      case 'to-pay':
+        return 'To Pay';
+      case 'to-ship':
+        return 'To Ship';
+      case 'to-receive':
+        return 'To Receive';
+      case 'shipping':
+        return 'Shipping';
+      case 'completed':
+        return 'Completed';
+      case 'cancelled':
+        return 'Cancelled';
+      case 'return-refund':
+        return 'Return/Refund';
+      default:
+        return status;
+    }
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'to-pay':
+        return '#ff9800';
+      case 'to-ship':
+        return '#ff9800';
+      case 'to-receive':
+        return '#9c27b0';
+      case 'shipping':
+        return '#2196f3';
+      case 'completed':
+        return '#4caf50';
+      case 'cancelled':
+        return '#f44336';
+      case 'return-refund':
+        return '#ff9800';
+      default:
+        return '#666';
+    }
+  };
+
   return (
     <SellerLayout>
       <div className="my-orders-page">
         <Breadcrumb />
         <div className="orders-header">
-        <h1 className="orders-title">My Orders</h1>
+        <div className="flex items-center gap-3">
+          <h1 className="orders-title">My Orders</h1>
+          {isConnected && (
+            <div className="flex items-center gap-2 text-sm text-green-600">
+              <Wifi size={16} />
+              <span>Live</span>
+            </div>
+          )}
+        </div>
         <div className="orders-actions">
           <button className="export-btn">Export</button>
           <button className="export-btn">Export History</button>
@@ -405,7 +592,9 @@ const MyOrders = () => {
       <div className="order-list-controls">
         <div className="order-count">
           <span className="order-count-text">
-            {activeTab === 'completed' && (activeCompletedTab === 'pending' || activeCompletedTab === 'uploaded') ? '0 Orders' : '0 Parcels'}
+            {activeTab === 'completed' && (activeCompletedTab === 'pending' || activeCompletedTab === 'uploaded') 
+              ? `${filteredOrders.length} Orders` 
+              : `${filteredOrders.length} Parcels`}
           </span>
         </div>
         <div className="order-controls-right">
@@ -458,25 +647,123 @@ const MyOrders = () => {
         <div className="table-header-cell">Actions</div>
       </div>
 
-      <div className="empty-state">
-        <div className="empty-icon">
-          <svg width="120" height="120" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" stroke="#d9d9d9" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-            <polyline points="14 2 14 8 20 8" stroke="#d9d9d9" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-            <line x1="16" y1="13" x2="8" y2="13" stroke="#d9d9d9" strokeWidth="2" strokeLinecap="round"/>
-            <line x1="16" y1="17" x2="8" y2="17" stroke="#d9d9d9" strokeWidth="2" strokeLinecap="round"/>
-            <polyline points="10 9 9 9 8 9" stroke="#d9d9d9" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
+      {isLoading ? (
+        <div className="loading-state">
+          <div className="spinner"></div>
+          <p>Loading orders...</p>
         </div>
-        <div className="empty-text">
-          {activeTab === 'completed' && (activeCompletedTab === 'pending' || activeCompletedTab === 'uploaded')
-            ? 'No orders after 12/05/2023 (Tue). Use Export in the top-right to find older orders.'
-            : 'No Orders Found'}
+      ) : error ? (
+        <div className="error-state">
+          <p>{error}</p>
+          <button onClick={fetchOrders} className="btn-retry">Retry</button>
         </div>
-        {!(activeTab === 'completed' && (activeCompletedTab === 'pending' || activeCompletedTab === 'uploaded')) && (
-          <a href="#" className="reload-link">Please Reload</a>
-        )}
-      </div>
+      ) : filteredOrders.length === 0 ? (
+        <div className="empty-state">
+          <div className="empty-icon">
+            <svg width="120" height="120" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" stroke="#d9d9d9" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              <polyline points="14 2 14 8 20 8" stroke="#d9d9d9" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              <line x1="16" y1="13" x2="8" y2="13" stroke="#d9d9d9" strokeWidth="2" strokeLinecap="round"/>
+              <line x1="16" y1="17" x2="8" y2="17" stroke="#d9d9d9" strokeWidth="2" strokeLinecap="round"/>
+              <polyline points="10 9 9 9 8 9" stroke="#d9d9d9" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </div>
+          <div className="empty-text">
+            {activeTab === 'completed' && (activeCompletedTab === 'pending' || activeCompletedTab === 'uploaded')
+              ? 'No orders after 12/05/2023 (Tue). Use Export in the top-right to find older orders.'
+              : 'No Orders Found'}
+          </div>
+          {!(activeTab === 'completed' && (activeCompletedTab === 'pending' || activeCompletedTab === 'uploaded')) && (
+            <button onClick={fetchOrders} className="reload-link">Reload</button>
+          )}
+        </div>
+      ) : (
+        <div className="orders-list">
+          {filteredOrders.map((order) => {
+            // Ensure items is always an array
+            const items = Array.isArray(order.items) ? order.items : [];
+            
+            return (
+              <div key={order.id} className="order-item">
+                <div className="order-products">
+                  {items.length > 0 ? (
+                    items.map((item, idx) => (
+                      <div key={idx} className="product-item">
+                        <div className="product-info">
+                          <span className="product-name">{item.productName || `Product ${item.productId || idx + 1}`}</span>
+                          <span className="product-quantity">x{item.quantity || 1}</span>
+                        </div>
+                        <span className="product-price">₱{((item.price || 0) * (item.quantity || 1)).toLocaleString()}</span>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="product-item">
+                      <div className="product-info">
+                        <span className="product-name">No items</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              <div className="order-total">
+                <span className="total-label">Total:</span>
+                <span className="total-amount">₱{order.total.toLocaleString()}</span>
+              </div>
+              <div className="order-status">
+                <span 
+                  className="status-badge"
+                  style={{ color: getStatusColor(order.status) }}
+                >
+                  {getStatusLabel(order.status)}
+                </span>
+              </div>
+              <div className="order-countdown">
+                {order.status === 'to-ship' && (
+                  <span className="countdown-text">Ship within 3 days</span>
+                )}
+                {order.status === 'to-receive' && (
+                  <span className="countdown-text">Out for delivery</span>
+                )}
+              </div>
+              <div className="order-channel">
+                <span>{order.platform || 'Shopee'}</span>
+              </div>
+              <div className="order-actions">
+                {order.status === 'to-ship' && (
+                  <button
+                    onClick={() => handleShipNow(order.id)}
+                    className="btn-ship"
+                  >
+                    Ship Now
+                  </button>
+                )}
+                {order.status === 'to-receive' && (
+                  <button
+                    onClick={() => handleConfirmDelivery(order.id)}
+                    disabled={confirmingDelivery === order.id}
+                    className={`btn-complete ${confirmingDelivery === order.id ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  >
+                    {confirmingDelivery === order.id ? (
+                      <span className="flex items-center gap-2">
+                        <span className="animate-spin">⏳</span>
+                        Confirming...
+                      </span>
+                    ) : (
+                      'Confirm Delivery'
+                    )}
+                  </button>
+                )}
+                <button
+                  onClick={() => window.open(`/orders/${order.id}`, '_blank')}
+                  className="btn-view"
+                >
+                  View Details
+                </button>
+              </div>
+            </div>
+          );
+        })}
+        </div>
+      )}
       </div>
     </SellerLayout>
   );

@@ -1,43 +1,59 @@
-import React, { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React from 'react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Search, ShoppingCart, Bell, HelpCircle, Facebook, Instagram, User } from 'lucide-react';
 import shopeeLogo from '/src/assets/LANDING-PAGE-LOGO/buyer-shopee-logo.png';
+import { useCart } from '../../../contexts/CartContext';
+import { useAuth } from '../../../contexts/AuthContext';
 
 const BuyerNavbar: React.FC = () => {
-  const [user, setUser] = useState<string | null>(null);
   const navigate = useNavigate();
+  const location = useLocation();
+  const { cartItems } = useCart();
+  const { user, logout: authLogout, isAuthenticated } = useAuth();
 
-  useEffect(() => {
-    const stored = localStorage.getItem('demoUser');
-    setUser(stored);
-  }, []);
+  const cartItemCount = cartItems.reduce((total, item) => total + item.quantity, 0);
+  const isProductDetailPage = location.pathname.startsWith('/product/');
+  const isCheckoutPage = location.pathname === '/checkout';
 
   const logout = () => {
-    localStorage.removeItem('demoUser');
-    setUser(null);
+    authLogout();
     navigate('/');
   };
 
+  const userName = user?.name || user?.username || user?.email || null;
+
   return (
-    <nav className="bg-shopee-orange text-white sticky top-0 z-50">
+    <nav 
+      className={`bg-shopee-orange text-white z-50 ${isProductDetailPage || isCheckoutPage ? 'static' : 'sticky top-0'}`}
+      style={isProductDetailPage || isCheckoutPage ? { position: 'static', zIndex: 50 } : { position: 'sticky', top: 0, zIndex: 50 }}
+    >
       {/* Top Row */}
       <div className="border-b border-white/20">
         <div className="max-w-[1200px] mx-auto px-5">
           <div className="flex justify-between items-center py-2 text-xs">
-            {/* Left Side */}
+            {/* Left Side - Seller Login */}
             <div className="flex items-center gap-3">
-              <Link to="/login" className="hover:text-gray-200">Seller Centre</Link>
+              <Link 
+                to="/login" 
+                className="px-3 py-1.5 bg-white/10 hover:bg-white/20 rounded-md text-sm font-medium transition-all duration-200 hover:scale-105 border border-white/20 hover:border-white/40"
+              >
+                Seller Centre
+              </Link>
+              <Link 
+                to="/login" 
+                className="px-3 py-1.5 bg-shopee-orange-dark hover:bg-shopee-orange-dark/90 rounded-md text-sm font-semibold transition-all duration-200 hover:scale-105 shadow-sm hover:shadow-md"
+              >
+                Start Selling
+              </Link>
               <span className="text-white/40">|</span>
-              <Link to="/login" className="hover:text-gray-200">Start Selling</Link>
+              <a href="#" className="hover:text-gray-200 text-sm transition-colors">Download</a>
               <span className="text-white/40">|</span>
-              <a href="#" className="hover:text-gray-200">Download</a>
-              <span className="text-white/40">|</span>
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1 text-sm">
                 <span>Follow us on</span>
-                <a href="#" className="hover:text-gray-200">
+                <a href="#" className="hover:text-gray-200 transition-colors">
                   <Facebook size={14} />
                 </a>
-                <a href="#" className="hover:text-gray-200">
+                <a href="#" className="hover:text-gray-200 transition-colors">
                   <Instagram size={14} />
                 </a>
               </div>
@@ -57,18 +73,27 @@ const BuyerNavbar: React.FC = () => {
                 <HelpCircle size={14} />
                 <span>Help</span>
               </a>
-              {!user && (
+              {!isAuthenticated && (
                 <>
-                  <Link to="/signup" className="hover:text-gray-200">Sign Up</Link>
-                  <span className="text-white/40">|</span>
-                  <Link to="/buyer-login" className="hover:text-gray-200">Login</Link>
+                  <Link 
+                    to="/signup" 
+                    className="px-4 py-1.5 bg-white/10 hover:bg-white/20 rounded-md text-sm font-medium transition-all duration-200 hover:scale-105 border border-white/20 hover:border-white/40"
+                  >
+                    Sign Up
+                  </Link>
+                  <Link 
+                    to="/buyer-login" 
+                    className="px-4 py-1.5 bg-white text-shopee-orange hover:bg-gray-50 rounded-md text-sm font-semibold transition-all duration-200 hover:scale-105 shadow-sm hover:shadow-md"
+                  >
+                    Login
+                  </Link>
                 </>
               )}
-              {user && (
+              {isAuthenticated && userName && (
                 <div className="relative group">
                   <div className="flex items-center gap-2 cursor-pointer">
                     <User size={16} className="opacity-90" />
-                    <span className="font-medium">{user}</span>
+                    <span className="font-medium">{userName}</span>
                   </div>
                   <div className="absolute right-0 mt-0 w-40 bg-white text-gray-800 rounded shadow-lg opacity-0 group-hover:opacity-100 invisible group-hover:visible z-[100] top-full pt-2">
                     <div className="relative">
@@ -93,16 +118,16 @@ const BuyerNavbar: React.FC = () => {
           <div className="flex items-center gap-8">
             {/* Logo */}
             <div className="flex-shrink-0">
-              <div className="flex items-center gap-3">
+              <Link to="/" className="flex items-center gap-3 hover:opacity-90 transition-opacity">
                 <img 
                   src={shopeeLogo} 
                   alt="Shopee" 
                   className="h-14 w-auto object-contain" 
                 />
-                <a href="#" className="text-white text-3xl font-bold tracking-tight hover:opacity-90">
+                <span className="text-white text-3xl font-bold tracking-tight">
                   Shopee
-                </a>
-              </div>
+                </span>
+              </Link>
             </div>
 
             {/* Search Bar */}
@@ -130,9 +155,14 @@ const BuyerNavbar: React.FC = () => {
 
             {/* Shopping Cart */}
             <div className="flex-shrink-0">
-              <a href="#" className="relative hover:opacity-80 transition-opacity">
+              <Link to="/cart" className="relative hover:opacity-80 transition-opacity">
                 <ShoppingCart size={30} />
-              </a>
+                {cartItemCount > 0 && (
+                  <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">
+                    {cartItemCount > 99 ? '99+' : cartItemCount}
+                  </span>
+                )}
+              </Link>
             </div>
           </div>
         </div>
