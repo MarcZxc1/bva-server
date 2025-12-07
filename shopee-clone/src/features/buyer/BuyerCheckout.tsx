@@ -138,7 +138,7 @@ const BuyerCheckout: React.FC = () => {
 
           // Send webhook to BVA server
           try {
-            const { webhookService } = await import('../../../services/webhook.service');
+            const { webhookService } = await import('../../services/webhook.service');
             await webhookService.sendOrderCreated({
               ...orderResponse,
               items: orderItems.map((item: any) => ({
