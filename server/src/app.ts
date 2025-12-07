@@ -19,6 +19,8 @@ import notificationRoutes from "./routes/notification.routes";
 import reportsRoutes from "./routes/reports.routes";
 import authRoutes from "./routes/auth.routes";
 import campaignRoutes from "./routes/campaign.routes";
+import orderRoutes from "./routes/order.routes";
+import sellerRoutes from "./routes/seller.routes";
 
 const app: Application = express();
 
@@ -58,7 +60,9 @@ app.get("/", (req: Request, res: Response) => {
       smartShelf: "/api/smart-shelf",
       notifications: "/api/v1/notifications",
       reports: "/api/reports",
-      campaigns: "/api/campaigns"
+      campaigns: "/api/campaigns",
+      orders: "/api/orders",
+      seller: "/api/seller"
     }
   });
 });
@@ -99,6 +103,12 @@ app.use("/api/auth", authRoutes);
 
 // Register Campaign Router
 app.use("/api/campaigns", campaignRoutes);
+
+// Register Order Router
+app.use("/api/orders", orderRoutes);
+
+// Register Seller Router
+app.use("/api/seller", sellerRoutes);
 
 // --- 3. Export the App ---
 // We export the app so server.ts can import it
