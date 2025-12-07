@@ -77,7 +77,7 @@ export default function Settings() {
   });
 
   const createIntegrationMutation = useMutation({
-    mutationFn: (data: { platform: string; apiKey: string }) =>
+    mutationFn: (data: { platform: string }) =>
       integrationService.createIntegration(data as any),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["integrations"] });

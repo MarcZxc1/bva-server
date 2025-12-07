@@ -26,56 +26,17 @@ export const apiKeyMiddleware = async (
       });
     }
 
-    // Try to verify as JWT token first (for regular authenticated requests)
+    // Verify as JWT token (for authenticated requests)
     try {
       const decoded = authService.verifyToken(apiKey);
       (req as any).user = decoded;
-      (req as any).apiKey = apiKey;
       next();
       return;
     } catch (error) {
-      // If token verification fails, check if it's an API key
-      // For API keys starting with "sk_", we need to find the integration
-      if (apiKey.startsWith("sk_")) {
-        // Find all integrations and check their settings for the API key
-        // Prisma doesn't support direct JSON field queries easily, so we fetch and filter
-        const integrations = await prisma.integration.findMany({
-          include: {
-            shop: {
-              include: {
-                owner: true,
-              },
-            },
-          },
-        });
-
-        const integration = integrations.find((int) => {
-          const settings = int.settings as Record<string, any>;
-          return settings?.apiKey === apiKey;
-        });
-
-        if (!integration) {
-          return res.status(401).json({
-            success: false,
-            error: "Invalid API key",
-          });
-        }
-
-        // Attach user info from the integration's shop owner
-        (req as any).user = {
-          userId: integration.shop.owner.id,
-          shopId: integration.shop.id,
-          role: integration.shop.owner.role,
-        };
-        (req as any).apiKey = apiKey;
-        next();
-        return;
-      }
-
-      // If it's not a JWT and not an API key, reject
+      // If token verification fails, reject
       return res.status(401).json({
         success: false,
-        error: "Invalid API key or token",
+        error: "Invalid or expired token",
       });
     }
   } catch (error: any) {

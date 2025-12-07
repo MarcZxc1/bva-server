@@ -18,8 +18,7 @@ interface IntegrationAgreementDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   platform: "SHOPEE" | "LAZADA" | "TIKTOK" | "OTHER";
-  onAgree: (apiKey: string) => Promise<void>;
-  onGenerateApiKey?: () => Promise<string>;
+  onAgree: () => Promise<void>;
 }
 
 export function IntegrationAgreementDialog({
@@ -27,41 +26,22 @@ export function IntegrationAgreementDialog({
   onOpenChange,
   platform,
   onAgree,
-  onGenerateApiKey,
 }: IntegrationAgreementDialogProps) {
-  const [apiKey, setApiKey] = useState("");
   const [agreed, setAgreed] = useState(false);
-  const [isGenerating, setIsGenerating] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const handleGenerateApiKey = async () => {
-    if (!onGenerateApiKey) return;
-    
-    setIsGenerating(true);
-    setError(null);
-    try {
-      const key = await onGenerateApiKey();
-      setApiKey(key);
-    } catch (err: any) {
-      setError(err.message || "Failed to generate API key");
-    } finally {
-      setIsGenerating(false);
-    }
-  };
-
   const handleConnect = async () => {
-    if (!apiKey || !agreed) {
-      setError("Please provide an API key and agree to the terms");
+    if (!agreed) {
+      setError("Please agree to the terms to continue");
       return;
     }
 
     setIsConnecting(true);
     setError(null);
     try {
-      await onAgree(apiKey);
+      await onAgree();
       // Reset form on success
-      setApiKey("");
       setAgreed(false);
       onOpenChange(false);
     } catch (err: any) {
@@ -96,7 +76,7 @@ export function IntegrationAgreementDialog({
                 <li>Enable automatic synchronization of data between {platformName} and BVA</li>
                 <li>Grant BVA permission to use your data for analytics, forecasting, and AI-powered recommendations</li>
                 <li>Understand that data will be processed securely and in accordance with our privacy policy</li>
-                <li>Maintain the security of your API key and not share it with unauthorized parties</li>
+                <li>Your connection will use your authenticated session - no additional API keys required</li>
               </ul>
               <p className="mt-3 text-xs">
                 You can disconnect this integration at any time from the Settings page.
@@ -104,41 +84,14 @@ export function IntegrationAgreementDialog({
             </div>
           </div>
 
-          {/* API Key Input */}
+          {/* Connection Info */}
           <div className="space-y-2">
-            <Label htmlFor="apiKey">API Key</Label>
-            <div className="flex gap-2">
-              <Input
-                id="apiKey"
-                type="password"
-                placeholder="Enter your API key"
-                value={apiKey}
-                onChange={(e) => setApiKey(e.target.value)}
-                disabled={isConnecting}
-              />
-              {onGenerateApiKey && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={handleGenerateApiKey}
-                  disabled={isGenerating || isConnecting}
-                >
-                  {isGenerating ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Generating...
-                    </>
-                  ) : (
-                    "Generate"
-                  )}
-                </Button>
-              )}
+            <div className="bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+              <p className="text-sm text-blue-900 dark:text-blue-100">
+                <strong>Simple Connection:</strong> This integration will use your authenticated session. 
+                No API keys needed - just click "Connect" to authorize BVA to access your {platformName} data.
+              </p>
             </div>
-            <p className="text-xs text-muted-foreground">
-              {onGenerateApiKey
-                ? "Generate a new API key or enter an existing one from your Shopee-Clone account settings."
-                : "Enter your API key from your Shopee-Clone account settings."}
-            </p>
           </div>
 
           {/* Agreement Checkbox */}
@@ -170,7 +123,6 @@ export function IntegrationAgreementDialog({
             variant="outline"
             onClick={() => {
               onOpenChange(false);
-              setApiKey("");
               setAgreed(false);
               setError(null);
             }}
@@ -180,7 +132,7 @@ export function IntegrationAgreementDialog({
           </Button>
           <Button
             onClick={handleConnect}
-            disabled={!apiKey || !agreed || isConnecting}
+            disabled={!agreed || isConnecting}
           >
             {isConnecting ? (
               <>

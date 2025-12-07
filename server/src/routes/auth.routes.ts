@@ -3,7 +3,6 @@ import { Router, Request, Response } from "express";
 import passport from "../config/passport";
 import { authController } from "../controllers/auth.controller";
 import { authService } from "../service/auth.service";
-import { apiKeyController } from "../controllers/apiKey.controller";
 import jwt from "jsonwebtoken";
 import prisma from "../lib/prisma";
 

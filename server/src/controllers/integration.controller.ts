@@ -18,19 +18,18 @@ export class IntegrationController {
         });
       }
 
-      const { platform, apiKey, settings } = req.body;
+      const { platform, settings } = req.body;
 
-      if (!platform || !apiKey) {
+      if (!platform) {
         return res.status(400).json({
           success: false,
-          error: "Platform and API key are required",
+          error: "Platform is required",
         });
       }
 
       const integration = await integrationService.createIntegration({
         shopId,
         platform,
-        apiKey,
         settings,
       });
 

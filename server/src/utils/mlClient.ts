@@ -202,7 +202,21 @@ export class MLServiceClient {
   private handleError(error: any): never {
     if (error.response) {
       // ML-service returned an error response
-      const detail = error.response.data?.detail || error.response.data?.message;
+      const data = error.response.data;
+      let detail: string;
+      
+      if (typeof data?.detail === 'string') {
+        detail = data.detail;
+      } else if (data?.detail && typeof data.detail === 'object') {
+        detail = JSON.stringify(data.detail);
+      } else if (typeof data?.message === 'string') {
+        detail = data.message;
+      } else if (data?.error && typeof data.error === 'string') {
+        detail = data.error;
+      } else {
+        detail = `ML Service error: ${error.message || 'Unknown error'}`;
+      }
+      
       const status = error.response.status;
       
       if (status === 503) {
@@ -211,9 +225,7 @@ export class MLServiceClient {
         );
       }
       
-      throw new Error(
-        detail || `ML Service error (${status}): ${error.message}`
-      );
+      throw new Error(detail);
     } else if (error.request) {
       // No response received - service is down
       throw new Error(
@@ -221,7 +233,7 @@ export class MLServiceClient {
       );
     } else {
       // Request setup error
-      throw new Error(`Request failed: ${error.message}`);
+      throw new Error(`Request failed: ${error.message || 'Unknown error'}`);
     }
   }
 }

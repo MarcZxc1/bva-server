@@ -6,7 +6,6 @@ import { shopeeIntegrationService } from "./shopeeIntegration.service";
 interface CreateIntegrationInput {
   shopId: string;
   platform: Platform;
-  apiKey: string;
   settings?: Record<string, any>;
 }
 
@@ -35,13 +34,13 @@ class IntegrationService {
       throw new Error("Integration already exists for this platform");
     }
 
-    // Create integration
+    // Create integration (no API key needed - uses JWT token)
     const integration = await prisma.integration.create({
       data: {
         shopId: data.shopId,
         platform: data.platform,
         settings: {
-          apiKey: data.apiKey,
+          connectedAt: new Date().toISOString(),
           ...data.settings,
         },
       },
