@@ -97,7 +97,7 @@ const BuyerLandingPage: React.FC = () => {
         const apiProducts: ApiProduct[] = await apiClient.getProducts();
         
         // Transform API products to match the original design structure
-        const transformedProducts: DisplayProduct[] = apiProducts.map((product, index) => {
+        const transformedProducts: DisplayProduct[] = apiProducts.map((product) => {
           // Calculate discount (random 10-50% for demo, or based on cost if available)
           const discount = Math.floor(Math.random() * 40) + 10;
           const originalPrice = Math.round(product.price * (1 + discount / 100));

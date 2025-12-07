@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import BuyerNavbar from './components/BuyerNavbar';
 import BuyerFooter from './components/BuyerFooter';
-import { MapPin, MessageCircle, Tag, ShieldCheck, Coins } from 'lucide-react';
+import { MapPin, MessageCircle, Tag, ShieldCheck } from 'lucide-react';
 import shopeeLogo from '/src/assets/LANDING-PAGE-LOGO/buyer-shopee-logo.png';
 import { useCart } from '../../contexts/CartContext';
 import { useOrders } from '../../contexts/OrderContext';

@@ -19,8 +19,8 @@ const BuyerAccount: React.FC = () => {
     dateOfBirth: '',
     profileImage: null as string | null,
   });
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [, setIsLoading] = useState(false);
+  const [, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isAuthenticated) {
