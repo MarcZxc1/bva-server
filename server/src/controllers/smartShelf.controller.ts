@@ -108,11 +108,15 @@ export const getAtRiskInventory = async (req: Request, res: Response) => {
       const items = typeof sale.items === "string" ? JSON.parse(sale.items) : sale.items;
       if (Array.isArray(items)) {
         items.forEach((item: any) => {
+          // Ensure quantities and prices are non-negative
+          const qty = Math.max(0, item.quantity || 1);
+          const price = Math.max(0, item.price || 0);
+          
           salesRecords.push({
             product_id: item.productId,
             date: sale.createdAt.toISOString(),
-            qty: item.quantity || 1,
-            revenue: (item.price || 0) * (item.quantity || 1)
+            qty: qty,
+            revenue: price * qty
           });
         });
       }
