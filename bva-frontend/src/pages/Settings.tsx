@@ -384,8 +384,7 @@ export default function Settings() {
                         key={platform}
                         variant={isConnected ? "outline" : "default"}
                         className="justify-start gap-2"
-                        onClick={() => !isConnected && handleConnectIntegration(platform)}
-                        disabled={isConnected}
+                        onClick={() => handleConnectIntegration(platform)}
                       >
                         <Link2 className="h-4 w-4" />
                         {getPlatformName(platform)}

@@ -27,6 +27,8 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useAuth } from "@/contexts/AuthContext";
+import { useQuery } from "@tanstack/react-query";
+import { integrationService } from "@/services/integration.service";
 
 const mainItems = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
@@ -41,11 +43,11 @@ const bottomItems = [
   { title: "Settings", url: "/settings", icon: Settings },
 ];
 
-// Platform connections data - in a real app, this would come from an API or context
-const platformConnections = [
-  { name: "Shopee", status: "connected", logo: "/shopee-logo.png" },
-  { name: "Lazada", status: "connected", logo: "/lazada-logo.png" },
-  { name: "TikTok", status: "connected", logo: "/tiktok-logo.png" },
+// Platform definitions
+const platformDefinitions = [
+  { name: "Shopee", platform: "SHOPEE", logo: "/shopee-logo.png" },
+  { name: "Lazada", platform: "LAZADA", logo: "/lazada-logo.png" },
+  { name: "TikTok", platform: "TIKTOK", logo: "/tiktok-logo.png" },
 ];
 
 export function AppSidebar() {
@@ -54,6 +56,12 @@ export function AppSidebar() {
   const navigate = useNavigate();
   const { logout } = useAuth();
   const [showLogoutDialog, setShowLogoutDialog] = useState(false);
+
+  // Fetch integrations to check connection status
+  const { data: integrations } = useQuery({
+    queryKey: ["integrations"],
+    queryFn: () => integrationService.getIntegrations(),
+  });
 
   const getNavClass = ({ isActive }: { isActive: boolean }) =>
     isActive 
@@ -114,70 +122,76 @@ export function AppSidebar() {
           <SidebarGroupContent>
             {isCollapsed ? (
               <div className="flex flex-col gap-1.5">
-                {platformConnections.map((platform) => (
-                  <div
-                    key={platform.name}
-                    className="flex items-center justify-center p-1.5 rounded-md hover:bg-primary/10 transition-smooth relative"
-                    title={`${platform.name}: ${platform.status === "connected" ? "Connected" : "Disconnected"}`}
-                  >
-                    <img 
-                      src={platform.logo} 
-                      alt={platform.name}
-                      className="h-5 w-5 object-contain opacity-80"
-                    />
-                    <div className={`absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-sidebar-background ${
-                      platform.status === "connected" ? "bg-green-500" : "bg-red-500"
-                    }`}></div>
-                  </div>
-                ))}
+                {platformDefinitions.map((platformDef) => {
+                  const isConnected = integrations?.some(i => i.platform === platformDef.platform);
+                  const statusColor = platformDef.platform === "SHOPEE" 
+                    ? (isConnected ? "bg-green-500" : "bg-orange-500")
+                    : "bg-orange-500"; // Lazada and TikTok always orange
+                  return (
+                    <div
+                      key={platformDef.name}
+                      className="flex items-center justify-center p-1.5 rounded-md hover:bg-primary/10 transition-smooth relative"
+                      title={`${platformDef.name}: ${isConnected ? "Connected" : "Not Connected"}`}
+                    >
+                      <img 
+                        src={platformDef.logo} 
+                        alt={platformDef.name}
+                        className="h-5 w-5 object-contain opacity-80"
+                      />
+                      <div className={`absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-sidebar-background ${statusColor}`}></div>
+                    </div>
+                  );
+                })}
               </div>
             ) : (
               <div className="space-y-1">
-                {platformConnections.map((platform) => (
-                  <div
-                    key={platform.name}
-                    className="flex items-center justify-between p-2 rounded-md hover:bg-primary/10 transition-smooth"
-                  >
-                    <div className="flex items-center gap-2 flex-1 min-w-0">
-                      <div className="relative h-6 w-6 flex items-center justify-center flex-shrink-0">
-                        <img 
-                          src={platform.logo} 
-                          alt={platform.name}
-                          className="h-full w-full object-contain"
-                          onError={(e) => {
-                            // Fallback if image fails to load
-                            const target = e.target as HTMLImageElement;
-                            target.style.display = 'none';
-                            const fallback = document.createElement('div');
-                            fallback.className = 'h-full w-full flex items-center justify-center text-[10px] font-semibold text-primary';
-                            fallback.textContent = platform.name.substring(0, 2).toUpperCase();
-                            target.parentElement?.appendChild(fallback);
-                          }}
-                        />
+                {platformDefinitions.map((platformDef) => {
+                  const isConnected = integrations?.some(i => i.platform === platformDef.platform);
+                  const statusColor = platformDef.platform === "SHOPEE" 
+                    ? (isConnected ? "bg-green-500" : "bg-orange-500")
+                    : "bg-orange-500"; // Lazada and TikTok always orange
+                  return (
+                    <div
+                      key={platformDef.name}
+                      className="flex items-center justify-between p-2 rounded-md hover:bg-primary/10 transition-smooth"
+                    >
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                        <div className="relative h-6 w-6 flex items-center justify-center flex-shrink-0">
+                          <img 
+                            src={platformDef.logo} 
+                            alt={platformDef.name}
+                            className="h-full w-full object-contain"
+                            onError={(e) => {
+                              // Fallback if image fails to load
+                              const target = e.target as HTMLImageElement;
+                              target.style.display = 'none';
+                              const fallback = document.createElement('div');
+                              fallback.className = 'h-full w-full flex items-center justify-center text-[10px] font-semibold text-primary';
+                              fallback.textContent = platformDef.name.substring(0, 2).toUpperCase();
+                              target.parentElement?.appendChild(fallback);
+                            }}
+                          />
+                        </div>
+                        <span className="text-xs text-sidebar-foreground truncate">{platformDef.name}</span>
                       </div>
-                      <span className="text-xs text-sidebar-foreground truncate">{platform.name}</span>
+                      <div className="flex items-center gap-1.5">
+                        <div 
+                          className={`h-1.5 w-1.5 rounded-full flex-shrink-0 ${statusColor}`}
+                          title={isConnected ? "Connected" : "Not Connected"}
+                        ></div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => navigate("/settings")}
+                          className="h-6 w-6 p-0 hover:bg-primary/20 text-sidebar-foreground"
+                          title="Manage platform settings"
+                        >
+                          <ExternalLink className="h-3 w-3" />
+                        </Button>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-1.5">
-                      <div 
-                        className={`h-1.5 w-1.5 rounded-full flex-shrink-0 ${
-                          platform.status === "connected" 
-                            ? "bg-green-500" 
-                            : "bg-red-500"
-                        }`}
-                        title={platform.status === "connected" ? "Connected" : "Disconnected"}
-                      ></div>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => navigate("/settings")}
-                        className="h-6 w-6 p-0 hover:bg-primary/20 text-sidebar-foreground"
-                        title="Manage platform settings"
-                      >
-                        <ExternalLink className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </SidebarGroupContent>
