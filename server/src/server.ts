@@ -8,7 +8,7 @@ dotenv.config({ path: path.join(__dirname, "../.env") });
 import app from "./app";
 import { initializeSocketIO } from "./services/socket.service";
 
-const PORT: number | string = process.env.PORT || 5000;
+const PORT: number | string = process.env.PORT || 3000;
 
 // Create HTTP server
 const httpServer = createServer(app);
