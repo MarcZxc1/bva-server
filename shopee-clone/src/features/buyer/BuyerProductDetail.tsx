@@ -150,7 +150,7 @@ const BuyerProductDetail: React.FC = () => {
     const productPrice = product.price;
     
     const cartItem: Omit<CartItem, 'isSelected' | 'id'> = {
-      productId: product.id,
+      productId: product.id as string | number,
       name: product.name,
       fullName: product.name,
       image: productImage,
