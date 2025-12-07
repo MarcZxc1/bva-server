@@ -1,0 +1,249 @@
+.add-product-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: fadeIn 0.2s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.add-product-modal-content {
+  background: white;
+  border-radius: 8px;
+  width: 90%;
+  max-width: 600px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  animation: slideUp 0.3s ease-out;
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.add-product-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  border-bottom: 1px solid #e0e0e0;
+  position: sticky;
+  top: 0;
+  background: white;
+  z-index: 10;
+}
+
+.add-product-modal-header h2 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: #333;
+}
+
+.add-product-modal-close {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #666;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.add-product-modal-close:hover:not(:disabled) {
+  background: #f5f5f5;
+  color: #333;
+}
+
+.add-product-modal-close:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.add-product-form {
+  padding: 24px;
+}
+
+.add-product-form-group {
+  margin-bottom: 16px;
+}
+
+.add-product-form-group label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #333;
+}
+
+.add-product-form-group .required {
+  color: #ee4d2d;
+}
+
+.add-product-form-group input,
+.add-product-form-group textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  font-size: 14px;
+  font-family: inherit;
+  transition: border-color 0.2s;
+  box-sizing: border-box;
+}
+
+.add-product-form-group input:focus,
+.add-product-form-group textarea:focus {
+  outline: none;
+  border-color: #ee4d2d;
+  box-shadow: 0 0 0 3px rgba(238, 77, 45, 0.1);
+}
+
+.add-product-form-group input.error,
+.add-product-form-group textarea.error {
+  border-color: #f44336;
+}
+
+.add-product-form-group input:disabled,
+.add-product-form-group textarea:disabled {
+  background: #f5f5f5;
+  cursor: not-allowed;
+}
+
+.error-message {
+  display: block;
+  color: #f44336;
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+.add-product-form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.image-preview {
+  margin-top: 8px;
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  overflow: hidden;
+  max-width: 200px;
+}
+
+.image-preview img {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.add-product-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 24px;
+  padding-top: 24px;
+  border-top: 1px solid #e0e0e0;
+}
+
+.add-product-btn-cancel,
+.add-product-btn-submit {
+  padding: 10px 20px;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.add-product-btn-cancel {
+  border: 1px solid #e0e0e0;
+  background: white;
+  color: #333;
+}
+
+.add-product-btn-cancel:hover:not(:disabled) {
+  border-color: #d0d0d0;
+  background: #f9f9f9;
+}
+
+.add-product-btn-submit {
+  border: none;
+  background: #ee4d2d;
+  color: white;
+}
+
+.add-product-btn-submit:hover:not(:disabled) {
+  background: #d73211;
+}
+
+.add-product-btn-cancel:disabled,
+.add-product-btn-submit:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.spinner-small {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top: 2px solid white;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Responsive */
+@media (max-width: 640px) {
+  .add-product-modal-content {
+    width: 95%;
+    max-height: 95vh;
+  }
+
+  .add-product-form-row {
+    grid-template-columns: 1fr;
+  }
+
+  .add-product-form-actions {
+    flex-direction: column-reverse;
+  }
+
+  .add-product-btn-cancel,
+  .add-product-btn-submit {
+    width: 100%;
+    justify-content: center;
+  }
+}
+

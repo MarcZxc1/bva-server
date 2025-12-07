@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import SellerLayout from './SellerLayout';
 import Breadcrumb from './Breadcrumb';
 import { useAuth } from '../../../contexts/AuthContext';
