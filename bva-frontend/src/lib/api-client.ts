@@ -43,8 +43,16 @@ class ApiClient {
   }
 
   async get<T>(url: string, config?: AxiosRequestConfig): Promise<T> {
-    const response = await this.client.get<{ success: boolean; data: T }>(url, config);
-    return response.data.data; // Unwrap the data property
+    const response = await this.client.get<{ success?: boolean; data?: T } | T>(url, config);
+    
+    // Handle both wrapped and unwrapped responses for backward compatibility
+    if (response.data && typeof response.data === 'object' && 'success' in response.data && 'data' in response.data) {
+      // Wrapped response: { success: boolean, data: T }
+      return (response.data as { success: boolean; data: T }).data;
+    } else {
+      // Unwrapped response: T directly (for backward compatibility)
+      return response.data as T;
+    }
   }
 
   async post<T>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<T> {

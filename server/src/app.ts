@@ -18,6 +18,7 @@ import productRoutes from "./routes/product.routes";
 import notificationRoutes from "./routes/notification.routes";
 import reportsRoutes from "./routes/reports.routes";
 import authRoutes from "./routes/auth.routes";
+import campaignRoutes from "./routes/campaign.routes";
 
 const app: Application = express();
 
@@ -56,7 +57,8 @@ app.get("/", (req: Request, res: Response) => {
       restock: "/api/ai/restock",
       smartShelf: "/api/smart-shelf",
       notifications: "/api/v1/notifications",
-      reports: "/api/reports"
+      reports: "/api/reports",
+      campaigns: "/api/campaigns"
     }
   });
 });
@@ -94,6 +96,9 @@ app.use("/api/reports", reportsRoutes);
 
 // Register Auth Router
 app.use("/api/auth", authRoutes);
+
+// Register Campaign Router
+app.use("/api/campaigns", campaignRoutes);
 
 // --- 3. Export the App ---
 // We export the app so server.ts can import it

@@ -2,10 +2,13 @@ import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Megaphone, Sparkles, Calendar, Eye, TrendingUp, Loader2, Lightbulb, PackageOpen } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Megaphone, Sparkles, Calendar, Eye, TrendingUp, Loader2, Lightbulb, PackageOpen, BarChart3 } from "lucide-react";
 import { AdGeneratorDialog } from "@/components/AdGeneratorDialog";
-import { usePromotions, useCampaigns } from "@/hooks/useMarketMate";
+import { usePromotions, useCampaigns, useCreateCampaign, useScheduleCampaign, usePublishCampaign, useDeleteCampaign } from "@/hooks/useMarketMate";
 import { useAuth } from "@/contexts/AuthContext";
+import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 
 const getStatusColor = (status: string) => {
   switch (status) {
@@ -37,11 +40,79 @@ export default function MarketMate() {
   const { user } = useAuth();
   const shopId = user?.shops?.[0]?.id || "";
   const { data: promotionsData, isLoading: promotionsLoading } = usePromotions(shopId, !!shopId);
-  const { data: campaignsData, isLoading: campaignsLoading } = useCampaigns(shopId, !!shopId);
+  const { data: campaignsData, isLoading: campaignsLoading, refetch: refetchCampaigns } = useCampaigns(shopId, !!shopId);
+  const createCampaignMutation = useCreateCampaign();
+  const scheduleCampaignMutation = useScheduleCampaign();
+  const publishCampaignMutation = usePublishCampaign();
+  const deleteCampaignMutation = useDeleteCampaign();
+  const queryClient = useQueryClient();
+
+  const [previewPromo, setPreviewPromo] = useState<any>(null);
+  const [editingCampaign, setEditingCampaign] = useState<any>(null);
+  const [schedulingCampaign, setSchedulingCampaign] = useState<any>(null);
 
   const campaigns = campaignsData || [];
   const hasCampaigns = campaigns && campaigns.length > 0;
   const hasPromotions = promotionsData && promotionsData.promotions.length > 0;
+
+  const handleUsePromotion = async (promo: any) => {
+    try {
+      await createCampaignMutation.mutateAsync({
+        name: `${promo.product_name} - ${promo.event_title}`,
+        content: {
+          promo_copy: promo.promo_copy,
+          playbook: "Flash Sale",
+          product_name: promo.product_name,
+          discount: `${promo.suggested_discount_pct}% OFF`,
+        },
+        status: "DRAFT",
+        platform: "SHOPEE",
+      });
+      queryClient.invalidateQueries({ queryKey: ["campaigns"] });
+      toast.success("Campaign created from promotion!");
+    } catch (error) {
+      // Error handled by mutation
+    }
+  };
+
+  const handleSchedule = async (campaign: any, scheduledAt?: string) => {
+    if (!scheduledAt) {
+      // Show date picker dialog
+      setSchedulingCampaign(campaign);
+      return;
+    }
+
+    try {
+      await scheduleCampaignMutation.mutateAsync({
+        id: campaign.id,
+        scheduledAt,
+      });
+      queryClient.invalidateQueries({ queryKey: ["campaigns"] });
+      setSchedulingCampaign(null);
+    } catch (error) {
+      // Error handled by mutation
+    }
+  };
+
+  const handlePublish = async (campaign: any) => {
+    try {
+      await publishCampaignMutation.mutateAsync(campaign.id);
+      queryClient.invalidateQueries({ queryKey: ["campaigns"] });
+    } catch (error) {
+      // Error handled by mutation
+    }
+  };
+
+  const handleCancel = async (campaign: any) => {
+    if (!confirm("Are you sure you want to cancel this campaign?")) return;
+
+    try {
+      await deleteCampaignMutation.mutateAsync(campaign.id);
+      queryClient.invalidateQueries({ queryKey: ["campaigns"] });
+    } catch (error) {
+      // Error handled by mutation
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -154,8 +225,29 @@ export default function MarketMate() {
                       <span>Confidence: <strong className="text-foreground">{promo.confidence}</strong></span>
                     </div>
                     <div className="flex gap-2">
-                      <Button variant="outline" size="sm" className="glass-card-sm">Preview</Button>
-                      <Button size="sm" className="bg-primary hover:bg-primary/90 text-primary-foreground">Use This</Button>
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="glass-card-sm"
+                        onClick={() => setPreviewPromo(promo)}
+                      >
+                        Preview
+                      </Button>
+                      <Button 
+                        size="sm" 
+                        className="bg-primary hover:bg-primary/90 text-primary-foreground"
+                        onClick={() => handleUsePromotion(promo)}
+                        disabled={createCampaignMutation.isPending}
+                      >
+                        {createCampaignMutation.isPending ? (
+                          <>
+                            <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                            Creating...
+                          </>
+                        ) : (
+                          "Use This"
+                        )}
+                      </Button>
                     </div>
                   </div>
 
@@ -180,6 +272,7 @@ export default function MarketMate() {
         <CardContent>
           <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
             <AdGeneratorDialog 
+              initialPlaybook="Flash Sale"
               trigger={
                 <Button variant="outline" className="h-auto flex-col items-start p-4 glass-card-sm hover:shadow-glow">
                   <Megaphone className="h-5 w-5 mb-2 text-primary" />
@@ -189,6 +282,7 @@ export default function MarketMate() {
               }
             />
             <AdGeneratorDialog 
+              initialPlaybook="New Arrival"
               trigger={
                 <Button variant="outline" className="h-auto flex-col items-start p-4 glass-card-sm hover:shadow-glow">
                   <Calendar className="h-5 w-5 mb-2 text-primary" />
@@ -198,6 +292,7 @@ export default function MarketMate() {
               }
             />
             <AdGeneratorDialog 
+              initialPlaybook="Best Seller Spotlight"
               trigger={
                 <Button variant="outline" className="h-auto flex-col items-start p-4 glass-card-sm hover:shadow-glow">
                   <TrendingUp className="h-5 w-5 mb-2 text-primary" />
@@ -207,6 +302,7 @@ export default function MarketMate() {
               }
             />
             <AdGeneratorDialog 
+              initialPlaybook="Bundle Up!"
               trigger={
                 <Button variant="outline" className="h-auto flex-col items-start p-4 glass-card-sm hover:shadow-glow">
                   <Eye className="h-5 w-5 mb-2 text-primary" />
@@ -298,18 +394,86 @@ export default function MarketMate() {
                     <div className="flex gap-2">
                       {campaign.status === "draft" && (
                         <>
-                          <Button variant="outline" size="sm" className="glass-card-sm">Edit</Button>
-                          <Button size="sm" className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-nav-active">Schedule</Button>
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className="glass-card-sm"
+                            onClick={() => setEditingCampaign(campaign)}
+                          >
+                            Edit
+                          </Button>
+                          <Button 
+                            size="sm" 
+                            className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-nav-active"
+                            onClick={() => handleSchedule(campaign)}
+                            disabled={scheduleCampaignMutation.isPending}
+                          >
+                            {scheduleCampaignMutation.isPending ? (
+                              <>
+                                <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                                Scheduling...
+                              </>
+                            ) : (
+                              "Schedule"
+                            )}
+                          </Button>
+                          <Button 
+                            size="sm" 
+                            variant="secondary"
+                            onClick={() => handlePublish(campaign)}
+                            disabled={publishCampaignMutation.isPending}
+                          >
+                            {publishCampaignMutation.isPending ? (
+                              <>
+                                <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                                Publishing...
+                              </>
+                            ) : (
+                              "Publish Now"
+                            )}
+                          </Button>
                         </>
                       )}
                       {campaign.status === "scheduled" && (
                         <>
-                          <Button variant="outline" size="sm" className="glass-card-sm">Reschedule</Button>
-                          <Button variant="destructive" size="sm">Cancel</Button>
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className="glass-card-sm"
+                            onClick={() => handleSchedule(campaign)}
+                            disabled={scheduleCampaignMutation.isPending}
+                          >
+                            Reschedule
+                          </Button>
+                          <Button 
+                            variant="destructive" 
+                            size="sm"
+                            onClick={() => handleCancel(campaign)}
+                            disabled={deleteCampaignMutation.isPending}
+                          >
+                            {deleteCampaignMutation.isPending ? (
+                              <>
+                                <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                                Canceling...
+                              </>
+                            ) : (
+                              "Cancel"
+                            )}
+                          </Button>
                         </>
                       )}
                       {campaign.status === "published" && (
-                        <Button variant="outline" size="sm" className="glass-card-sm">View Analytics</Button>
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          className="glass-card-sm"
+                          onClick={() => {
+                            toast.info("Analytics feature coming soon!");
+                          }}
+                        >
+                          <BarChart3 className="h-3 w-3 mr-1" />
+                          View Analytics
+                        </Button>
                       )}
                     </div>
                   </div>
@@ -318,6 +482,95 @@ export default function MarketMate() {
             </div>
           </CardContent>
         </Card>
+      )}
+
+      {/* Preview Promotion Dialog */}
+      <Dialog open={!!previewPromo} onOpenChange={(open) => !open && setPreviewPromo(null)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>{previewPromo?.product_name}</DialogTitle>
+            <DialogDescription>Promotion Preview</DialogDescription>
+          </DialogHeader>
+          {previewPromo && (
+            <div className="space-y-4">
+              <div className="p-4 glass-card-sm">
+                <p className="text-sm">{previewPromo.promo_copy}</p>
+              </div>
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <span className="text-muted-foreground">Discount:</span>{" "}
+                  <strong>{previewPromo.suggested_discount_pct}% OFF</strong>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Period:</span>{" "}
+                  <strong>{previewPromo.start_date} - {previewPromo.end_date}</strong>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Expected Sales Lift:</span>{" "}
+                  <strong className="text-success">+{previewPromo.projected_sales_lift}%</strong>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Clear in:</span>{" "}
+                  <strong>{previewPromo.expected_clear_days} days</strong>
+                </div>
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setPreviewPromo(null)}>
+                  Close
+                </Button>
+                <Button onClick={() => {
+                  handleUsePromotion(previewPromo);
+                  setPreviewPromo(null);
+                }}>
+                  Use This Promotion
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Schedule Campaign Dialog */}
+      <Dialog open={!!schedulingCampaign} onOpenChange={(open) => !open && setSchedulingCampaign(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Schedule Campaign</DialogTitle>
+            <DialogDescription>Choose when to publish this campaign</DialogDescription>
+          </DialogHeader>
+          {schedulingCampaign && (
+            <div className="space-y-4">
+              <input
+                type="datetime-local"
+                className="w-full p-2 glass-card-sm border-card-glass-border rounded"
+                min={new Date().toISOString().slice(0, 16)}
+                onChange={(e) => {
+                  if (e.target.value) {
+                    handleSchedule(schedulingCampaign, new Date(e.target.value).toISOString());
+                  }
+                }}
+              />
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setSchedulingCampaign(null)}>
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Campaign Dialog */}
+      {editingCampaign && (
+        <AdGeneratorDialog
+          open={!!editingCampaign}
+          onOpenChange={(open) => !open && setEditingCampaign(null)}
+          initialProductName={editingCampaign.content?.product_name || ""}
+          initialPlaybook={editingCampaign.type || "Flash Sale"}
+          onAdGenerated={() => {
+            setEditingCampaign(null);
+            refetchCampaigns();
+          }}
+        />
       )}
     </div>
   );

@@ -13,8 +13,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
 import { Sparkles, Loader2, Image as ImageIcon, Copy, Check } from "lucide-react";
-import { useGenerateAdCopy, useGenerateAdImage } from "@/hooks/useMarketMate";
+import { useGenerateAdCopy, useGenerateAdImage, useCreateCampaign } from "@/hooks/useMarketMate";
 import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
 
 interface AdGeneratorDialogProps {
   trigger?: React.ReactNode;
@@ -55,6 +56,8 @@ export function AdGeneratorDialog({
 
   const generateAdCopyMutation = useGenerateAdCopy();
   const generateImageMutation = useGenerateAdImage();
+  const createCampaignMutation = useCreateCampaign();
+  const queryClient = useQueryClient();
 
   const handleGenerateAdCopy = async () => {
     if (!productName) {
@@ -270,13 +273,55 @@ export function AdGeneratorDialog({
                 Reset
               </Button>
               <Button 
-                onClick={() => {
-                  toast.success("Campaign saved!");
-                  setOpen(false);
-                  handleReset();
+                onClick={async () => {
+                  if (!generatedAd && !imageUrl) {
+                    toast.error("Please generate ad copy or image first");
+                    return;
+                  }
+
+                  try {
+                    await createCampaignMutation.mutateAsync({
+                      name: `${productName} - ${playbook}`,
+                      content: {
+                        ad_copy: generatedAd || "",
+                        promo_copy: generatedAd || "",
+                        playbook,
+                        product_name: productName,
+                        image_url: imageUrl || undefined,
+                      },
+                      status: "DRAFT",
+                      platform: "SHOPEE",
+                    });
+
+                    // Invalidate campaigns query to refresh the list
+                    queryClient.invalidateQueries({ queryKey: ["campaigns"] });
+
+                    toast.success("Campaign saved!");
+                    setOpen(false);
+                    handleReset();
+                    
+                    if (onAdGenerated) {
+                      onAdGenerated({
+                        productName,
+                        playbook,
+                        adCopy: generatedAd,
+                        imageUrl,
+                      });
+                    }
+                  } catch (error) {
+                    // Error toast is handled by the mutation
+                  }
                 }}
+                disabled={createCampaignMutation.isPending}
               >
-                Save Campaign
+                {createCampaignMutation.isPending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  "Save Campaign"
+                )}
               </Button>
             </div>
           )}

@@ -199,9 +199,19 @@ class ShopeeIntegrationService {
         return 0;
       }
 
-      // Upsert each sale
+      // TIME TRAVEL LOGIC: Distribute orders across the last 30 days
+      // This ensures ML service has historical data for forecasting
+      const now = new Date();
+      const thirtyDaysAgo = new Date(now);
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      const timeRangeMs = now.getTime() - thirtyDaysAgo.getTime();
+
+      // Upsert each sale with time-traveled dates
       let syncedCount = 0;
-      for (const order of orders) {
+      for (let i = 0; i < orders.length; i++) {
+        const order = orders[i];
+        if (!order) continue; // Skip if order is undefined
+        
         try {
           // Calculate total from different possible fields
           const total = order.total_price || order.totalPrice || order.total || 0;
@@ -218,8 +228,46 @@ class ShopeeIntegrationService {
           // Calculate revenue (same as total for now)
           const revenue = total;
           
-          // Calculate profit if we have cost data (estimate 20% margin if unknown)
-          const profit = revenue * 0.2;
+          // Calculate profit from actual product costs if available
+          let profit = 0;
+          if (items.length > 0) {
+            // Fetch product costs from database
+            const productIds = items.map(item => item.productId).filter(Boolean);
+            if (productIds.length > 0) {
+              const products = await prisma.product.findMany({
+                where: {
+                  shopId,
+                  OR: [
+                    { id: { in: productIds } },
+                    { externalId: { in: productIds } },
+                  ],
+                },
+                select: { id: true, externalId: true, cost: true },
+              });
+
+              const productCostMap = new Map<string, number>();
+              products.forEach(p => {
+                if (p.id) productCostMap.set(p.id, p.cost || 0);
+                if (p.externalId) productCostMap.set(p.externalId, p.cost || 0);
+              });
+
+              // Calculate actual profit: (price - cost) * quantity
+              profit = items.reduce((sum, item) => {
+                const cost = productCostMap.get(item.productId) || 0;
+                return sum + ((item.price - cost) * item.quantity);
+              }, 0);
+            }
+          }
+          
+          // Fallback to 20% margin if we can't calculate profit
+          if (profit === 0 && revenue > 0) {
+            profit = revenue * 0.2;
+          }
+
+          // TIME TRAVEL: Assign random past date within last 30 days
+          // Distribute evenly across the time range for better ML training
+          const randomOffset = Math.random() * timeRangeMs;
+          const timeTraveledDate = new Date(thirtyDaysAgo.getTime() + randomOffset);
 
           await prisma.sale.upsert({
             where: {
@@ -236,6 +284,7 @@ class ShopeeIntegrationService {
               status: order.status || "completed",
               customerName: order.customerName || null,
               customerEmail: order.customerEmail || null,
+              // Only update createdAt if it's a new record (not in update)
             },
             create: {
               shopId,
@@ -249,7 +298,8 @@ class ShopeeIntegrationService {
               status: order.status || "completed",
               customerName: order.customerName || null,
               customerEmail: order.customerEmail || null,
-              createdAt: order.createdAt ? new Date(order.createdAt) : new Date(),
+              // Use time-traveled date for ML service historical data
+              createdAt: timeTraveledDate,
             },
           });
           syncedCount++;

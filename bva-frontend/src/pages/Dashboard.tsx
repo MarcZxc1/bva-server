@@ -1,18 +1,44 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { TrendingUp, TrendingDown, Package, AlertCircle, DollarSign, ShoppingCart, Loader2, PackageOpen, BarChart3 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { TrendingUp, TrendingDown, Package, AlertCircle, DollarSign, ShoppingCart, Loader2, PackageOpen, BarChart3, RefreshCw } from "lucide-react";
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import { useAtRiskInventory, useDashboardAnalytics } from "@/hooks/useSmartShelf";
 import { useAuth } from "@/contexts/AuthContext";
+import { useState } from "react";
+import { apiClient } from "@/lib/api-client";
 
 export default function Dashboard() {
   const { user } = useAuth();
   const shopId = user?.shops?.[0]?.id;
   const hasShop = !!shopId;
+  const [isSyncing, setIsSyncing] = useState(false);
   
-  const { data: atRiskData, isLoading: atRiskLoading } = useAtRiskInventory(shopId || "", hasShop);
-  const { data: analyticsData, isLoading: analyticsLoading } = useDashboardAnalytics(shopId || "", hasShop);
+  const { data: atRiskData, isLoading: atRiskLoading, refetch: refetchAtRisk } = useAtRiskInventory(shopId || "", hasShop);
+  const { data: analyticsData, isLoading: analyticsLoading, refetch: refetchAnalytics } = useDashboardAnalytics(shopId || "", hasShop);
 
   const isLoading = (analyticsLoading || atRiskLoading) && hasShop;
+
+  // Handle data sync from Shopee-Clone
+  const handleSyncData = async () => {
+    if (!user?.shops?.[0]?.id) return;
+    
+    setIsSyncing(true);
+    try {
+      // Refresh local data first
+      await Promise.all([
+        refetchAtRisk(),
+        refetchAnalytics(),
+      ]);
+      
+      // Note: Full sync from Shopee-Clone requires API key and happens via SSO login
+      // This button refreshes the current data. For full sync, use SSO login.
+      console.log("Data refreshed. For full Shopee-Clone sync, use SSO login.");
+    } catch (error) {
+      console.error("Error refreshing data:", error);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
 
   // Prepare sales data from API response
   const salesData = analyticsData?.forecast?.forecasts?.[0]?.predictions?.map((val, i) => ({
@@ -281,7 +307,7 @@ export default function Dashboard() {
             <CardTitle className="text-foreground">🚀 Get Started</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-3">
+            <div className="space-y-4">
               <p className="text-sm text-muted-foreground">
                 {hasNoSalesData && hasNoInventory 
                   ? "Your shop is set up! Now you need data to see insights:"
@@ -304,6 +330,19 @@ export default function Dashboard() {
                 )}
                 <li>• Get real-time AI-powered recommendations once you have data</li>
               </ul>
+              <div className="pt-2">
+                <Button
+                  onClick={handleSyncData}
+                  disabled={isSyncing}
+                  className="gap-2 bg-primary hover:bg-primary/90"
+                >
+                  <RefreshCw className={`h-4 w-4 ${isSyncing ? 'animate-spin' : ''}`} />
+                  {isSyncing ? "Refreshing..." : "Refresh Data"}
+                </Button>
+                <p className="text-xs text-muted-foreground mt-2">
+                  Note: For full sync from Shopee-Clone, use SSO login which automatically syncs your data.
+                </p>
+              </div>
             </div>
           </CardContent>
         </Card>

@@ -57,21 +57,18 @@ export async function getRestockStrategy(
 
     console.log(`Found ${sales.length} sales records for shop ${shopId}`);
 
-    // Mock sales data if DB is empty (for demo purposes)
+    // Handle cold start: If no sales data, return helpful error instead of mock data
     if (sales.length === 0) {
-      console.log("No sales found, generating mock sales data");
-      sales = products.map(p => ({
-        createdAt: new Date(),
-        total: p.price * 5,
-        items: JSON.stringify([{
-          productId: p.id,
-          quantity: Math.floor(Math.random() * 5) + 1,
-          price: p.price
-        }])
-      }));
-    } else {
-      console.log(`Using ${sales.length} real sales records`);
+      console.log("⚠️ No sales history found - cold start scenario");
+      res.status(400).json({
+        error: "Insufficient Data",
+        message: "No sales history found. Please sync your sales data from Shopee-Clone or add sales records before using the Restock Planner. The ML service requires at least 7-30 days of sales history for accurate predictions.",
+        suggestion: "Sync your data via SSO login or manually add sales records through the API.",
+      });
+      return;
     }
+
+    console.log(`✅ Using ${sales.length} real sales records from database`);
 
     // 4. Format Data for ML Service
     // Map products to MLProductInput format
