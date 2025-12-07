@@ -1,12 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { Link } from 'react-router-dom';
-import { Image as ImageIcon, Play } from 'lucide-react';
+import { Play } from 'lucide-react';
 import BuyerNavbar from './components/BuyerNavbar';
 import HeroBanner from './components/HeroBanner';
 import FeatureIcons from './components/FeatureIcons';
 import CategoryCard from './components/CategoryCard';
-import apiClient from '../../services/api';
-import { dailyDiscoverProducts, Product as MockProduct } from '../../data/dailyDiscoverProducts';
+import { dailyDiscoverProducts } from '../../data/dailyDiscoverProducts';
 
 // Payment Methods
 import spayImg from '../../assets/PAYMENTS/buyer-spay.png';
@@ -60,19 +59,6 @@ const categories: Category[] = [
   { id: 17, name: "Men's Shoes", image: '👞' },
   { id: 18, name: 'Motors', image: '🏍️' },
 ];
-
-interface Product {
-  id: string;
-  name: string;
-  price: number;
-  stock?: number;
-  imageUrl?: string;
-  category?: string;
-  shop?: {
-    id: string;
-    name: string;
-  };
-}
 
 const BuyerLandingPage: React.FC = () => {
   // Use mock data for the original design
