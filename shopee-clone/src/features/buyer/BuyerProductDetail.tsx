@@ -149,8 +149,11 @@ const BuyerProductDetail: React.FC = () => {
     const shopName = product.shop?.name || 'Shop';
     const productPrice = product.price;
     
-    const cartItem: Omit<CartItem, 'isSelected' | 'id'> = {
-      productId: product.id as string | number,
+    // Type assertion to satisfy TypeScript's type checking
+    const productId: string | number = product.id;
+    
+    addToCart({
+      productId,
       name: product.name,
       fullName: product.name,
       image: productImage,
@@ -158,9 +161,7 @@ const BuyerProductDetail: React.FC = () => {
       unitPrice: productPrice,
       quantity: quantity,
       variations: selectedVariation || 'Standard',
-    };
-    
-    addToCart(cartItem);
+    });
   };
 
   const handleBuyNow = () => {
