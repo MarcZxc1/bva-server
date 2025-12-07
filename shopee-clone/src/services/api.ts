@@ -79,6 +79,18 @@ class ApiClient {
         
         // If it's HTML (like a 404 page), extract error message
         if (response.status === 404) {
+          // Check if it's the Express default 404 message
+          if (text.includes('Cannot GET') || text.includes('Cannot POST') || text.includes('Cannot PUT') || text.includes('Cannot DELETE')) {
+            throw new Error(
+              `❌ Route not found: ${endpoint}\n\n` +
+              `The server returned: ${text.trim()}\n\n` +
+              `Troubleshooting:\n` +
+              `1. Make sure the server is running the latest code: cd server && npm run dev\n` +
+              `2. Check if the route is registered in server/src/app.ts\n` +
+              `3. Restart the server if you just added/modified routes\n` +
+              `4. Verify the server is running on the port specified in vite.config.ts proxy target`
+            );
+          }
           throw new Error(`API endpoint not found: ${endpoint}. Please check if the server is running and the route exists.`);
         }
         
