@@ -97,10 +97,17 @@ const MyProducts: React.FC = () => {
         ...productData,
       };
 
+      let savedProduct;
       if (editingProduct) {
-        await apiClient.updateProduct(editingProduct.id, submitData);
+        savedProduct = await apiClient.updateProduct(editingProduct.id, submitData);
+        // Send webhook to BVA server
+        const { webhookService } = await import('../../../services/webhook.service');
+        await webhookService.sendProductUpdated({ ...savedProduct, ...submitData });
       } else {
-        await apiClient.createProduct(submitData);
+        savedProduct = await apiClient.createProduct(submitData);
+        // Send webhook to BVA server
+        const { webhookService } = await import('../../../services/webhook.service');
+        await webhookService.sendProductCreated({ ...savedProduct, ...submitData });
       }
 
       await fetchProducts();

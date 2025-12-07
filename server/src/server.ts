@@ -7,6 +7,7 @@ dotenv.config({ path: path.join(__dirname, "../.env") });
 
 import app from "./app";
 import { initializeSocketIO } from "./services/socket.service";
+import { redis } from "./lib/redis";
 
 const PORT: number | string = process.env.PORT || 3000;
 

@@ -1,5 +1,6 @@
 import prisma from "../lib/prisma";
 import { mlClient } from "../utils/mlClient";
+import { CacheService } from "../lib/redis";
 import {
   AtRiskRequest,
   AtRiskResponse,
@@ -9,12 +10,19 @@ import {
 
 /**
  * Fetch inventory and sales data, then call ML service to detect at-risk items.
+ * Uses Redis cache for optimization (5 min TTL for real-time inventory data)
  */
 export async function getAtRiskInventory(
   shopId: string
 ): Promise<AtRiskResponse> {
-  // 1. Fetch products with inventory
-  const products = await prisma.product.findMany({
+  const cacheKey = `at-risk:${shopId}`;
+  
+  // Try cache first (5 min TTL for inventory data)
+  return CacheService.getOrSet(
+    cacheKey,
+    async () => {
+      // 1. Fetch products with inventory
+      const products = await prisma.product.findMany({
     where: { shopId },
     include: {
       inventories: {
@@ -92,22 +100,32 @@ export async function getAtRiskInventory(
     sales: salesRecords,
   };
 
-  // 4. Call ML Service
-  const response = await mlClient.post<AtRiskResponse>(
-    "/api/v1/smart-shelf/at-risk",
-    request
-  );
+      // 4. Call ML Service
+      const response = await mlClient.post<AtRiskResponse>(
+        "/api/v1/smart-shelf/at-risk",
+        request
+      );
 
-  return response;
+      return response;
+    },
+    300 // 5 minutes cache TTL for inventory data
+  );
 }
 
 /**
  * Get comprehensive dashboard analytics
  * Combines database metrics with ML forecasts
+ * Uses Redis cache for optimization (10 min TTL)
  */
 export async function getDashboardAnalytics(shopId: string) {
-  // 1. Calculate basic metrics from database
-  const products = await prisma.product.findMany({
+  const cacheKey = `dashboard-analytics:${shopId}`;
+  
+  // Try cache first (10 min TTL)
+  return CacheService.getOrSet(
+    cacheKey,
+    async () => {
+      // 1. Calculate basic metrics from database
+      const products = await prisma.product.findMany({
     where: { shopId },
     include: {
       inventories: { take: 1 },
@@ -183,20 +201,23 @@ export async function getDashboardAnalytics(shopId: string) {
     }
   }
 
-  return {
-    metrics: {
-      totalRevenue,
-      totalProfit,
-      profitMargin,
-      totalItems,
-      totalProducts: products.length,
-      totalSales: sales.length,
+      return {
+        metrics: {
+          totalRevenue,
+          totalProfit,
+          profitMargin,
+          totalItems,
+          totalProducts: products.length,
+          totalSales: sales.length,
+        },
+        forecast,
+        period: {
+          start: thirtyDaysAgo.toISOString(),
+          end: new Date().toISOString(),
+          days: 30,
+        },
+      };
     },
-    forecast,
-    period: {
-      start: thirtyDaysAgo.toISOString(),
-      end: new Date().toISOString(),
-      days: 30,
-    },
-  };
+    600 // 10 minutes cache TTL
+  );
 }

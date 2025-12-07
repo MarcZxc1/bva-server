@@ -136,6 +136,21 @@ const BuyerCheckout: React.FC = () => {
 
           createdOrders.push(orderResponse);
 
+          // Send webhook to BVA server
+          try {
+            const { webhookService } = await import('../../../services/webhook.service');
+            await webhookService.sendOrderCreated({
+              ...orderResponse,
+              items: orderItems.map((item: any) => ({
+                ...item,
+                productName: items.find((i: any) => String(i.productId) === String(item.productId))?.name || 'Unknown Product',
+              })),
+            });
+          } catch (webhookError) {
+            console.error('Webhook error (non-critical):', webhookError);
+            // Don't fail the order creation if webhook fails
+          }
+
           // Also add to local order context for immediate UI update
           items.forEach(item => {
             addOrder({

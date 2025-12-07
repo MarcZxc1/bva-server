@@ -23,6 +23,7 @@ import orderRoutes from "./routes/order.routes";
 import sellerRoutes from "./routes/seller.routes";
 import integrationRoutes from "./routes/integration.routes";
 import externalRoutes from "./routes/external.routes";
+import webhookRoutes from "./routes/webhook.routes";
 
 const app: Application = express();
 
@@ -126,6 +127,9 @@ app.use("/api/integrations", integrationRoutes);
 
 // Register External API Router (for Shopee-Clone to expose data to BVA)
 app.use("/api/external", externalRoutes);
+
+// Register Webhook Router (for Shopee-Clone to send real-time updates)
+app.use("/api/webhooks", webhookRoutes);
 
 // --- 3. Export the App ---
 // We export the app so server.ts can import it
