@@ -112,27 +112,61 @@ class ShopeeIntegrationService {
       let syncedCount = 0;
       for (const product of products) {
         try {
-          await prisma.product.upsert({
+          // Generate SKU - ensure it's unique for this shop
+          const baseSku = product.sku || `SHOPEE-${product.id}`;
+          
+          // Check if product exists by externalId first
+          const existingByExternalId = await prisma.product.findUnique({
             where: {
               shopId_externalId: {
                 shopId,
                 externalId: product.id,
               },
             },
-            update: {
-              name: product.name,
-              description: product.description || null,
-              price: product.price,
-              cost: product.cost || null,
-              category: product.category || null,
-              imageUrl: product.image || null,
-              stock: product.stock || 0,
-              updatedAt: new Date(),
+          });
+
+          // If exists by externalId, update it
+          if (existingByExternalId) {
+            await prisma.product.update({
+              where: {
+                id: existingByExternalId.id,
+              },
+              data: {
+                name: product.name,
+                description: product.description || null,
+                price: product.price,
+                cost: product.cost || null,
+                category: product.category || null,
+                imageUrl: product.image || null,
+                stock: product.stock || 0,
+                updatedAt: new Date(),
+              },
+            });
+            syncedCount++;
+            continue;
+          }
+
+          // Check if SKU already exists for this shop
+          const existingBySku = await prisma.product.findFirst({
+            where: {
+              shopId,
+              sku: baseSku,
             },
-            create: {
+          });
+
+          // If SKU exists, generate a unique one
+          let finalSku = baseSku;
+          if (existingBySku) {
+            // Generate unique SKU by appending timestamp or random suffix
+            finalSku = `${baseSku}-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
+          }
+
+          // Create new product
+          await prisma.product.create({
+            data: {
               shopId,
               externalId: product.id,
-              sku: product.sku || `SHOPEE-${product.id}`,
+              sku: finalSku,
               name: product.name,
               description: product.description || null,
               price: product.price,
@@ -143,8 +177,46 @@ class ShopeeIntegrationService {
             },
           });
           syncedCount++;
-        } catch (error) {
-          console.error(`❌ Error syncing product ${product.id}:`, error);
+        } catch (error: any) {
+          // Handle specific Prisma errors
+          if (error.code === 'P2002') {
+            console.error(`❌ Unique constraint violation for product ${product.id}:`, error.meta?.target);
+            // Try to find and update existing product
+            try {
+              const existing = await prisma.product.findFirst({
+                where: {
+                  shopId,
+                  OR: [
+                    { externalId: product.id },
+                    { sku: product.sku || `SHOPEE-${product.id}` },
+                  ],
+                },
+              });
+              
+              if (existing) {
+                await prisma.product.update({
+                  where: { id: existing.id },
+                  data: {
+                    name: product.name,
+                    description: product.description || null,
+                    price: product.price,
+                    cost: product.cost || null,
+                    category: product.category || null,
+                    imageUrl: product.image || null,
+                    stock: product.stock || 0,
+                    externalId: product.id, // Ensure externalId is set
+                    updatedAt: new Date(),
+                  },
+                });
+                syncedCount++;
+                console.log(`✅ Updated existing product ${existing.id} for external ID ${product.id}`);
+              }
+            } catch (updateError) {
+              console.error(`❌ Failed to update existing product for ${product.id}:`, updateError);
+            }
+          } else {
+            console.error(`❌ Error syncing product ${product.id}:`, error);
+          }
         }
       }
 
