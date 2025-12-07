@@ -35,6 +35,7 @@ const BuyerProductDetail: React.FC = () => {
   const [selectedImage, setSelectedImage] = useState(0);
   const [countdown, setCountdown] = useState({ hours: 4, minutes: 7, seconds: 3 });
 
+  // Fetch product data
   useEffect(() => {
     const fetchProduct = async () => {
       if (!productId) {
@@ -75,6 +76,46 @@ const BuyerProductDetail: React.FC = () => {
     fetchProduct();
   }, [productId]);
 
+  // Set initial variation (moved before early returns)
+  useEffect(() => {
+    const variations: string[] = [];
+    if (variations.length > 0 && !selectedVariation) {
+      setSelectedVariation(variations[0]);
+    }
+  }, [selectedVariation]);
+
+  // Countdown timer (moved before early returns)
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCountdown(prev => {
+        let { hours, minutes, seconds } = prev;
+        seconds--;
+        if (seconds < 0) {
+          seconds = 59;
+          minutes--;
+          if (minutes < 0) {
+            minutes = 59;
+            hours--;
+            if (hours < 0) {
+              hours = 0;
+              minutes = 0;
+              seconds = 0;
+            }
+          }
+        }
+        return { hours, minutes, seconds };
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, []);
+
+  // Scroll to top on product change (moved before early returns)
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'auto' });
+  }, [productId]);
+
+  // Early returns after all hooks
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-50">
@@ -105,42 +146,6 @@ const BuyerProductDetail: React.FC = () => {
   }
 
   const variations: string[] = [];
-
-  // Set initial variation
-  useEffect(() => {
-    if (variations.length > 0 && !selectedVariation) {
-      setSelectedVariation(variations[0]);
-    }
-  }, [variations, selectedVariation]);
-
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setCountdown(prev => {
-        let { hours, minutes, seconds } = prev;
-        seconds--;
-        if (seconds < 0) {
-          seconds = 59;
-          minutes--;
-          if (minutes < 0) {
-            minutes = 59;
-            hours--;
-            if (hours < 0) {
-              hours = 0;
-              minutes = 0;
-              seconds = 0;
-            }
-          }
-        }
-        return { hours, minutes, seconds };
-      });
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }, []);
-
-  useEffect(() => {
-    window.scrollTo({ top: 0, behavior: 'auto' });
-  }, [productId]);
 
   const handleAddToCart = () => {
     if (!product) return;
