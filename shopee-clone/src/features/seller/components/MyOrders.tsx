@@ -715,7 +715,8 @@ const MyOrders = () => {
                 </button>
               </div>
             </div>
-          ))}
+          );
+        })}
         </div>
       )}
       </div>
