@@ -149,8 +149,8 @@ const BuyerProductDetail: React.FC = () => {
     const shopName = product.shop?.name || 'Shop';
     const productPrice = product.price;
     
-    addToCart({
-      productId: product.id as string | number,
+    const cartItem: Omit<CartItem, 'isSelected' | 'id'> = {
+      productId: product.id,
       name: product.name,
       fullName: product.name,
       image: productImage,
@@ -158,7 +158,9 @@ const BuyerProductDetail: React.FC = () => {
       unitPrice: productPrice,
       quantity: quantity,
       variations: selectedVariation || 'Standard',
-    });
+    };
+    
+    addToCart(cartItem);
   };
 
   const handleBuyNow = () => {
