@@ -1,6 +1,8 @@
 // src/middlewares/apiKey.middleware.ts
 import { Request, Response, NextFunction } from "express";
 import { authService } from "../service/auth.service";
+import prisma from "../lib/prisma";
+import prisma from "../lib/prisma";
 
 /**
  * Middleware to authenticate requests using API key
@@ -25,31 +27,60 @@ export const apiKeyMiddleware = async (
       });
     }
 
-    // For now, we'll use the API key as a token to verify the user
-    // In production, you'd want to store API keys in the database and verify them
-    // For MVP, we'll treat the API key as a JWT token and verify it
+    // Try to verify as JWT token first (for regular authenticated requests)
     try {
-      const decoded = await authService.verifyToken(apiKey);
+      const decoded = authService.verifyToken(apiKey);
       (req as any).user = decoded;
       (req as any).apiKey = apiKey;
       next();
+      return;
     } catch (error) {
-      // If token verification fails, check if it's a valid API key format
-      // For external integrations, we might need a different verification method
-      // For now, we'll allow the request to proceed if it's a valid format
+      // If token verification fails, check if it's an API key
+      // For API keys starting with "sk_", we need to find the integration
       if (apiKey.startsWith("sk_")) {
-        // This is an API key, not a JWT token
-        // In production, you'd verify this against a database of API keys
+        // Find integration by API key stored in settings
+        const integration = await prisma.integration.findFirst({
+          where: {
+            settings: {
+              path: ["apiKey"],
+              equals: apiKey,
+            },
+          },
+          include: {
+            shop: {
+              include: {
+                owner: true,
+              },
+            },
+          },
+        });
+
+        if (!integration) {
+          return res.status(401).json({
+            success: false,
+            error: "Invalid API key",
+          });
+        }
+
+        // Attach user info from the integration's shop owner
+        (req as any).user = {
+          userId: integration.shop.owner.id,
+          shopId: integration.shop.id,
+          role: integration.shop.owner.role,
+        };
         (req as any).apiKey = apiKey;
         next();
-      } else {
-        return res.status(401).json({
-          success: false,
-          error: "Invalid API key",
-        });
+        return;
       }
+
+      // If it's not a JWT and not an API key, reject
+      return res.status(401).json({
+        success: false,
+        error: "Invalid API key or token",
+      });
     }
   } catch (error: any) {
+    console.error("API key middleware error:", error);
     return res.status(401).json({
       success: false,
       error: "Authentication failed",

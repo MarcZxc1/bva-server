@@ -1,6 +1,6 @@
 // src/routes/external.routes.ts
 // External API routes for Shopee-Clone to expose data to BVA
-import { Router } from "express";
+import { Router, Request, Response } from "express";
 import * as orderController from "../controllers/order.controller";
 import * as productController from "../controllers/product.controller";
 import { apiKeyMiddleware } from "../middlewares/apiKey.middleware";
@@ -13,7 +13,7 @@ const router = Router();
  */
 
 // Get products (external access with API key)
-router.get("/products", apiKeyMiddleware, productController.getProducts);
+router.get("/products", apiKeyMiddleware, productController.getAllProducts);
 
 // Get orders/sales (external access with API key)
 router.get("/orders", apiKeyMiddleware, async (req: Request, res: Response) => {
@@ -28,7 +28,9 @@ router.get("/orders", apiKeyMiddleware, async (req: Request, res: Response) => {
     // Get seller orders for the authenticated user
     const shopId = (req as any).user?.shopId;
     if (shopId) {
-      return orderController.getSellerOrders(req, res);
+      // Create a modified request with shopId in params
+      const modifiedReq = { ...req, params: { ...req.params, shopId } } as Request;
+      return orderController.getSellerOrders(modifiedReq, res);
     }
     // Fallback to my orders
     return orderController.getMyOrders(req, res);
