@@ -206,46 +206,6 @@ const BuyerLandingPage: React.FC = () => {
               ))}
             </div>
           )}
-                  </div>
-                  
-                  {/* Choice Text */}
-                  {product.choiceText && (
-                    <div className="text-[10px] text-blue-600 font-semibold mb-1">
-                      {product.choiceText}
-                    </div>
-                  )}
-                  
-                  {/* Price */}
-                  <div className="mb-1.5">
-                    <div className="flex items-center gap-2">
-                      <span className="text-shopee-orange font-bold text-sm">₱{product.price}</span>
-                      {product.originalPrice && (
-                        <span className="text-gray-400 text-[10px] line-through">₱{product.originalPrice}</span>
-                      )}
-                    </div>
-                  </div>
-                  
-                  {/* Badges Row */}
-                  <div className="flex flex-wrap gap-1 mb-1.5">
-                    {product.badges.includes('SPayLater') && (
-                      <div className="flex items-center gap-0.5 bg-blue-50 border border-blue-200 rounded px-1 py-0.5">
-                        <span className="text-[9px] text-blue-700 font-semibold">SPayLater</span>
-                        <span className="text-[8px] text-blue-600 font-medium">0% INTEREST</span>
-                      </div>
-                    )}
-                    {product.badges.includes('UNLI FREE SHIPPING') && (
-                      <span className="text-[9px] bg-green-100 text-green-700 font-semibold px-1 py-0.5 rounded whitespace-nowrap">UNLI FREE SHIPPING</span>
-                    )}
-                  </div>
-                  
-                  {/* Sold Count */}
-                  <div className="text-[10px] text-gray-500 mt-auto">
-                    {product.sold >= 10000 ? '10K+' : product.sold}+ sold
-                  </div>
-                </div>
-              </Link>
-            ))}
-          </div>
 
           {/* See More Button */}
           <div className="mt-8 text-center">
