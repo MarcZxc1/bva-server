@@ -120,32 +120,15 @@ export default function Settings() {
     },
   });
 
-  const generateApiKeyMutation = useMutation({
-    mutationFn: () => integrationService.generateApiKey(),
-    onSuccess: (data) => {
-      return data.apiKey;
-    },
-    onError: (error: any) => {
-      toast.error(error.message || "Failed to generate API key");
-      throw error;
-    },
-  });
-
   const handleConnectIntegration = (platform: "SHOPEE" | "LAZADA" | "TIKTOK" | "OTHER") => {
     setSelectedPlatform(platform);
     setShowAgreementDialog(true);
   };
 
-  const handleAgreeToIntegration = async (apiKey: string) => {
+  const handleAgreeToIntegration = async () => {
     await createIntegrationMutation.mutateAsync({
       platform: selectedPlatform,
-      apiKey,
     });
-  };
-
-  const handleGenerateApiKey = async (): Promise<string> => {
-    const result = await generateApiKeyMutation.mutateAsync();
-    return result.apiKey;
   };
 
   const getPlatformName = (platform: string) => {
