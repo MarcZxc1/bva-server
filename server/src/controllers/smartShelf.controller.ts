@@ -81,12 +81,19 @@ export const getAtRiskInventory = async (req: Request, res: Response) => {
 
     // 2. Prepare Data for ML Service
     const inventoryItems: MLInventoryItem[] = products.map(p => {
+      // Get quantity from inventory or product stock, ensure it's never negative
+      let quantity = p.inventories[0]?.quantity ?? p.stock ?? 0;
+      // Clamp negative values to 0 (ML service requires quantity >= 0)
+      if (quantity < 0) {
+        quantity = 0;
+      }
+      
       const item: MLInventoryItem = {
         product_id: p.id,
         sku: p.sku || `SKU-${p.id}`,
         name: p.name,
-        quantity: p.inventories[0]?.quantity ?? p.stock ?? 0, // Use inventory quantity, fallback to product stock
-        price: p.price,
+        quantity: quantity,
+        price: Math.max(0, p.price), // Ensure price is also non-negative
         categories: p.description ? [p.description] : []
       };
       // Only include expiry_date if it exists
