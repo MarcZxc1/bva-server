@@ -1,12 +1,20 @@
 // API Service Layer for Shopee-Clone
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+// Use relative URLs in development (goes through Vite proxy) or absolute URL in production
+const getBaseURL = () => {
+  // In development, use relative URLs to leverage Vite proxy
+  if (import.meta.env.DEV) {
+    return ''; // Empty string means relative URLs
+  }
+  // In production, use the full API URL
+  return import.meta.env.VITE_API_URL || 'http://localhost:3000';
+};
 
 class ApiClient {
   private baseURL: string;
   private token: string | null = null;
 
   constructor() {
-    this.baseURL = API_BASE_URL;
+    this.baseURL = getBaseURL();
     // Load token from localStorage on initialization
     this.token = localStorage.getItem('auth_token') || null;
   }
@@ -15,7 +23,9 @@ class ApiClient {
     endpoint: string,
     options: RequestInit = {}
   ): Promise<T> {
-    const url = `${this.baseURL}${endpoint}`;
+    // Ensure endpoint starts with /
+    const normalizedEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+    const url = this.baseURL ? `${this.baseURL}${normalizedEndpoint}` : normalizedEndpoint;
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
       ...options.headers,
