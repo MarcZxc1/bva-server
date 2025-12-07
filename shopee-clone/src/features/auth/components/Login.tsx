@@ -1,14 +1,40 @@
-import { useState } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../../contexts/AuthContext';
 import shopeeLogo from '../../../assets/Seller/Shopee-logo .png';
 import sellerIllustration from '../../../assets/Seller/Untitled-removebg-preview.png';
 import './Login.css';
 
 const Login = () => {
   const navigate = useNavigate();
+  const { login, isLoading, error, handleGoogleAuth } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
   const [phoneOrEmail, setPhoneOrEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [localError, setLocalError] = useState<string | null>(null);
+
+  const handleSubmit = useCallback(async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLocalError(null);
+    
+    if (!phoneOrEmail.trim() || !password.trim()) {
+      setLocalError('Please enter both email/username and password');
+      return;
+    }
+
+    try {
+      await login(phoneOrEmail.trim(), password);
+    } catch (err: any) {
+      setLocalError(err.message || 'Login failed. Please try again.');
+    }
+  }, [phoneOrEmail, password, login]);
+
+  const handleGoogleLogin = useCallback(() => {
+    handleGoogleAuth('SELLER');
+  }, [handleGoogleAuth]);
+
+  const displayError = useMemo(() => localError || error, [localError, error]);
+  const isFormValid = useMemo(() => phoneOrEmail.trim().length > 0 && password.length > 0, [phoneOrEmail, password]);
 
   return (
     <div className="login-container">
@@ -62,15 +88,22 @@ const Login = () => {
               </button>
             </div>
 
+            {displayError && (
+              <div className="error-message" style={{ 
+                padding: '12px', 
+                marginBottom: '16px', 
+                backgroundColor: '#fee', 
+                color: '#c33', 
+                borderRadius: '4px',
+                fontSize: '14px'
+              }}>
+                {displayError}
+              </div>
+            )}
+
             <form 
               className="login-form"
-              onSubmit={(e) => {
-                e.preventDefault();
-                // Handle login logic here
-                console.log('Login submitted', { phoneOrEmail, password });
-                // Redirect to dashboard after successful login
-                navigate('/dashboard');
-              }}
+              onSubmit={handleSubmit}
             >
               <div className="input-group">
                 <input
@@ -79,6 +112,8 @@ const Login = () => {
                   value={phoneOrEmail}
                   onChange={(e) => setPhoneOrEmail(e.target.value)}
                   className="form-input"
+                  disabled={isLoading}
+                  autoComplete="username"
                 />
               </div>
 
@@ -89,12 +124,15 @@ const Login = () => {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="form-input"
+                  disabled={isLoading}
+                  autoComplete="current-password"
                 />
                 <button
                   type="button"
                   className="eye-icon-btn"
                   onClick={() => setShowPassword(!showPassword)}
                   aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  disabled={isLoading}
                 >
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                     {showPassword ? (
@@ -112,8 +150,13 @@ const Login = () => {
                 </button>
               </div>
 
-              <button type="submit" className="login-btn">
-                LOG IN
+              <button 
+                type="submit" 
+                className="login-btn"
+                disabled={isLoading || !isFormValid}
+                style={{ opacity: (isLoading || !isFormValid) ? 0.6 : 1, cursor: (isLoading || !isFormValid) ? 'not-allowed' : 'pointer' }}
+              >
+                {isLoading ? 'LOGGING IN...' : 'LOG IN'}
               </button>
             </form>
 
@@ -132,7 +175,13 @@ const Login = () => {
                 </svg>
                 Facebook
               </button>
-              <button className="social-btn google-btn" type="button">
+              <button 
+                className="social-btn google-btn" 
+                type="button"
+                onClick={handleGoogleLogin}
+                disabled={isLoading}
+                style={{ opacity: isLoading ? 0.6 : 1, cursor: isLoading ? 'not-allowed' : 'pointer' }}
+              >
                 <svg className="google-icon" width="20" height="20" viewBox="0 0 24 24">
                   <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
                   <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>

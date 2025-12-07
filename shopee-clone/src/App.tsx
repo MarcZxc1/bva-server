@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { CartProvider } from './contexts/CartContext';
 import { OrderProvider } from './contexts/OrderContext';
 import { AuthProvider } from './contexts/AuthContext';
+import { ProtectedRoute } from './components/ProtectedRoute';
 import Login from './features/auth/components/Login';
 import SellerDashboard from './features/seller/components/SellerDashboard';
 import MyOrders from './features/seller/components/MyOrders';
@@ -32,17 +33,59 @@ function App() {
               <Route path="/" element={<BuyerLandingPage />} />
               <Route path="/signup" element={<BuyerSignUp />} />
               <Route path="/buyer-login" element={<BuyerLogIn />} />
-              <Route path="/account" element={<BuyerAccount />} />
-              <Route path="/purchase" element={<BuyerPurchase />} />
+              <Route 
+                path="/account" 
+                element={
+                  <ProtectedRoute requiredRole="BUYER">
+                    <BuyerAccount />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/purchase" 
+                element={
+                  <ProtectedRoute requiredRole="BUYER">
+                    <BuyerPurchase />
+                  </ProtectedRoute>
+                } 
+              />
               <Route path="/cart" element={<BuyerCart />} />
-              <Route path="/checkout" element={<BuyerCheckout />} />
+              <Route 
+                path="/checkout" 
+                element={
+                  <ProtectedRoute requiredRole="BUYER">
+                    <BuyerCheckout />
+                  </ProtectedRoute>
+                } 
+              />
               <Route path="/product/:id" element={<BuyerProductDetail />} />
               
               {/* Seller Routes */}
               <Route path="/login" element={<Login />} />
-              <Route path="/dashboard" element={<SellerDashboard />} />
-              <Route path="/orders" element={<MyOrders />} />
-              <Route path="/income" element={<MyIncome />} />
+              <Route 
+                path="/dashboard" 
+                element={
+                  <ProtectedRoute requiredRole="SELLER">
+                    <SellerDashboard />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/orders" 
+                element={
+                  <ProtectedRoute requiredRole="SELLER">
+                    <MyOrders />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/income" 
+                element={
+                  <ProtectedRoute requiredRole="SELLER">
+                    <MyIncome />
+                  </ProtectedRoute>
+                } 
+              />
             </Routes>
           </Router>
         </OrderProvider>

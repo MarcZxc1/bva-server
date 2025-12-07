@@ -71,27 +71,47 @@ class ApiClient {
 
   // Auth endpoints
   async register(data: {
-    username: string;
+    username?: string;
     email: string;
     password: string;
     phoneNumber?: string;
     role?: 'BUYER' | 'SELLER';
+    name?: string;
   }) {
+    // Server expects email, password, name, role (not username)
+    const payload: any = {
+      email: data.email,
+      password: data.password,
+      role: data.role || 'BUYER',
+    };
+    
+    if (data.name) {
+      payload.name = data.name;
+    } else if (data.username) {
+      payload.name = data.username;
+    }
+    
     return this.request<{ user: any; token: string }>('/api/auth/register', {
       method: 'POST',
-      body: JSON.stringify(data),
+      body: JSON.stringify(payload),
     });
   }
 
-  async login(identifier: string, password: string) {
+  async login(email: string, password: string) {
+    // Server expects email and password (not identifier)
     return this.request<{ user: any; token: string }>('/api/auth/login', {
       method: 'POST',
-      body: JSON.stringify({ identifier, password }),
+      body: JSON.stringify({ email, password }),
     });
   }
 
   async getMe() {
-    return this.request<any>('/api/auth/me');
+    const userData = await this.request<any>('/api/auth/me');
+    // Server returns shops in the response
+    return {
+      ...userData,
+      shops: userData.shops || [],
+    };
   }
 
   async logout() {
