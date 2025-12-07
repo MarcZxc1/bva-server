@@ -60,7 +60,43 @@ const categories: Category[] = [
   { id: 18, name: 'Motors', image: '🏍️' },
 ];
 
+interface Product {
+  id: string;
+  name: string;
+  price: number;
+  stock?: number;
+  imageUrl?: string;
+  category?: string;
+  shop?: {
+    id: string;
+    name: string;
+  };
+}
+
 const BuyerLandingPage: React.FC = () => {
+  const [products, setProducts] = useState<Product[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchProducts = async () => {
+      try {
+        setIsLoading(true);
+        setError(null);
+        const data = await apiClient.getProducts();
+        setProducts(data || []);
+      } catch (err: any) {
+        console.error('Error fetching products:', err);
+        setError(err.message || 'Failed to load products');
+        setProducts([]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchProducts();
+  }, []);
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Navbar */}
