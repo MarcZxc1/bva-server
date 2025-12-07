@@ -48,6 +48,13 @@ async function clearDatabase() {
     const notifications = await prisma.notification.deleteMany();
     console.log(`  ✅ Deleted ${notifications.count} notifications`);
 
+    // Verify all Sales are deleted before deleting Shops
+    const remainingSales = await prisma.sale.count();
+    if (remainingSales > 0) {
+      console.log(`  ⚠️  Found ${remainingSales} remaining sales, deleting them...`);
+      await prisma.sale.deleteMany();
+    }
+
     console.log("Deleting Shop...");
     const shops = await prisma.shop.deleteMany();
     console.log(`  ✅ Deleted ${shops.count} shops`);
