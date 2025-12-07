@@ -175,6 +175,9 @@ class AuthService {
       const decoded = jwt.verify(token, this.JWT_SECRET) as {
         userId: string;
         role: string;
+        email?: string;
+        name?: string;
+        shopId?: string | null;
       };
       return decoded;
     } catch (error) {

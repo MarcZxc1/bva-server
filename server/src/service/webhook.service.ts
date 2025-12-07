@@ -42,20 +42,29 @@ class WebhookService {
 
     // Create inventory record if it doesn't exist
     if (product.stock !== undefined) {
-      await prisma.inventory.upsert({
+      const existingInventory = await prisma.inventory.findFirst({
         where: {
           productId: product.id,
         },
-        update: {
-          quantity: product.stock,
-          updatedAt: new Date(),
-        },
-        create: {
-          productId: product.id,
-          quantity: product.stock,
-          threshold: 10, // Default threshold
-        },
       });
+
+      if (existingInventory) {
+        await prisma.inventory.update({
+          where: { id: existingInventory.id },
+          data: {
+            quantity: product.stock,
+            updatedAt: new Date(),
+          },
+        });
+      } else {
+        await prisma.inventory.create({
+          data: {
+            productId: product.id,
+            quantity: product.stock,
+            threshold: 10, // Default threshold
+          },
+        });
+      }
     }
 
     return product;
@@ -270,18 +279,30 @@ class WebhookService {
     });
 
     // Update inventory
-    const inventory = await prisma.inventory.upsert({
-      where: { productId: product.id },
-      update: {
-        quantity: data.quantity || data.stock || 0,
-        updatedAt: new Date(),
-      },
-      create: {
+    const existingInventory = await prisma.inventory.findFirst({
+      where: {
         productId: product.id,
-        quantity: data.quantity || data.stock || 0,
-        threshold: data.threshold || 10,
       },
     });
+
+    let inventory;
+    if (existingInventory) {
+      inventory = await prisma.inventory.update({
+        where: { id: existingInventory.id },
+        data: {
+          quantity: data.quantity || data.stock || 0,
+          updatedAt: new Date(),
+        },
+      });
+    } else {
+      inventory = await prisma.inventory.create({
+        data: {
+          productId: product.id,
+          quantity: data.quantity || data.stock || 0,
+          threshold: data.threshold || 10,
+        },
+      });
+    }
 
     return inventory;
   }

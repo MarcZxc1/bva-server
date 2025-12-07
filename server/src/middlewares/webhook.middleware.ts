@@ -27,10 +27,10 @@ export const webhookMiddleware = async (
 
     // Verify token
     try {
-      const decoded = authService.verifyToken(token);
+      const decoded = authService.verifyToken(token) as any;
       (req as any).user = decoded;
       (req as any).userId = decoded.userId;
-      (req as any).shopId = decoded.shopId;
+      (req as any).shopId = decoded.shopId || null;
       next();
     } catch (error) {
       return res.status(401).json({
