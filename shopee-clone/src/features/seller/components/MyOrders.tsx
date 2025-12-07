@@ -4,7 +4,7 @@ import Breadcrumb from './Breadcrumb';
 import { useAuth } from '../../../contexts/AuthContext';
 import apiClient from '../../../services/api';
 import { useRealtimeOrders } from '../../../hooks/useRealtimeOrders';
-import { Wifi, WifiOff } from 'lucide-react';
+import { Wifi } from 'lucide-react';
 import './MyOrders.css';
 
 interface Order {
