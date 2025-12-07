@@ -9,7 +9,8 @@ export default defineConfig({
     host: true,
     proxy: {
       '/api': {
-        target: process.env.VITE_API_URL || 'http://localhost:3000',
+        // Default to port 5000 (server default) or use VITE_API_URL if set
+        target: process.env.VITE_API_URL || 'http://localhost:5000',
         changeOrigin: true,
         secure: false,
         rewrite: (path) => path,
