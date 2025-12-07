@@ -14,7 +14,6 @@ const UserDropdown = ({ isOpen, onClose }: UserDropdownProps) => {
   const { user, logout } = useAuth();
 
   const userName = user?.name || user?.username || user?.email || 'User';
-  const shopName = user?.shops?.[0]?.name || 'My Shop';
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {

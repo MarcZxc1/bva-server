@@ -224,7 +224,7 @@ const MyOrders = () => {
     try {
       await apiClient.updateOrderStatus(orderId, 'to-receive');
       // Send webhook to BVA server
-      const { webhookService } = await import('../../../../services/webhook.service');
+      const { webhookService } = await import('../../../services/webhook.service');
       await webhookService.sendOrderStatusChanged(orderId, 'to-receive');
       fetchOrders(); // Refresh orders
       alert('Order shipped! The buyer will be notified.');
@@ -242,7 +242,7 @@ const MyOrders = () => {
     try {
       await apiClient.updateOrderStatus(orderId, 'completed');
       // Send webhook to BVA server
-      const { webhookService } = await import('../../../../services/webhook.service');
+      const { webhookService } = await import('../../../services/webhook.service');
       await webhookService.sendOrderStatusChanged(orderId, 'completed');
       fetchOrders(); // Refresh orders
       alert('Delivery confirmed! Order marked as completed.');

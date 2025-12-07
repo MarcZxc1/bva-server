@@ -17,7 +17,6 @@ const DashboardHeader = () => {
   };
 
   const userName = user?.name || user?.username || user?.email || 'User';
-  const shopName = user?.shops?.[0]?.name || 'My Shop';
 
   return (
     <header className="dashboard-header">
