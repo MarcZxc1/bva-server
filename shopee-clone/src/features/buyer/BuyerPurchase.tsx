@@ -284,18 +284,20 @@ const BuyerPurchase: React.FC = () => {
                                 {/* Status and Actions */}
                                 <div className="flex-shrink-0 flex flex-col items-end gap-4">
                                   {/* Status Badge */}
-                                  {order.status === 'to-pay' && (
-                                    <span className="text-shopee-orange font-semibold text-sm">TO PAY</span>
-                                  )}
-                                  {order.status === 'to-ship' && (
-                                    <span className="text-blue-500 font-semibold text-sm">TO SHIP</span>
-                                  )}
-                                  {order.status === 'to-receive' && (
-                                    <span className="text-purple-500 font-semibold text-sm">TO RECEIVE</span>
-                                  )}
-                                  {order.status === 'completed' && (
-                                    <span className="text-green-500 font-semibold text-sm">COMPLETED</span>
-                                  )}
+                                  <div className="flex items-center gap-2">
+                                    {getStatusIcon(order.status)}
+                                    <span className={`font-semibold text-sm ${
+                                      order.status === 'to-pay' ? 'text-shopee-orange' :
+                                      order.status === 'to-ship' ? 'text-blue-500' :
+                                      order.status === 'to-receive' ? 'text-purple-500' :
+                                      order.status === 'completed' ? 'text-green-500' :
+                                      order.status === 'cancelled' ? 'text-red-500' :
+                                      order.status === 'return-refund' ? 'text-yellow-500' :
+                                      'text-gray-600'
+                                    }`}>
+                                      {getStatusLabel(order.status).toUpperCase()}
+                                    </span>
+                                  </div>
 
                                   {/* Amount Payable */}
                                   <div className="text-right">
