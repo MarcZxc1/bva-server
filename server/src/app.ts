@@ -22,6 +22,7 @@ import campaignRoutes from "./routes/campaign.routes";
 import orderRoutes from "./routes/order.routes";
 import sellerRoutes from "./routes/seller.routes";
 import integrationRoutes from "./routes/integration.routes";
+import externalRoutes from "./routes/external.routes";
 
 const app: Application = express();
 
@@ -103,15 +104,7 @@ app.use("/api/users", userRoutes);
 app.use("/api/v1/notifications", notificationRoutes);
 
 // Register Product Router
-console.log("🔧 Registering Product Routes at /api/products");
-app.get("/api/products/test-direct", (req, res) => {
-  console.log("[TEST] Direct route hit!");
-  res.json({ message: "Direct route works!", test: true });
-});
-app.use("/api/products", (req, res, next) => {
-  console.log(`[DEBUG] Product route middleware: ${req.method} ${req.url}`);
-  next();
-}, productRoutes);
+app.use("/api/products", productRoutes);
 
 // Register Reports Router
 app.use("/api/reports", reportsRoutes);
@@ -132,7 +125,6 @@ app.use("/api/seller", sellerRoutes);
 app.use("/api/integrations", integrationRoutes);
 
 // Register External API Router (for Shopee-Clone to expose data to BVA)
-import externalRoutes from "./routes/external.routes";
 app.use("/api/external", externalRoutes);
 
 // --- 3. Export the App ---

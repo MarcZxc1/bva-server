@@ -2,7 +2,6 @@
 import { Request, Response, NextFunction } from "express";
 import { authService } from "../service/auth.service";
 import prisma from "../lib/prisma";
-import prisma from "../lib/prisma";
 
 /**
  * Middleware to authenticate requests using API key
@@ -38,14 +37,9 @@ export const apiKeyMiddleware = async (
       // If token verification fails, check if it's an API key
       // For API keys starting with "sk_", we need to find the integration
       if (apiKey.startsWith("sk_")) {
-        // Find integration by API key stored in settings
-        const integration = await prisma.integration.findFirst({
-          where: {
-            settings: {
-              path: ["apiKey"],
-              equals: apiKey,
-            },
-          },
+        // Find all integrations and check their settings for the API key
+        // Prisma doesn't support direct JSON field queries easily, so we fetch and filter
+        const integrations = await prisma.integration.findMany({
           include: {
             shop: {
               include: {
@@ -53,6 +47,11 @@ export const apiKeyMiddleware = async (
               },
             },
           },
+        });
+
+        const integration = integrations.find((int) => {
+          const settings = int.settings as Record<string, any>;
+          return settings?.apiKey === apiKey;
         });
 
         if (!integration) {

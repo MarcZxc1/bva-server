@@ -89,6 +89,12 @@ export class IntegrationController {
   async getIntegrationById(req: Request, res: Response) {
     try {
       const { id } = req.params;
+      if (!id) {
+        return res.status(400).json({
+          success: false,
+          error: "Integration ID is required",
+        });
+      }
       const integration = await integrationService.getIntegrationById(id);
 
       if (!integration) {
@@ -118,6 +124,12 @@ export class IntegrationController {
   async updateIntegration(req: Request, res: Response) {
     try {
       const { id } = req.params;
+      if (!id) {
+        return res.status(400).json({
+          success: false,
+          error: "Integration ID is required",
+        });
+      }
       const { apiKey, settings } = req.body;
 
       const integration = await integrationService.updateIntegration(id, {
@@ -145,6 +157,12 @@ export class IntegrationController {
   async deleteIntegration(req: Request, res: Response) {
     try {
       const { id } = req.params;
+      if (!id) {
+        return res.status(400).json({
+          success: false,
+          error: "Integration ID is required",
+        });
+      }
       await integrationService.deleteIntegration(id);
 
       return res.json({
@@ -167,6 +185,12 @@ export class IntegrationController {
   async testConnection(req: Request, res: Response) {
     try {
       const { id } = req.params;
+      if (!id) {
+        return res.status(400).json({
+          success: false,
+          error: "Integration ID is required",
+        });
+      }
       const result = await integrationService.testConnection(id);
 
       return res.json(result);
@@ -186,6 +210,12 @@ export class IntegrationController {
   async syncIntegration(req: Request, res: Response) {
     try {
       const { id } = req.params;
+      if (!id) {
+        return res.status(400).json({
+          success: false,
+          error: "Integration ID is required",
+        });
+      }
       const result = await integrationService.syncIntegration(id);
 
       return res.json(result);

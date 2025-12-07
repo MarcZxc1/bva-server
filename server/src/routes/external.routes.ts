@@ -29,7 +29,7 @@ router.get("/orders", apiKeyMiddleware, async (req: Request, res: Response) => {
     const shopId = (req as any).user?.shopId;
     if (shopId) {
       // Create a modified request with shopId in params
-      const modifiedReq = { ...req, params: { ...req.params, shopId } } as Request;
+      const modifiedReq = Object.assign(req, { params: { ...req.params, shopId } });
       return orderController.getSellerOrders(modifiedReq, res);
     }
     // Fallback to my orders
