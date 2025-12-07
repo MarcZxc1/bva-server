@@ -18,7 +18,11 @@ router.get(
 );
 
 // Create product (protected - seller only)
-router.post("/", authMiddleware, productController.createProduct);
+router.post("/", (req, res, next) => {
+  console.log("[PRODUCT ROUTE] POST /api/products hit");
+  console.log("[PRODUCT ROUTE] Headers:", req.headers);
+  authMiddleware(req, res, next);
+}, productController.createProduct);
 
 // Update product (protected - seller only)
 router.put("/:id", authMiddleware, productController.updateProduct);
