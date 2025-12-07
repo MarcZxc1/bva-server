@@ -39,6 +39,426 @@ Before starting, ensure you have the following installed:
 
 ---
 
+## Windows Setup Guide
+
+### Step 1: Install Required Software
+
+#### Install Node.js
+
+1. Download Node.js from [nodejs.org](https://nodejs.org/)
+2. Choose the **LTS version** (recommended)
+3. Run the installer and follow the setup wizard
+4. Verify installation:
+   ```powershell
+   node --version
+   npm --version
+   ```
+
+#### Install Python
+
+1. Download Python from [python.org](https://www.python.org/downloads/)
+2. **Important:** Check "Add Python to PATH" during installation
+3. Choose Python 3.9 or higher
+4. Verify installation:
+   ```powershell
+   python --version
+   pip --version
+   ```
+
+#### Install PostgreSQL
+
+**Option A: Using Installer (Recommended for Windows)**
+
+1. Download PostgreSQL from [postgresql.org/download/windows/](https://www.postgresql.org/download/windows/)
+2. Run the installer
+3. Remember the password you set for the `postgres` user
+4. Keep default port `5432`
+5. Verify installation:
+   ```powershell
+   psql --version
+   ```
+
+**Option B: Using Docker Desktop**
+
+1. Install [Docker Desktop for Windows](https://www.docker.com/products/docker-desktop/)
+2. Start Docker Desktop
+3. Use the `docker-compose.yml` file (see below)
+
+#### Install Git
+
+1. Download Git from [git-scm.com/download/win](https://git-scm.com/download/win)
+2. Run the installer with default settings
+3. Verify installation:
+   ```powershell
+   git --version
+   ```
+
+#### Install Redis (Optional but Recommended)
+
+**Option A: Using Docker Desktop**
+
+1. Use Docker Compose (see below)
+
+**Option B: Using WSL2 (Windows Subsystem for Linux)**
+
+1. Install WSL2: `wsl --install`
+2. Install Redis in WSL: `sudo apt-get install redis-server`
+
+**Option C: Using Memurai (Windows-native Redis)**
+
+1. Download from [memurai.com](https://www.memurai.com/)
+2. Install and start the service
+
+### Step 2: Install Docker Desktop (Recommended)
+
+1. Download [Docker Desktop for Windows](https://www.docker.com/products/docker-desktop/)
+2. Install and restart your computer if prompted
+3. Start Docker Desktop
+4. Verify installation:
+   ```powershell
+   docker --version
+   docker-compose --version
+   ```
+
+### Step 3: Clone Repository
+
+Open **PowerShell** or **Command Prompt**:
+
+```powershell
+# Navigate to your desired directory
+cd C:\Users\YourName\Documents
+
+# Clone the repository
+git clone <repository-url>
+cd bva-server
+```
+
+### Step 4: Install Dependencies
+
+#### Install Root Dependencies
+
+```powershell
+npm install
+```
+
+#### Install All Workspace Dependencies
+
+```powershell
+npm run install:all
+```
+
+### Step 5: Database Setup (Windows)
+
+#### Using Docker Desktop (Recommended)
+
+```powershell
+# Start PostgreSQL and Redis
+docker-compose up -d postgres redis
+
+# Verify they're running
+docker ps
+```
+
+#### Manual PostgreSQL Setup
+
+1. **Start PostgreSQL Service:**
+   ```powershell
+   # Open Services (Win + R, type: services.msc)
+   # Find "postgresql-x64-XX" and start it
+   # Or use PowerShell:
+   Start-Service postgresql-x64-14
+   ```
+
+2. **Create Database:**
+   ```powershell
+   # Connect to PostgreSQL (use the password you set during installation)
+   psql -U postgres
+   
+   # In PostgreSQL prompt:
+   CREATE DATABASE virtual_business_assistant;
+   \q
+   ```
+
+   **Alternative using pgAdmin:**
+   - Open pgAdmin (installed with PostgreSQL)
+   - Right-click "Databases" → Create → Database
+   - Name: `virtual_business_assistant`
+   - Click Save
+
+### Step 6: Environment Variables (Windows)
+
+Create `.env` files in each service directory. You can use **Notepad** or **VS Code**:
+
+#### Backend Server (`server\.env`)
+
+```env
+# Database (adjust password if different)
+DATABASE_URL="postgresql://postgres:YOUR_PASSWORD@localhost:5432/virtual_business_assistant"
+
+# JWT Authentication
+JWT_SECRET="your-super-secret-jwt-key-change-this-in-production"
+JWT_EXPIRATION="24h"
+
+# Server Configuration
+PORT=3000
+NODE_ENV=development
+BASE_URL="http://localhost:3000"
+BACKEND_URL="http://localhost:3000"
+
+# Frontend URLs
+FRONTEND_URL="http://localhost:8080"
+VITE_API_URL="http://localhost:3000/api"
+
+# Google OAuth 2.0
+GOOGLE_CLIENT_ID="your-google-client-id"
+GOOGLE_CLIENT_SECRET="your-google-client-secret"
+
+# ML Service
+ML_SERVICE_URL="http://localhost:8001"
+
+# Redis
+REDIS_URL="redis://localhost:6379"
+```
+
+#### ML Service (`ml-service\.env`)
+
+```env
+# Google Gemini API
+GEMINI_API_KEY="your-google-gemini-api-key"
+
+# ML Service Configuration
+ML_SERVICE_PORT=8001
+ML_SERVICE_HOST="0.0.0.0"
+
+# Model Configuration
+GEMINI_MODEL="gemini-2.0-flash-exp"
+IMAGEN_MODEL="gemini-2.5-flash-image"
+
+# Redis
+REDIS_URL="redis://localhost:6379"
+```
+
+#### Frontend (`bva-frontend\.env`)
+
+```env
+VITE_API_URL=http://localhost:3000/api
+VITE_GOOGLE_CLIENT_ID=your-google-client-id
+```
+
+#### Shopee Clone (`shopee-clone\.env`)
+
+```env
+VITE_API_URL=http://localhost:3000/api
+```
+
+### Step 7: Database Migration (Windows)
+
+```powershell
+cd server
+
+# Generate Prisma Client
+npx prisma generate
+
+# Run migrations
+npx prisma migrate dev
+
+# (Optional) View database in Prisma Studio
+npx prisma studio
+```
+
+### Step 8: ML Service Setup (Windows)
+
+```powershell
+cd ml-service
+
+# Create virtual environment
+python -m venv venv
+
+# Activate virtual environment
+.\venv\Scripts\activate
+
+# Install dependencies
+pip install -r requirements.txt
+```
+
+**Note:** If you get an error about execution policy, run:
+```powershell
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+```
+
+### Step 9: Start Services (Windows)
+
+#### Option A: Start All at Once
+
+**Using PowerShell:**
+
+```powershell
+# From root directory
+npm start
+```
+
+**Using Git Bash or WSL:**
+
+```bash
+./start-all.sh
+```
+
+#### Option B: Start Individually (Multiple PowerShell Windows)
+
+**PowerShell Window 1 - ML Service:**
+```powershell
+cd ml-service
+.\venv\Scripts\activate
+uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload
+```
+
+**PowerShell Window 2 - Backend Server:**
+```powershell
+cd server
+npm run dev
+```
+
+**PowerShell Window 3 - BVA Frontend:**
+```powershell
+cd bva-frontend
+npm run dev
+```
+
+**PowerShell Window 4 - Shopee Clone:**
+```powershell
+cd shopee-clone
+npm run dev
+```
+
+### Windows-Specific Troubleshooting
+
+#### Issue: PowerShell Execution Policy
+
+**Error:** `cannot be loaded because running scripts is disabled on this system`
+
+**Solution:**
+```powershell
+# Run PowerShell as Administrator
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+```
+
+#### Issue: Port Already in Use
+
+**Error:** `EADDRINUSE: address already in use :::3000`
+
+**Solution:**
+```powershell
+# Find process using port
+netstat -ano | findstr :3000
+
+# Kill process (replace <PID> with actual process ID)
+taskkill /PID <PID> /F
+```
+
+#### Issue: Python Virtual Environment Not Activating
+
+**Error:** `venv\Scripts\activate : The term 'venv\Scripts\activate' is not recognized`
+
+**Solution:**
+```powershell
+# Use full path or relative path with .\
+.\venv\Scripts\Activate.ps1
+
+# Or use Command Prompt instead of PowerShell
+cmd
+venv\Scripts\activate.bat
+```
+
+#### Issue: Docker Not Starting
+
+**Error:** `Docker daemon is not running`
+
+**Solution:**
+1. Start Docker Desktop application
+2. Wait for it to fully start (whale icon in system tray)
+3. Verify: `docker ps`
+
+#### Issue: PostgreSQL Connection Failed
+
+**Error:** `Can't reach database server`
+
+**Solution:**
+```powershell
+# Check if PostgreSQL service is running
+Get-Service postgresql*
+
+# Start PostgreSQL service
+Start-Service postgresql-x64-14
+
+# Or use Services GUI (Win + R, type: services.msc)
+```
+
+#### Issue: Long Path Names
+
+**Error:** `Filename too long` or path issues
+
+**Solution:**
+1. Enable long paths in Windows:
+   ```powershell
+   # Run as Administrator
+   New-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem" -Name "LongPathsEnabled" -Value 1 -PropertyType DWORD -Force
+   ```
+2. Or clone repository to a shorter path (e.g., `C:\dev\bva-server`)
+
+#### Issue: Git Bash vs PowerShell
+
+**Recommendation:** Use **PowerShell** for most commands, but you can use **Git Bash** if you prefer Linux-style commands.
+
+**PowerShell Commands:**
+```powershell
+# Navigate
+cd server
+
+# Run npm scripts
+npm run dev
+
+# Activate Python venv
+.\venv\Scripts\activate
+```
+
+**Git Bash Commands:**
+```bash
+# Navigate
+cd server
+
+# Run npm scripts
+npm run dev
+
+# Activate Python venv
+source venv/Scripts/activate
+```
+
+### Windows Development Tips
+
+1. **Use VS Code:**
+   - Install [VS Code](https://code.visualstudio.com/)
+   - Install extensions: ESLint, Prettier, Python, Prisma
+   - Open integrated terminal (Ctrl + `)
+
+2. **Terminal Options:**
+   - **PowerShell** (recommended) - Native Windows terminal
+   - **Git Bash** - Linux-like commands
+   - **Windows Terminal** - Modern terminal with tabs
+
+3. **File Paths:**
+   - Use backslashes `\` in PowerShell: `.\venv\Scripts\activate`
+   - Use forward slashes `/` in Git Bash: `./venv/Scripts/activate`
+   - Both work in most cases
+
+4. **Environment Variables:**
+   - Create `.env` files in each service directory
+   - Use Notepad, VS Code, or any text editor
+   - Save as `.env` (not `.env.txt`)
+
+---
+
+---
+
 ## Quick Start
 
 ### Option 1: One-Command Start (Recommended)
@@ -113,30 +533,31 @@ docker ps
 
 #### Manual PostgreSQL Setup
 
-1. Install PostgreSQL:
-   ```bash
-   # Ubuntu/Debian
-   sudo apt-get install postgresql postgresql-contrib
-   
-   # macOS
-   brew install postgresql
-   brew services start postgresql
-   
-   # Windows
-   # Download from https://www.postgresql.org/download/windows/
-   ```
+**Linux (Ubuntu/Debian):**
+```bash
+sudo apt-get install postgresql postgresql-contrib
+```
 
-2. Create database:
-   ```bash
-   # Connect to PostgreSQL
-   psql -U postgres
-   
-   # Create database
-   CREATE DATABASE virtual_business_assistant;
-   
-   # Exit
-   \q
-   ```
+**macOS:**
+```bash
+brew install postgresql
+brew services start postgresql
+```
+
+**Windows:**
+See [Windows Setup Guide](#windows-setup-guide) section above for detailed instructions.
+
+**Create Database (All Platforms):**
+```bash
+# Connect to PostgreSQL
+psql -U postgres
+
+# Create database
+CREATE DATABASE virtual_business_assistant;
+
+# Exit
+\q
+```
 
 ### Step 4: Environment Variables
 
@@ -258,8 +679,14 @@ npm start
 
 **Terminal 1 - ML Service:**
 ```bash
+# Linux/macOS:
 cd ml-service
-source venv/bin/activate  # Windows: venv\Scripts\activate
+source venv/bin/activate
+uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload
+
+# Windows (PowerShell):
+cd ml-service
+.\venv\Scripts\activate
 uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload
 ```
 
@@ -453,17 +880,27 @@ ML_SERVICE_PORT = 8001
 **Error:** `EADDRINUSE: address already in use :::3000`
 
 **Solution:**
+
+**Linux/macOS:**
 ```bash
 # Find process using port
-lsof -i :3000  # macOS/Linux
-netstat -ano | findstr :3000  # Windows
+lsof -i :3000
 
 # Kill process
-kill -9 <PID>  # macOS/Linux
-taskkill /PID <PID> /F  # Windows
-
-# Or change port in config
+kill -9 <PID>
 ```
+
+**Windows:**
+```powershell
+# Find process using port
+netstat -ano | findstr :3000
+
+# Kill process (replace <PID> with actual process ID)
+taskkill /PID <PID> /F
+```
+
+**Or change port in config:**
+See [Port Configuration](#port-configuration) section.
 
 #### 2. Database Connection Failed
 
@@ -488,18 +925,29 @@ psql -U postgres -d virtual_business_assistant
 **Error:** `ModuleNotFoundError` or Python errors
 
 **Solution:**
+
+**Linux/macOS:**
 ```bash
 cd ml-service
-
-# Ensure virtual environment is activated
-source venv/bin/activate  # Linux/macOS
-venv\Scripts\activate  # Windows
-
-# Reinstall dependencies
+source venv/bin/activate
 pip install -r requirements.txt
-
-# Check Python version
 python --version  # Should be >= 3.9
+```
+
+**Windows:**
+```powershell
+cd ml-service
+.\venv\Scripts\activate
+pip install -r requirements.txt
+python --version  # Should be >= 3.9
+```
+
+**If activation fails on Windows:**
+```powershell
+# Run PowerShell as Administrator
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+# Then try activating again
+.\venv\Scripts\activate
 ```
 
 #### 4. Prisma Client Not Generated
