@@ -1,7 +1,6 @@
 import prisma from "../lib/prisma";
 import { User, Prisma, Role } from "../generated/prisma";
 import bcrypt from "bcrypt";
-import { seedShopData } from "./shopSeed.service";
 
 export class UserService {
   async register(email: string, password: string, name?: string) {
@@ -192,21 +191,14 @@ export class UserService {
       throw error;
     }
 
-    // CRITICAL: If role is SELLER, create shop and seed data
+    // If role is SELLER, create shop (no automatic data seeding)
+    // Data will come from Shopee-Clone webhooks when user connects their account
     if (role === "SELLER") {
-      // Create shop for the seller
-      const shop = await prisma.shop.create({
+      await prisma.shop.create({
         data: {
           name: `${name || "My"}'s Shop`,
           ownerId: user.id,
         },
-      });
-
-      // Seed shop with fake store data (products, inventory, sales)
-      // This runs asynchronously to avoid blocking the response
-      seedShopData(shop.id).catch((error) => {
-        console.error(`❌ Error seeding shop ${shop.id} for Shopee user:`, error);
-        // Don't fail the sync if seeding fails
       });
     }
 

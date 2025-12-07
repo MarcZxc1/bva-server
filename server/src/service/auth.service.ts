@@ -296,10 +296,9 @@ class AuthService {
       });
     }
 
-    // Trigger data sync from Shopee-Clone (async, don't block login)
-    shopeeIntegrationService.syncAllData(user.id, apiKey).catch((error) => {
-      console.error(`❌ Error syncing Shopee-Clone data for user ${user!.id}:`, error);
-    });
+    // Note: Data sync from Shopee-Clone should be triggered manually via webhooks
+    // or through the integration settings page, not automatically on login
+    // Removed automatic sync to prevent unwanted data creation
 
     // Fetch user's shop if they're a seller
     const userShops = await prisma.shop.findMany({
