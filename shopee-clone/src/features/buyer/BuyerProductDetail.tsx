@@ -157,7 +157,7 @@ const BuyerProductDetail: React.FC = () => {
       shopName: shopName,
       unitPrice: productPrice,
       quantity: quantity,
-      variations: selectedVariation || '',
+      variations: selectedVariation || 'Standard',
     });
   };
 
@@ -424,35 +424,34 @@ const BuyerProductDetail: React.FC = () => {
             <div className="space-y-3 text-sm">
               <div className="flex">
                 <span className="w-40 text-gray-600">Category:</span>
-                <span className="text-gray-800">{product.specifications.category}</span>
+                <span className="text-gray-800">{product.category || 'N/A'}</span>
               </div>
               <div className="flex">
                 <span className="w-40 text-gray-600">Stock Status:</span>
-                <span className="text-green-600 font-semibold">IN STOCK</span>
+                <span className="text-green-600 font-semibold">
+                  {product.stock && product.stock > 0 ? 'IN STOCK' : 'OUT OF STOCK'}
+                </span>
               </div>
-              {product.specifications.brand && (
+              {product.stock !== undefined && (
                 <div className="flex">
-                  <span className="w-40 text-gray-600">Brand:</span>
-                  <span className="text-gray-800">{product.specifications.brand}</span>
+                  <span className="w-40 text-gray-600">Stock Quantity:</span>
+                  <span className="text-gray-800">{product.stock}</span>
+                </div>
+              )}
+              {product.sku && (
+                <div className="flex">
+                  <span className="w-40 text-gray-600">SKU:</span>
+                  <span className="text-gray-800">{product.sku}</span>
                 </div>
               )}
               <div className="flex">
                 <span className="w-40 text-gray-600">Condition:</span>
-                <span className="text-gray-800">{product.specifications.condition}</span>
+                <span className="text-gray-800">New</span>
               </div>
               <div className="flex">
                 <span className="w-40 text-gray-600">Ships From:</span>
-                <span className="text-gray-800">{product.specifications.shipsFrom}</span>
+                <span className="text-gray-800">{product.shop?.name || 'Shop'}</span>
               </div>
-              {Object.entries(product.specifications).map(([key, value]) => {
-                if (key === 'category' || key === 'condition' || key === 'shipsFrom' || key === 'brand' || !value) return null;
-                return (
-                  <div key={key} className="flex">
-                    <span className="w-40 text-gray-600 capitalize">{key.replace(/([A-Z])/g, ' $1').trim()}:</span>
-                    <span className="text-gray-800">{value}</span>
-                  </div>
-                );
-              })}
             </div>
           </div>
 
