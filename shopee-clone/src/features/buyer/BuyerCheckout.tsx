@@ -54,18 +54,22 @@ const BuyerCheckout: React.FC = () => {
     };
   };
 
+  const { user } = useAuth();
+  
+  // Get delivery address from user data
   const deliveryAddress = {
-    name: 'Rowena Mendoza',
-    phone: '(+63) 956 889 9756',
-    address: '48 San Miguel St. RP, Gulod, Quezon City, Metro Manila, Metro Manila 1117',
+    name: user?.name || user?.username || 'User',
+    phone: user?.phoneNumber || 'Not provided',
+    address: 'Address not set. Please update your profile.',
     isDefault: true,
   };
 
+  // Calculate shipping info (can be enhanced with real shipping API)
   const shippingInfo = {
-    deliveryDate: '16 - 18 Dec',
+    deliveryDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
     method: 'Standard Local',
     fee: 36,
-    voucherNote: 'Get a ₱50 voucher if no delivery was attempted by 18 Dec 2025.',
+    voucherNote: `Get a ₱50 voucher if no delivery was attempted by ${new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}.`,
   };
 
   // Payment method is set by seller (display only for buyer)

@@ -1,11 +1,11 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Image as ImageIcon, Play } from 'lucide-react';
 import BuyerNavbar from './components/BuyerNavbar';
 import HeroBanner from './components/HeroBanner';
 import FeatureIcons from './components/FeatureIcons';
 import CategoryCard from './components/CategoryCard';
-import { dailyDiscoverProducts } from '../../data/dailyDiscoverProducts';
+import apiClient from '../../services/api';
 
 // Payment Methods
 import spayImg from '../../assets/PAYMENTS/buyer-spay.png';
@@ -146,97 +146,66 @@ const BuyerLandingPage: React.FC = () => {
             <div className="h-1 bg-shopee-orange w-full mt-3"></div>
           </div>
           
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
-            {dailyDiscoverProducts.map((product) => (
-              <Link
-                to={`/product/${product.id}`}
-                key={product.id}
-                className="bg-white border border-gray-200 hover:shadow-lg transition-all cursor-pointer group flex flex-col"
+          {isLoading ? (
+            <div className="text-center py-12">
+              <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-shopee-orange"></div>
+              <p className="mt-4 text-gray-500">Loading products...</p>
+            </div>
+          ) : error ? (
+            <div className="text-center py-12">
+              <p className="text-red-500">{error}</p>
+              <button
+                onClick={() => window.location.reload()}
+                className="mt-4 text-shopee-orange hover:text-shopee-orange-dark"
               >
-                {/* Product Image */}
-                <div className="relative aspect-square bg-gray-50 overflow-hidden">
-                  <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200">
-                    <span className="text-5xl opacity-50">
-                      {product.image}
-                    </span>
-                  </div>
-                  
-                  {/* Discount Badge */}
-                  {product.discount && (
-                    <div className="absolute top-2 right-2 bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded">
-                      -{product.discount}%
-                    </div>
-                  )}
-                  
-                  {/* Bottom Left Badges */}
-                  <div className="absolute bottom-2 left-2 flex flex-col gap-1">
-                    {product.badges.some(b => b.includes('Sulit Deal')) && (
-                      <span className="bg-orange-500 text-white text-[10px] font-semibold px-1.5 py-0.5 rounded">
-                        {product.badges.find(b => b.includes('Sulit Deal'))}
-                      </span>
-                    )}
-                    {product.badges.some(b => b.includes('% off') && !b.includes('Sulit Deal')) && (
-                      <span className="bg-orange-500 text-white text-[10px] font-semibold px-1.5 py-0.5 rounded">
-                        {product.badges.find(b => b.includes('% off') && !b.includes('Sulit Deal'))}
-                      </span>
-                    )}
-                    {product.badges.some(b => b.includes('12.12 SALE')) && !product.badges.some(b => b.includes('Sulit Deal')) && (
-                      <span className="bg-pink-500 text-white text-[10px] font-semibold px-1.5 py-0.5 rounded">
-                        {product.badges.find(b => b.includes('12.12 SALE'))}
-                      </span>
-                    )}
-                    {product.badges.some(b => b.includes('Damaged Full Refund')) && (
-                      <span className="bg-red-500 text-white text-[10px] font-semibold px-1.5 py-0.5 rounded">
-                        Damaged Full Refund
-                      </span>
+                Retry
+              </button>
+            </div>
+          ) : products.length === 0 ? (
+            <div className="text-center py-12">
+              <p className="text-gray-500">No products available</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
+              {products.map((product) => (
+                <Link
+                  to={`/product/${product.id}`}
+                  key={product.id}
+                  className="bg-white border border-gray-200 hover:shadow-lg transition-all cursor-pointer group flex flex-col"
+                >
+                  {/* Product Image */}
+                  <div className="relative aspect-square bg-gray-50 overflow-hidden">
+                    {product.imageUrl ? (
+                      <img
+                        src={product.imageUrl}
+                        alt={product.name}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200">
+                        <span className="text-5xl opacity-50">📦</span>
+                      </div>
                     )}
                   </div>
                   
-                  {/* Video Play Icon */}
-                  {product.hasVideo && (
-                    <div className="absolute bottom-2 left-2 bg-black/60 rounded-full p-1.5">
-                      <Play size={14} className="text-white" fill="white" />
+                  {/* Product Info */}
+                  <div className="p-2 flex-1 flex flex-col">
+                    <div className="text-shopee-orange text-lg font-medium mb-1">
+                      ₱{product.price?.toLocaleString() || '0'}
                     </div>
-                  )}
-                  
-                  {/* Badges */}
-                  <div className="absolute top-2 left-2 flex flex-col gap-1">
-                    {product.badges.includes('Preferred') && (
-                      <span className="bg-yellow-400 text-yellow-900 text-[10px] font-semibold px-1.5 py-0.5 rounded">Preferred</span>
-                    )}
-                    {product.badges.includes('✓Choice') && (
-                      <span className="bg-blue-500 text-white text-[10px] font-semibold px-1.5 py-0.5 rounded">✓Choice</span>
-                    )}
-                    {product.badges.includes('Selling Fast') && (
-                      <span className="bg-red-500 text-white text-[10px] font-semibold px-1.5 py-0.5 rounded">Selling Fast</span>
-                    )}
-                    {product.badges.includes('Sulit Deal') && (
-                      <span className="bg-orange-500 text-white text-[10px] font-semibold px-1.5 py-0.5 rounded">Sulit Deal</span>
-                    )}
-                    {product.badges.includes('MEGA DISCOUNT') && (
-                      <span className="bg-purple-500 text-white text-[10px] font-semibold px-1.5 py-0.5 rounded">MEGA DISCOUNT</span>
-                    )}
-                    {product.badges.includes('CASHBACK') && (
-                      <span className="bg-green-500 text-white text-[10px] font-semibold px-1.5 py-0.5 rounded">CASHBACK</span>
-                    )}
-                    {product.badges.includes('12.12 SALE') && (
-                      <span className="bg-pink-500 text-white text-[10px] font-semibold px-1.5 py-0.5 rounded">12.12 SALE</span>
+                    <div className="text-xs text-gray-600 line-clamp-2 flex-1">
+                      {product.name}
+                    </div>
+                    {product.shop && (
+                      <div className="text-xs text-gray-400 mt-1">
+                        {product.shop.name}
+                      </div>
                     )}
                   </div>
-                  
-                  {/* Voucher Badge */}
-                  {product.voucher && (
-                    <div className="absolute bottom-2 right-2 bg-blue-500 text-white text-[10px] font-semibold px-1.5 py-0.5 rounded whitespace-nowrap">
-                      {product.voucher}
-                    </div>
-                  )}
-                </div>
-
-                {/* Product Info */}
-                <div className="p-2 flex-1 flex flex-col">
-                  {/* Product Title */}
-                  <div className="text-[11px] text-gray-800 line-clamp-2 mb-1.5 min-h-[2.5rem]">
-                    {product.name}
+                </Link>
+              ))}
+            </div>
+          )}
                   </div>
                   
                   {/* Choice Text */}

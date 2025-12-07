@@ -4,55 +4,107 @@ import BuyerFooter from './components/BuyerFooter';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { Star, Heart, Truck, ShieldCheck, ShoppingCart, MessageCircle, Store, Facebook, MessageSquare, Twitter, Play } from 'lucide-react';
 import { useCart } from '../../contexts/CartContext';
-import { dailyDiscoverProducts, Product } from '../../data/dailyDiscoverProducts';
+import apiClient from '../../services/api';
+
+interface Product {
+  id: string;
+  name: string;
+  description?: string;
+  price: number;
+  cost?: number;
+  stock?: number;
+  imageUrl?: string;
+  category?: string;
+  sku?: string;
+  shop?: {
+    id: string;
+    name: string;
+  };
+}
 
 const BuyerProductDetail: React.FC = () => {
   const { id: productId } = useParams();
   const navigate = useNavigate();
   const { addToCart } = useCart();
+  const [product, setProduct] = useState<Product | null>(null);
+  const [relatedProducts, setRelatedProducts] = useState<Product[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [selectedVariation, setSelectedVariation] = useState<string>('');
   const [quantity, setQuantity] = useState(1);
   const [selectedImage, setSelectedImage] = useState(0);
   const [countdown, setCountdown] = useState({ hours: 4, minutes: 7, seconds: 3 });
 
-  // Find product from data or use default
-  const foundProduct = dailyDiscoverProducts.find(p => p.id === parseInt(productId || '1'));
-  const defaultProduct: Product = {
-    id: parseInt(productId || '1'),
-    name: '【Glue-Free】 100-120 Cluster Eyelashes Super Sticky Eyelash Extension Self-Adhesive New Upgraded',
-    fullName: '【Glue-Free】 100-120 Cluster Eyelashes Super Sticky Eyelash Extension Self-Adhesive New Upgraded',
-    image: '👁️',
-    price: 15,
-    originalPrice: 80,
-    shopName: 'EYEFY_OFFICE STORE',
-    shopLocation: 'Manila, Metro Manila',
-    rating: 4.6,
-    ratingsCount: 2000,
-    sold: 10000,
-    favoriteCount: 1300,
-    badges: [],
-    hasVideo: false,
-    description: 'Premium quality self-adhesive false eyelashes.',
-    specifications: {
-      category: 'Beauty & Personal Care > Makeup > False Eyelashes',
-      condition: 'New',
-      shipsFrom: 'Manila, Metro Manila',
-    },
-    variations: [
-      'Sunflower_no tweezer',
-      'Sunflower+tweezer',
-      'Fish Tail_no tweezer',
-      'Fish Tail+tweezer',
-      'Trilogy_no tweezer',
-      'Trilogy+tweezer',
-      'Blue+Purple+Tweezers',
-      'Blue+Pink+Tweezers',
-    ],
-    reviews: [],
-  };
+  useEffect(() => {
+    const fetchProduct = async () => {
+      if (!productId) {
+        setError('Product ID is required');
+        setIsLoading(false);
+        return;
+      }
 
-  const product = foundProduct || defaultProduct;
-  const variations = product.variations || defaultProduct.variations;
+      try {
+        setIsLoading(true);
+        setError(null);
+        const data = await apiClient.getProductById(productId);
+        setProduct(data);
+        
+        // Fetch related products (same category or shop)
+        if (data.category || data.shop?.id) {
+          try {
+            const allProducts = await apiClient.getProducts();
+            const related = allProducts
+              .filter((p: Product) => 
+                p.id !== productId && 
+                (p.category === data.category || p.shop?.id === data.shop?.id)
+              )
+              .slice(0, 6);
+            setRelatedProducts(related);
+          } catch (err) {
+            console.error('Error fetching related products:', err);
+          }
+        }
+      } catch (err: any) {
+        console.error('Error fetching product:', err);
+        setError(err.message || 'Failed to load product');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchProduct();
+  }, [productId]);
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <BuyerNavbar />
+        <div className="max-w-[1200px] mx-auto px-5 py-12 text-center">
+          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-shopee-orange"></div>
+          <p className="mt-4 text-gray-500">Loading product...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !product) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <BuyerNavbar />
+        <div className="max-w-[1200px] mx-auto px-5 py-12 text-center">
+          <p className="text-red-500 mb-4">{error || 'Product not found'}</p>
+          <button
+            onClick={() => navigate('/')}
+            className="text-shopee-orange hover:text-shopee-orange-dark"
+          >
+            Return to Home
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const variations: string[] = [];
 
   // Set initial variation
   useEffect(() => {
@@ -91,16 +143,18 @@ const BuyerProductDetail: React.FC = () => {
   }, [productId]);
 
   const handleAddToCart = () => {
+    if (!product) return;
+    
     addToCart({
       productId: product.id,
       name: product.name,
-      fullName: product.fullName,
-      image: product.image,
-      shopName: product.shopName,
-      unitPrice: product.price,
-      originalPrice: product.originalPrice,
+      fullName: product.name,
+      image: productImage,
+      shopName: shopName,
+      shopId: product.shop?.id || '',
+      unitPrice: productPrice,
       quantity: quantity,
-      variations: selectedVariation,
+      variations: selectedVariation ? [selectedVariation] : [],
     });
   };
 
@@ -139,7 +193,7 @@ const BuyerProductDetail: React.FC = () => {
                 </div>
               </div>
               <div className="grid grid-cols-5 gap-2 mb-4">
-                {[product.image, product.image, product.image, product.image, product.image].map((t, i) => (
+                {[productImage, productImage, productImage, productImage, productImage].map((t, i) => (
                   <div
                     key={i}
                     onClick={() => setSelectedImage(i)}
@@ -175,7 +229,7 @@ const BuyerProductDetail: React.FC = () => {
                   </button>
                 </div>
                 <button className="flex items-center gap-2 text-gray-600 hover:text-shopee-orange ml-4">
-                  <Heart size={16} /> Favorite ({product.favoriteCount.toLocaleString()})
+                  <Heart size={16} /> Favorite (0)
                 </button>
               </div>
             </div>
@@ -183,24 +237,26 @@ const BuyerProductDetail: React.FC = () => {
             {/* Right: Info */}
             <div>
               <h1 className="text-lg font-semibold text-gray-800 leading-tight">
-                {product.name}
+                {productName}
               </h1>
 
               <div className="mt-3 flex items-center gap-4 text-sm">
                 <div className="flex items-center gap-1">
-                  <span className="font-semibold text-shopee-orange">{product.rating}</span>
+                  <span className="font-semibold text-shopee-orange">4.5</span>
                   <Star size={16} className="text-yellow-400 fill-yellow-400" />
-                  <span className="text-gray-500">({product.ratingsCount.toLocaleString()} Ratings)</span>
+                  <span className="text-gray-500">(0 Ratings)</span>
                 </div>
-                <div className="text-gray-500">{product.sold.toLocaleString()}+ Sold</div>
+                <div className="text-gray-500">0+ Sold</div>
               </div>
 
               {/* Flash Deals Section */}
               <div className="mt-4 bg-gradient-to-r from-orange-500 to-red-500 text-white p-4 rounded">
                 <div className="text-xs font-semibold mb-2">FLASH DEALS</div>
                 <div className="flex items-baseline gap-3 mb-2">
-                  <div className="text-3xl font-bold">₱{product.price}</div>
-                  <span className="text-sm line-through opacity-80">₱{product.originalPrice}</span>
+                  <div className="text-3xl font-bold">₱{productPrice.toLocaleString()}</div>
+                  {product.cost && product.cost > productPrice && (
+                    <span className="text-sm line-through opacity-80">₱{product.cost.toLocaleString()}</span>
+                  )}
                 </div>
                 <div className="flex items-center gap-2 text-xs">
                   <span>ENDS IN</span>
@@ -293,7 +349,7 @@ const BuyerProductDetail: React.FC = () => {
                   onClick={handleBuyNow}
                   className="flex-1 px-6 py-4 bg-shopee-orange text-white rounded-lg font-semibold hover:bg-shopee-orange-dark transition-colors text-lg"
                 >
-                  Buy With Voucher ₱{product.price}
+                  Buy With Voucher ₱{productPrice.toLocaleString()}
                 </button>
               </div>
             </div>
@@ -305,11 +361,11 @@ const BuyerProductDetail: React.FC = () => {
           <div className="flex items-start justify-between">
             <div className="flex items-center gap-4">
               <div className="w-16 h-16 rounded-full bg-gradient-to-br from-purple-400 to-pink-400 flex items-center justify-center text-white text-2xl font-bold">
-                {product.shopName.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()}
+                {shopName.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()}
               </div>
               <div>
-                <h3 className="text-lg font-semibold text-gray-800">{product.shopName}</h3>
-                <p className="text-sm text-gray-500">{product.shopLocation} • Active 21 Minutes Ago</p>
+                <h3 className="text-lg font-semibold text-gray-800">{shopName}</h3>
+                <p className="text-sm text-gray-500">Active Now</p>
               </div>
             </div>
             <div className="flex items-center gap-3">
@@ -417,8 +473,8 @@ const BuyerProductDetail: React.FC = () => {
           <h2 className="text-lg font-bold text-gray-800 mb-4">Product Description</h2>
           <div className="space-y-4 text-sm text-gray-700">
             <div>
-              <h3 className="font-semibold text-gray-800 mb-2">{product.name}</h3>
-              <p className="text-gray-700 leading-relaxed">{product.description}</p>
+              <h3 className="font-semibold text-gray-800 mb-2">{productName}</h3>
+              <p className="text-gray-700 leading-relaxed">{productDescription}</p>
             </div>
             
             <div>
@@ -481,18 +537,18 @@ const BuyerProductDetail: React.FC = () => {
           
           <div className="flex items-start gap-8 mb-6">
             <div className="text-center">
-              <div className="text-4xl font-bold text-shopee-orange mb-2">{product.rating.toFixed(1)}</div>
+              <div className="text-4xl font-bold text-shopee-orange mb-2">4.5</div>
               <div className="text-sm text-gray-600 mb-2">out of 5</div>
               <div className="flex items-center gap-1 justify-center">
                 {[...Array(5)].map((_, i) => (
                   <Star 
                     key={i} 
                     size={20} 
-                    className={i < Math.floor(product.rating) ? 'text-yellow-400 fill-yellow-400' : i < product.rating ? 'text-yellow-400 fill-yellow-400 opacity-50' : 'text-gray-300'} 
+                    className={i < 4 ? 'text-yellow-400 fill-yellow-400' : 'text-gray-300'} 
                   />
                 ))}
               </div>
-              <div className="text-xs text-gray-500 mt-2">({product.ratingsCount.toLocaleString()} Ratings)</div>
+              <div className="text-xs text-gray-500 mt-2">(0 Ratings)</div>
             </div>
             
             <div className="flex-1">
@@ -526,9 +582,9 @@ const BuyerProductDetail: React.FC = () => {
           </div>
 
           {/* Reviews List */}
-          {product.reviews && product.reviews.length > 0 ? (
+          {false ? (
             <div className="space-y-6">
-              {product.reviews.map((review) => (
+              {[].map((review: any) => (
                 <div key={review.id} className="border-b border-gray-200 pb-6 last:border-b-0">
                   <div className="flex items-start gap-4">
                     <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-purple-400 flex items-center justify-center text-white font-semibold">
