@@ -5,7 +5,7 @@ import { useAuth } from '../../../contexts/AuthContext';
 import apiClient from '../../../services/api';
 import { useRealtimeProducts } from '../../../hooks/useRealtimeProducts';
 import AddProductModal from './AddProductModal';
-import { Plus, Edit, Trash2, Package, Search, Filter, Wifi, WifiOff } from 'lucide-react';
+import { Plus, Edit, Trash2, Package, Search, Wifi } from 'lucide-react';
 import './MyProducts.css';
 
 interface Product {

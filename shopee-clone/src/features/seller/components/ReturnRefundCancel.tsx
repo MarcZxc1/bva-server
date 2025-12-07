@@ -3,7 +3,7 @@ import SellerLayout from './SellerLayout';
 import Breadcrumb from './Breadcrumb';
 import { useAuth } from '../../../contexts/AuthContext';
 import apiClient from '../../../services/api';
-import { RotateCw, XCircle, CheckCircle, Clock, Search, Filter } from 'lucide-react';
+import { RotateCw, XCircle, CheckCircle, Clock, Search } from 'lucide-react';
 import './ReturnRefundCancel.css';
 
 interface ReturnRequest {
