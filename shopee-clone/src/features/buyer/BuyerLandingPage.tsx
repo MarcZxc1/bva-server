@@ -1,11 +1,11 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Play } from 'lucide-react';
 import BuyerNavbar from './components/BuyerNavbar';
 import HeroBanner from './components/HeroBanner';
 import FeatureIcons from './components/FeatureIcons';
 import CategoryCard from './components/CategoryCard';
-import { dailyDiscoverProducts } from '../../data/dailyDiscoverProducts';
+import apiClient from '../../services/api';
 
 // Payment Methods
 import spayImg from '../../assets/PAYMENTS/buyer-spay.png';
