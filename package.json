@@ -10,6 +10,7 @@
     "shopee-auth"
   ],
   "scripts": {
+    "start": "./start-all.sh",
     "dev": "concurrently -n \"SERVER,FRONTEND,SHOPEE\" -c \"blue,green,yellow\" \"npm run dev:server\" \"npm run dev:frontend\" \"npm run dev:shopee\"",
     "dev:server": "cd server && npm run dev",
     "dev:frontend": "cd bva-frontend && npm run dev",
