@@ -3,6 +3,7 @@ import { Router, Request, Response } from "express";
 import passport from "../config/passport";
 import { authController } from "../controllers/auth.controller";
 import { authService } from "../service/auth.service";
+import { apiKeyController } from "../controllers/apiKey.controller";
 import jwt from "jsonwebtoken";
 import prisma from "../lib/prisma";
 
@@ -305,7 +306,6 @@ router.post("/shopee-sync", authMiddleware, (req: Request, res: Response) =>
  * @desc    Generate API key for external integrations
  * @access  Private
  */
-import { apiKeyController } from "../controllers/apiKey.controller";
 router.post("/generate-api-key", authMiddleware, (req: Request, res: Response) =>
   apiKeyController.generateApiKey(req, res)
 );
