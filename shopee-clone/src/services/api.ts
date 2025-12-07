@@ -49,6 +49,17 @@ class ApiClient {
         throw new Error('Unauthorized');
       }
 
+      // Check if response is JSON before parsing
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        // If it's HTML (like a 404 page), extract error message
+        if (response.status === 404) {
+          throw new Error(`API endpoint not found: ${endpoint}. Please check if the server is running and the route exists.`);
+        }
+        const text = await response.text();
+        throw new Error(`Unexpected response format. Expected JSON but got ${contentType}. Status: ${response.status}. Response: ${text.substring(0, 100)}`);
+      }
+
       const data = await response.json();
 
       // Handle wrapped responses { success: boolean, data: T }
