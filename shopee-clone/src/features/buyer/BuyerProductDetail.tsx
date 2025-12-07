@@ -3,7 +3,7 @@ import BuyerNavbar from './components/BuyerNavbar';
 import BuyerFooter from './components/BuyerFooter';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { Star, Heart, Truck, ShieldCheck, ShoppingCart, MessageCircle, Store, Facebook, MessageSquare, Twitter, Play } from 'lucide-react';
-import { useCart, CartItem } from '../../contexts/CartContext';
+import { useCart } from '../../contexts/CartContext';
 import apiClient from '../../services/api';
 
 interface Product {
@@ -149,11 +149,8 @@ const BuyerProductDetail: React.FC = () => {
     const shopName = product.shop?.name || 'Shop';
     const productPrice = product.price;
     
-    // Type assertion to satisfy TypeScript's type checking
-    const productId: string | number = product.id;
-    
     addToCart({
-      productId,
+      productId: product.id as any, // Temporary fix: product.id is string, CartItem accepts string | number
       name: product.name,
       fullName: product.name,
       image: productImage,
