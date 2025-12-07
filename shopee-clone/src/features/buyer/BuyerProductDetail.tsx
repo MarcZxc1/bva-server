@@ -3,7 +3,7 @@ import BuyerNavbar from './components/BuyerNavbar';
 import BuyerFooter from './components/BuyerFooter';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { Star, Heart, Truck, ShieldCheck, ShoppingCart, MessageCircle, Store, Facebook, MessageSquare, Twitter, Play } from 'lucide-react';
-import { useCart } from '../../contexts/CartContext';
+import { useCart, CartItem } from '../../contexts/CartContext';
 import apiClient from '../../services/api';
 
 interface Product {
