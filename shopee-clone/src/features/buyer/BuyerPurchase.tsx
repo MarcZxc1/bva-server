@@ -35,12 +35,14 @@ const BuyerPurchase: React.FC = () => {
           const transformedOrders: Order[] = apiOrders.map((apiOrder: any) => {
             const items = Array.isArray(apiOrder.items) ? apiOrder.items : [];
             const firstItem = items[0] || {};
+            // Get image from first item, fallback to emoji if not available
+            const productImage = firstItem.imageUrl || firstItem.image || '📦';
             return {
               id: apiOrder.id,
               product: {
                 name: firstItem.productName || 'Product',
                 fullName: firstItem.productName || 'Product',
-                image: '📦',
+                image: productImage,
               },
               status: (apiOrder.status || 'to-pay') as OrderStatus,
               price: firstItem.price || apiOrder.total || 0,
@@ -329,10 +331,22 @@ const BuyerPurchase: React.FC = () => {
                                 {/* Product Image */}
                                 <div className="flex-shrink-0">
                                   <div className="w-20 h-20 bg-gray-100 rounded-lg flex items-center justify-center overflow-hidden border border-gray-200">
-                                    {order.product.image.startsWith('http') || order.product.image.startsWith('/') ? (
-                                      <img src={order.product.image} alt={order.product.name} className="w-full h-full object-cover" />
+                                    {order.product.image && (order.product.image.startsWith('http') || order.product.image.startsWith('/')) ? (
+                                      <img 
+                                        src={order.product.image} 
+                                        alt={order.product.name} 
+                                        className="w-full h-full object-cover"
+                                        onError={(e) => {
+                                          // Fallback to placeholder if image fails to load
+                                          const target = e.target as HTMLImageElement;
+                                          target.style.display = 'none';
+                                          if (target.parentElement) {
+                                            target.parentElement.innerHTML = '<span class="text-4xl">📦</span>';
+                                          }
+                                        }}
+                                      />
                                     ) : (
-                                      <span className="text-4xl">{order.product.image}</span>
+                                      <span className="text-4xl">{order.product.image || '📦'}</span>
                                     )}
                                   </div>
                                 </div>

@@ -16,6 +16,7 @@ interface Order {
     productName?: string;
     quantity: number;
     price: number;
+    imageUrl?: string | null;
   }>;
   total: number;
   revenue?: number;
@@ -688,12 +689,54 @@ const MyOrders = () => {
                 <div className="order-products">
                   {items.length > 0 ? (
                     items.map((item, idx) => (
-                      <div key={idx} className="product-item">
-                        <div className="product-info">
-                          <span className="product-name">{item.productName || `Product ${item.productId || idx + 1}`}</span>
-                          <span className="product-quantity">x{item.quantity || 1}</span>
+                      <div key={idx} className="product-item" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        {/* Product Image */}
+                        <div className="product-image-container" style={{ 
+                          width: '60px', 
+                          height: '60px', 
+                          flexShrink: 0,
+                          borderRadius: '8px',
+                          overflow: 'hidden',
+                          backgroundColor: '#f5f5f5',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          border: '1px solid #e0e0e0'
+                        }}>
+                          {item.imageUrl ? (
+                            <img 
+                              src={item.imageUrl} 
+                              alt={item.productName || `Product ${idx + 1}`}
+                              style={{ 
+                                width: '100%', 
+                                height: '100%', 
+                                objectFit: 'cover' 
+                              }}
+                              onError={(e) => {
+                                // Fallback to placeholder if image fails to load
+                                const target = e.target as HTMLImageElement;
+                                target.style.display = 'none';
+                                if (target.parentElement) {
+                                  target.parentElement.innerHTML = '<span style="font-size: 24px;">📦</span>';
+                                }
+                              }}
+                            />
+                          ) : (
+                            <span style={{ fontSize: '24px' }}>📦</span>
+                          )}
                         </div>
-                        <span className="product-price">₱{((item.price || 0) * (item.quantity || 1)).toLocaleString()}</span>
+                        {/* Product Info */}
+                        <div className="product-info" style={{ flex: 1, minWidth: 0 }}>
+                          <span className="product-name" style={{ display: 'block', marginBottom: '4px' }}>
+                            {item.productName || `Product ${item.productId || idx + 1}`}
+                          </span>
+                          <span className="product-quantity" style={{ fontSize: '14px', color: '#666' }}>
+                            x{item.quantity || 1}
+                          </span>
+                        </div>
+                        <span className="product-price" style={{ fontWeight: '600', color: '#ee4d2d' }}>
+                          ₱{((item.price || 0) * (item.quantity || 1)).toLocaleString()}
+                        </span>
                       </div>
                     ))
                   ) : (

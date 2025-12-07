@@ -207,6 +207,36 @@ export async function getMyOrders(userId: string) {
     throw new Error("User not found");
   }
 
+  // Helper function to enrich items with product images
+  const enrichItemsWithImages = async (items: any[]) => {
+    if (!Array.isArray(items) || items.length === 0) return items;
+
+    // Extract all product IDs
+    const productIds = items
+      .map(item => item.productId)
+      .filter(Boolean);
+
+    if (productIds.length === 0) return items;
+
+    // Fetch products with images
+    const products = await prisma.product.findMany({
+      where: { id: { in: productIds } },
+      select: { id: true, imageUrl: true },
+    });
+
+    // Create a map of productId -> imageUrl
+    const productImageMap = new Map<string, string | null>();
+    products.forEach(p => {
+      if (p.id) productImageMap.set(p.id, p.imageUrl);
+    });
+
+    // Enrich items with imageUrl
+    return items.map(item => ({
+      ...item,
+      imageUrl: item.productId ? productImageMap.get(item.productId) || null : null,
+    }));
+  };
+
   // If user is a buyer, get orders where customerEmail matches
   // If user is a seller, get orders from their shops
   if (user.role === "BUYER") {
@@ -227,15 +257,39 @@ export async function getMyOrders(userId: string) {
       },
     });
 
-    return orders.map(order => ({
-      id: order.id,
-      shopId: order.shopId,
-      shopName: order.shop.name,
-      items: order.items,
-      total: order.total,
-      status: order.status,
-      createdAt: order.createdAt,
-    }));
+    // Enrich all orders with product images
+    const enrichedOrders = await Promise.all(
+      orders.map(async order => {
+        let items: any[] = [];
+        const rawItems = order.items;
+        if (Array.isArray(rawItems)) {
+          items = rawItems;
+        } else if (typeof rawItems === 'string') {
+          try {
+            const parsed = JSON.parse(rawItems);
+            items = Array.isArray(parsed) ? parsed : [];
+          } catch {
+            items = [];
+          }
+        } else if (rawItems && typeof rawItems === 'object') {
+          items = [rawItems];
+        }
+
+        const enrichedItems = await enrichItemsWithImages(items);
+
+        return {
+          id: order.id,
+          shopId: order.shopId,
+          shopName: order.shop.name,
+          items: enrichedItems,
+          total: order.total,
+          status: order.status,
+          createdAt: order.createdAt,
+        };
+      })
+    );
+
+    return enrichedOrders;
   } else {
     // Seller: get orders from their shops
     const shopIds = user.shops.map(shop => shop.id);
@@ -256,40 +310,46 @@ export async function getMyOrders(userId: string) {
       },
     });
 
-    return orders.map(order => {
-      // Ensure items is always an array
-      let items = order.items;
-      if (!Array.isArray(items)) {
-        // If items is a string, try to parse it
-        if (typeof items === 'string') {
+    // Enrich all orders with product images
+    const enrichedOrders = await Promise.all(
+      orders.map(async order => {
+        // Ensure items is always an array
+        let items: any[] = [];
+        const rawItems = order.items;
+        if (Array.isArray(rawItems)) {
+          items = rawItems;
+        } else if (typeof rawItems === 'string') {
           try {
-            items = JSON.parse(items);
+            const parsed = JSON.parse(rawItems);
+            items = Array.isArray(parsed) ? parsed : [];
           } catch {
             items = [];
           }
-        } else if (items && typeof items === 'object') {
+        } else if (rawItems && typeof rawItems === 'object') {
           // If it's an object but not an array, wrap it
-          items = [items];
-        } else {
-          items = [];
+          items = [rawItems];
         }
-      }
 
-      return {
-        id: order.id,
-        shopId: order.shopId,
-        shopName: order.shop.name,
-        items: items,
-        total: order.total,
-        revenue: order.revenue,
-        profit: order.profit,
-        status: order.status,
-        customerName: order.customerName,
-        customerEmail: order.customerEmail,
-        createdAt: order.createdAt,
-        platform: order.platform,
-      };
-    });
+        const enrichedItems = await enrichItemsWithImages(items);
+
+        return {
+          id: order.id,
+          shopId: order.shopId,
+          shopName: order.shop.name,
+          items: enrichedItems,
+          total: order.total,
+          revenue: order.revenue,
+          profit: order.profit,
+          status: order.status,
+          customerName: order.customerName,
+          customerEmail: order.customerEmail,
+          createdAt: order.createdAt,
+          platform: order.platform,
+        };
+      })
+    );
+
+    return enrichedOrders;
   }
 }
 
@@ -332,19 +392,74 @@ export async function getSellerOrders(
     },
   });
 
-  return orders.map(order => ({
-    id: order.id,
-    shopId: order.shopId,
-    shopName: order.shop.name,
-    items: order.items,
-    total: order.total,
-    revenue: order.revenue,
-    profit: order.profit,
-    status: order.status,
-    customerName: order.customerName,
-    customerEmail: order.customerEmail,
-    createdAt: order.createdAt,
-  }));
+  // Helper function to enrich items with product images
+  const enrichItemsWithImages = async (items: any[]) => {
+    if (!Array.isArray(items) || items.length === 0) return items;
+
+    // Extract all product IDs
+    const productIds = items
+      .map(item => item.productId)
+      .filter(Boolean);
+
+    if (productIds.length === 0) return items;
+
+    // Fetch products with images
+    const products = await prisma.product.findMany({
+      where: { id: { in: productIds } },
+      select: { id: true, imageUrl: true },
+    });
+
+    // Create a map of productId -> imageUrl
+    const productImageMap = new Map<string, string | null>();
+    products.forEach(p => {
+      if (p.id) productImageMap.set(p.id, p.imageUrl);
+    });
+
+    // Enrich items with imageUrl
+    return items.map(item => ({
+      ...item,
+      imageUrl: item.productId ? productImageMap.get(item.productId) || null : null,
+    }));
+  };
+
+  // Enrich all orders with product images
+  const enrichedOrders = await Promise.all(
+    orders.map(async order => {
+      // Ensure items is always an array
+      let items: any[] = [];
+      const rawItems = order.items;
+      if (Array.isArray(rawItems)) {
+        items = rawItems;
+      } else if (typeof rawItems === 'string') {
+        try {
+          const parsed = JSON.parse(rawItems);
+          items = Array.isArray(parsed) ? parsed : [];
+        } catch {
+          items = [];
+        }
+      } else if (rawItems && typeof rawItems === 'object') {
+        items = [rawItems];
+      }
+
+      const enrichedItems = await enrichItemsWithImages(items);
+
+      return {
+        id: order.id,
+        shopId: order.shopId,
+        shopName: order.shop.name,
+        items: enrichedItems,
+        total: order.total,
+        revenue: order.revenue,
+        profit: order.profit,
+        status: order.status,
+        customerName: order.customerName,
+        customerEmail: order.customerEmail,
+        createdAt: order.createdAt,
+      };
+    })
+  );
+
+  return enrichedOrders;
 }
 
 export async function updateOrderStatus(orderId: string, status: string) {
