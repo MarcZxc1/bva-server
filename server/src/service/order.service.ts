@@ -256,19 +256,40 @@ export async function getMyOrders(userId: string) {
       },
     });
 
-    return orders.map(order => ({
-      id: order.id,
-      shopId: order.shopId,
-      shopName: order.shop.name,
-      items: order.items,
-      total: order.total,
-      revenue: order.revenue,
-      profit: order.profit,
-      status: order.status,
-      customerName: order.customerName,
-      customerEmail: order.customerEmail,
-      createdAt: order.createdAt,
-    }));
+    return orders.map(order => {
+      // Ensure items is always an array
+      let items = order.items;
+      if (!Array.isArray(items)) {
+        // If items is a string, try to parse it
+        if (typeof items === 'string') {
+          try {
+            items = JSON.parse(items);
+          } catch {
+            items = [];
+          }
+        } else if (items && typeof items === 'object') {
+          // If it's an object but not an array, wrap it
+          items = [items];
+        } else {
+          items = [];
+        }
+      }
+
+      return {
+        id: order.id,
+        shopId: order.shopId,
+        shopName: order.shop.name,
+        items: items,
+        total: order.total,
+        revenue: order.revenue,
+        profit: order.profit,
+        status: order.status,
+        customerName: order.customerName,
+        customerEmail: order.customerEmail,
+        createdAt: order.createdAt,
+        platform: order.platform,
+      };
+    });
   }
 }
 

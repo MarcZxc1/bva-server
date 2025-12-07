@@ -246,7 +246,8 @@ const MyOrders = () => {
           return order.customerName?.toLowerCase().includes(searchLower) ||
                  order.customerEmail?.toLowerCase().includes(searchLower);
         case 'product':
-          return order.items.some(item => 
+          const items = Array.isArray(order.items) ? order.items : [];
+          return items.some(item => 
             item.productName?.toLowerCase().includes(searchLower)
           );
         default:
@@ -644,19 +645,31 @@ const MyOrders = () => {
         </div>
       ) : (
         <div className="orders-list">
-          {filteredOrders.map((order) => (
-            <div key={order.id} className="order-item">
-              <div className="order-products">
-                {order.items.map((item, idx) => (
-                  <div key={idx} className="product-item">
-                    <div className="product-info">
-                      <span className="product-name">{item.productName || `Product ${item.productId}`}</span>
-                      <span className="product-quantity">x{item.quantity}</span>
+          {filteredOrders.map((order) => {
+            // Ensure items is always an array
+            const items = Array.isArray(order.items) ? order.items : [];
+            
+            return (
+              <div key={order.id} className="order-item">
+                <div className="order-products">
+                  {items.length > 0 ? (
+                    items.map((item, idx) => (
+                      <div key={idx} className="product-item">
+                        <div className="product-info">
+                          <span className="product-name">{item.productName || `Product ${item.productId || idx + 1}`}</span>
+                          <span className="product-quantity">x{item.quantity || 1}</span>
+                        </div>
+                        <span className="product-price">₱{((item.price || 0) * (item.quantity || 1)).toLocaleString()}</span>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="product-item">
+                      <div className="product-info">
+                        <span className="product-name">No items</span>
+                      </div>
                     </div>
-                    <span className="product-price">₱{(item.price * item.quantity).toLocaleString()}</span>
-                  </div>
-                ))}
-              </div>
+                  )}
+                </div>
               <div className="order-total">
                 <span className="total-label">Total:</span>
                 <span className="total-amount">₱{order.total.toLocaleString()}</span>

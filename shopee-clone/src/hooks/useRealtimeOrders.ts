@@ -1,7 +1,19 @@
 import { useEffect, useRef } from "react";
 import { io, Socket } from "socket.io-client";
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
+// Use the same base URL as the API client, but extract just the hostname:port
+const getSocketURL = () => {
+  const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:3000";
+  // Extract hostname and port, default to localhost:3000 if parsing fails
+  try {
+    const url = new URL(apiUrl);
+    return `${url.protocol === 'https:' ? 'https' : 'http'}://${url.hostname}:${url.port || (url.protocol === 'https:' ? '443' : '3000')}`;
+  } catch {
+    return "http://localhost:3000";
+  }
+};
+
+const API_URL = getSocketURL();
 
 interface UseRealtimeOrdersOptions {
   shopId: string | undefined;
