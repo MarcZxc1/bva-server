@@ -244,7 +244,7 @@ const BuyerProductDetail: React.FC = () => {
             {/* Right: Info */}
             <div>
               <h1 className="text-lg font-semibold text-gray-800 leading-tight">
-                {productName}
+                {product.name}
               </h1>
 
               <div className="mt-3 flex items-center gap-4 text-sm">
@@ -480,8 +480,8 @@ const BuyerProductDetail: React.FC = () => {
           <h2 className="text-lg font-bold text-gray-800 mb-4">Product Description</h2>
           <div className="space-y-4 text-sm text-gray-700">
             <div>
-              <h3 className="font-semibold text-gray-800 mb-2">{productName}</h3>
-              <p className="text-gray-700 leading-relaxed">{productDescription}</p>
+              <h3 className="font-semibold text-gray-800 mb-2">{product.name}</h3>
+              <p className="text-gray-700 leading-relaxed">{product.description || 'No description available.'}</p>
             </div>
             
             <div>
