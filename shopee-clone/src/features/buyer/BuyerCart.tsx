@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React from 'react';
 import BuyerNavbar from './components/BuyerNavbar';
 import BuyerFooter from './components/BuyerFooter';
 import { Link, useNavigate } from 'react-router-dom';
-import { ShoppingCart, Trash2, ChevronDown, MessageCircle, Tag, Coins, ShieldCheck, Minus, Plus } from 'lucide-react';
+import { ShoppingCart, ChevronDown, MessageCircle, Minus, Plus } from 'lucide-react';
 import { useCart } from '../../contexts/CartContext';
 
 const BuyerCart: React.FC = () => {

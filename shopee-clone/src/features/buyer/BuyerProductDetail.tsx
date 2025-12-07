@@ -150,7 +150,7 @@ const BuyerProductDetail: React.FC = () => {
     const productPrice = product.price;
     
     addToCart({
-      productId: product.id,
+      productId: product.id as string | number,
       name: product.name,
       fullName: product.name,
       image: productImage,
@@ -904,37 +904,27 @@ const BuyerProductDetail: React.FC = () => {
         <div className="mt-6 border-t-2 border-shopee-orange"></div>
 
         {/* Related Products Section */}
-        <div className="bg-white border border-gray-200 rounded-lg mt-6 p-6">
-          <h2 className="text-lg font-bold text-gray-800 mb-6">Related Products</h2>
-          
-          <div className="space-y-3">
-            {[
-              { name: 'Premium Skin Niacinamide Daycream with Sunblock spf 30 Anti aging', price: 102 },
-              { name: 'Japan Sunscreen SPF50+ PA++++ 15g', price: 250 },
-              { name: 'SOME BY MI Truecica Mineral Calming Tone up Sunscreen SPF 50 PA++++ 50ml Ultraviolet protection, gentle', price: 500 },
-              { name: 'Mary Elizabeth R Soleil Lightweight Sunblock Gel Serum Spf45', price: 205 },
-              { name: 'Adorn Premium Tinted Sunscreen SPF 50 for Face Original | Adorn Sunscreen Authentic Whitening Glow', price: 268 },
-              { name: 'SANIYE Sunscreen Collagen Matte Foundation Sunblock Face Cream Whitening High Sun Protection SPF90+', price: 82 },
-              { name: 'SPF50+ Sunscreen for Face Sun Screen Whitening Lotion UV Protection Waterproof Sunblock Cream', price: 44 },
-              { name: 'SPF50+ Sunscreen Moisturizing Sun Cream UV Protection Refreshing Non-greasy Summer Brightening Skin Care 【COD】', price: 39 },
-              { name: 'SKIN1004 Madagascar Centella Hyalu-Cica Water-Fit Sun Serum SPF50+ PA++++ (50 ml)', price: 357 },
-              { name: 'Prestige Sunscreen Sachet 50g (new packaging) (legit)', price: 29 },
-              { name: 'BUY 1 TAKE 2 Sunscreen Cream SPF 90+ High Protection UV Sunblock Lotion 60ml', price: 52 },
-              { name: 'Relief Sun: Rice + Probiotics SPF50+ PA++++ 50ml [Sunscreen | Sunblock]', price: 746 },
-              { name: 'PERFECT SKIN SUNBLOCK CREAM 15g NEW PACK', price: 45 },
-              { name: 'Brilliant Tin Ted Sunscreen SUNPROFESSIONAL Facial Primer SPF50 NEW Tinted Sunscreen SPF50 20G', price: 59 },
-              { name: 'PHERA SUNSCREEN SPF 60+++ MATTIFYING PRIMER VITAMIN C', price: 599 },
-            ].map((product, index) => (
-              <div key={index} className="flex items-center justify-between py-2 border-b border-gray-100 last:border-b-0 hover:bg-gray-50 transition-colors cursor-pointer">
-                <div className="flex items-center gap-4 flex-1">
-                  <span className="text-gray-500 text-sm font-medium w-6">{index + 1}.</span>
-                  <span className="text-gray-800 text-sm flex-1">{product.name}</span>
-                </div>
-                <span className="text-shopee-orange font-semibold text-sm ml-4">₱{product.price}</span>
-              </div>
-            ))}
+        {relatedProducts.length > 0 && (
+          <div className="bg-white border border-gray-200 rounded-lg mt-6 p-6">
+            <h2 className="text-lg font-bold text-gray-800 mb-6">Related Products</h2>
+            
+            <div className="space-y-3">
+              {relatedProducts.map((product, index) => (
+                <Link
+                  key={product.id}
+                  to={`/product/${product.id}`}
+                  className="flex items-center justify-between py-2 border-b border-gray-100 last:border-b-0 hover:bg-gray-50 transition-colors cursor-pointer"
+                >
+                  <div className="flex items-center gap-4 flex-1">
+                    <span className="text-gray-500 text-sm font-medium w-6">{index + 1}.</span>
+                    <span className="text-gray-800 text-sm flex-1">{product.name}</span>
+                  </div>
+                  <span className="text-shopee-orange font-semibold text-sm ml-4">₱{product.price.toLocaleString()}</span>
+                </Link>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Other Products You Might Like Section */}
         <div className="bg-white border border-gray-200 rounded-lg mt-6 p-6">
