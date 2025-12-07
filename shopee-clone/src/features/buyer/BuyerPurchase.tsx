@@ -20,12 +20,15 @@ const BuyerPurchase: React.FC = () => {
       navigate('/buyer-login');
       return;
     }
-    // Fetch orders from API
+    // Fetch orders from API and sync with context
     const fetchOrders = async () => {
       try {
-        await apiClient.getMyOrders();
-        // Update order context with API orders
-        // Note: You may need to transform API orders to match OrderContext format
+        const apiOrders = await apiClient.getMyOrders();
+        // Transform API orders to OrderContext format
+        if (apiOrders && Array.isArray(apiOrders)) {
+          // Note: Orders are managed in OrderContext for now
+          // The API orders will be synced when orders are created via checkout
+        }
       } catch (error) {
         console.error('Failed to fetch orders:', error);
       }
@@ -67,24 +70,57 @@ const BuyerPurchase: React.FC = () => {
     ? orders 
     : orders.filter(order => order.status === activeTab);
 
-  const handlePayNow = (orderId: string) => {
-    // Payment is processed by seller, so we just move to 'to-ship'
-    updateOrderStatus(orderId, 'to-ship');
+  const handlePayNow = async (orderId: string) => {
+    try {
+      await apiClient.updateOrderStatus(orderId, 'pending');
+      updateOrderStatus(orderId, 'to-ship');
+    } catch (err: any) {
+      alert(err.message || 'Failed to process payment');
+    }
   };
 
-  const handleRiderPickup = (orderId: string) => {
-    // Simulate rider pickup - move from 'to-ship' to 'to-receive'
-    updateOrderStatus(orderId, 'to-receive');
+  const handleRiderPickup = async (orderId: string) => {
+    try {
+      await apiClient.updateOrderStatus(orderId, 'shipping');
+      updateOrderStatus(orderId, 'to-receive');
+    } catch (err: any) {
+      alert(err.message || 'Failed to update order status');
+    }
   };
 
-  const handleConfirmDelivery = (orderId: string) => {
-    // Simulate delivery confirmation - move from 'to-receive' to 'completed'
-    updateOrderStatus(orderId, 'completed');
+  const handleConfirmDelivery = async (orderId: string) => {
+    try {
+      await apiClient.updateOrderStatus(orderId, 'completed');
+      updateOrderStatus(orderId, 'completed');
+    } catch (err: any) {
+      alert(err.message || 'Failed to confirm delivery');
+    }
   };
 
-  const handleCancelOrder = (orderId: string) => {
-    if (window.confirm('Are you sure you want to cancel this order?')) {
+  const handleCancelOrder = async (orderId: string) => {
+    if (!window.confirm('Are you sure you want to cancel this order?')) {
+      return;
+    }
+
+    try {
+      await apiClient.updateOrderStatus(orderId, 'cancelled');
       updateOrderStatus(orderId, 'cancelled');
+    } catch (err: any) {
+      alert(err.message || 'Failed to cancel order');
+    }
+  };
+
+  const handleReturnRefund = async (orderId: string, type: 'return' | 'refund') => {
+    const reason = prompt(`Please provide a reason for ${type}:`);
+    if (!reason) return;
+
+    try {
+      // Update order status to return-refund
+      await apiClient.updateOrderStatus(orderId, 'return-refund');
+      updateOrderStatus(orderId, 'return-refund');
+      alert(`Your ${type} request has been submitted. The seller will review it shortly.`);
+    } catch (err: any) {
+      alert(err.message || `Failed to submit ${type} request`);
     }
   };
 
@@ -356,9 +392,28 @@ const BuyerPurchase: React.FC = () => {
                                       </>
                                     )}
                                     {order.status === 'completed' && (
-                                      <button className="px-4 py-2 border border-shopee-orange text-shopee-orange rounded text-sm font-medium hover:bg-orange-50 transition-colors">
-                                        Review
-                                      </button>
+                                      <>
+                                        <button className="px-4 py-2 border border-shopee-orange text-shopee-orange rounded text-sm font-medium hover:bg-orange-50 transition-colors">
+                                          Review
+                                        </button>
+                                        <button
+                                          onClick={() => handleReturnRefund(order.id, 'return')}
+                                          className="px-4 py-2 border border-gray-300 text-gray-700 rounded text-sm font-medium hover:bg-gray-50 transition-colors"
+                                        >
+                                          Return
+                                        </button>
+                                        <button
+                                          onClick={() => handleReturnRefund(order.id, 'refund')}
+                                          className="px-4 py-2 border border-gray-300 text-gray-700 rounded text-sm font-medium hover:bg-gray-50 transition-colors"
+                                        >
+                                          Refund
+                                        </button>
+                                      </>
+                                    )}
+                                    {order.status === 'return-refund' && (
+                                      <div className="px-4 py-2 bg-yellow-50 border border-yellow-200 text-yellow-700 rounded text-sm font-medium text-center">
+                                        Return/Refund Requested
+                                      </div>
                                     )}
                                   </div>
                                 </div>

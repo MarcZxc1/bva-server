@@ -8,6 +8,8 @@ import Login from './features/auth/components/Login';
 import SellerDashboard from './features/seller/components/SellerDashboard';
 import MyOrders from './features/seller/components/MyOrders';
 import MyIncome from './features/seller/components/MyIncome';
+import MyProducts from './features/seller/components/MyProducts';
+import ReturnRefundCancel from './features/seller/components/ReturnRefundCancel';
 import BuyerLandingPage from './features/buyer/BuyerLandingPage';
 import BuyerSignUp from './features/buyer/BuyerSignUp';
 import BuyerLogIn from './features/buyer/BuyerLogIn';
@@ -83,6 +85,22 @@ function App() {
                 element={
                   <ProtectedRoute requiredRole="SELLER">
                     <MyIncome />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/products" 
+                element={
+                  <ProtectedRoute requiredRole="SELLER">
+                    <MyProducts />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/return-refund-cancel" 
+                element={
+                  <ProtectedRoute requiredRole="SELLER">
+                    <ReturnRefundCancel />
                   </ProtectedRoute>
                 } 
               />
