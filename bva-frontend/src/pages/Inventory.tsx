@@ -161,18 +161,16 @@ const MOCK_INVENTORY_DATA = {
 
 export default function Inventory() {
   const { user } = useAuth();
-  const shopId = user?.shops?.[0]?.id || "2aad5d00-d302-4c57-86ad-99826e19e610";
+  const shopId = user?.shops?.[0]?.id;
+  const hasShop = !!shopId;
   const [searchQuery, setSearchQuery] = useState("");
-  const [showMockData, setShowMockData] = useState(true);
   
-  const { data: atRiskData, isLoading, error, refetch } = useAtRiskInventory(shopId, true);
-  const { data: productsData } = useProducts(shopId);
+  const { data: atRiskData, isLoading, error, refetch } = useAtRiskInventory(shopId || "", hasShop);
+  const { data: productsData } = useProducts(shopId || "");
 
-  // Use API data if available, otherwise use mock data
-  const displayData = atRiskData ? atRiskData : MOCK_INVENTORY_DATA;
-  const atRiskItems = displayData?.at_risk || [];
-  const meta = displayData?.meta;
-  const isShowingMockData = !atRiskData;
+  // Use API data if available
+  const atRiskItems = atRiskData?.at_risk || [];
+  const meta = atRiskData?.meta;
 
   // Filter items based on search query
   const filteredItems = atRiskItems.filter((item) =>
@@ -181,13 +179,37 @@ export default function Inventory() {
   );
 
   useEffect(() => {
-    if (error) {
-      toast.error("Failed to load inventory data. Showing sample data.");
-      setShowMockData(true);
-    } else if (atRiskData) {
-      setShowMockData(false);
+    if (error && hasShop) {
+      toast.error("Failed to load inventory data.");
     }
-  }, [error, atRiskData]);
+  }, [error, hasShop]);
+
+  // Show empty state if no shop
+  if (!hasShop) {
+    return (
+      <div className="space-y-6">
+        <div className="glass-card p-8">
+          <div className="space-y-2">
+            <h1 className="text-3xl font-bold text-foreground">Inventory Management</h1>
+            <p className="text-muted-foreground">Manage your product inventory and stock levels</p>
+          </div>
+        </div>
+        <Card className="glass-card">
+          <CardContent className="py-12">
+            <div className="flex flex-col items-center justify-center text-center space-y-4">
+              <PackageOpen className="h-16 w-16 text-muted-foreground/50" />
+              <div className="space-y-2">
+                <h2 className="text-2xl font-bold text-foreground">No Shop Found</h2>
+                <p className="text-muted-foreground max-w-md">
+                  You need a shop to manage inventory. Sellers automatically get a shop created during registration.
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -227,7 +249,24 @@ export default function Inventory() {
         </Card>
       )}
 
-      {(atRiskItems.length > 0 || showMockData) && (
+      {!isLoading && atRiskItems.length === 0 && (
+        <Card className="glass-card">
+          <CardContent className="py-12">
+            <div className="flex flex-col items-center justify-center text-center space-y-4">
+              <PackageOpen className="h-16 w-16 text-success/50" />
+              <div className="space-y-2">
+                <h2 className="text-2xl font-bold text-foreground">No At-Risk Inventory</h2>
+                <p className="text-muted-foreground max-w-md">
+                  Great news! Your inventory is healthy. No products are currently at risk.
+                  Add more products or sales data to see inventory insights.
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {atRiskItems.length > 0 && (
         <>
           <Card className="glass-card">
             <CardHeader>
@@ -238,11 +277,6 @@ export default function Inventory() {
                     Filters
                   </Button>
                 </div>
-                {isShowingMockData && (
-                  <Badge variant="outline" className="glass-card-sm text-primary border-primary/20">
-                    Sample Data
-                  </Badge>
-                )}
               </div>
             </CardHeader>
             <CardContent>

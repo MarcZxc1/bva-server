@@ -20,7 +20,22 @@ router.get("/", (req: Request, res: Response) => {
         path: "/api/reports/sales-summary",
         method: "GET",
         description: "Get sales summary data for charts",
-        auth: true
+        auth: true,
+        queryParams: ["start", "end", "interval"]
+      },
+      profitAnalysis: {
+        path: "/api/reports/profit-analysis",
+        method: "GET",
+        description: "Get profit analysis (revenue, COGS, profit, profit margin)",
+        auth: true,
+        queryParams: ["start", "end"]
+      },
+      platformComparison: {
+        path: "/api/reports/platform-comparison",
+        method: "GET",
+        description: "Get platform comparison statistics",
+        auth: true,
+        queryParams: ["start", "end"]
       }
     }
   });
@@ -28,5 +43,7 @@ router.get("/", (req: Request, res: Response) => {
 
 router.get("/metrics", authMiddleware, reportsController.getDashboardMetrics);
 router.get("/sales-summary", authMiddleware, reportsController.getSalesSummary);
+router.get("/profit-analysis", authMiddleware, reportsController.getProfitAnalysis);
+router.get("/platform-comparison", authMiddleware, reportsController.getPlatformComparison);
 
 export default router;

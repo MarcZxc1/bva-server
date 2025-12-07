@@ -17,3 +17,21 @@ yarn-error.log*
 
 # Node (in case of accidental install in root)
 node_modules/
+
+# Temporary files
+*.log
+body.json
+result.json
+response.json
+*.tmp
+*.temp
+
+# Build artifacts
+dist/
+*.map
+*.js.map
+*.d.ts.map
+
+# Test files (keep scripts but ignore outputs)
+*.test.js
+*.spec.js

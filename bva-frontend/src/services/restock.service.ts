@@ -19,21 +19,18 @@ export interface RestockRecommendation {
 }
 
 export interface RestockStrategyResponse {
-  success: boolean;
-  data: {
-    strategy: string;
-    shopId: string;
-    budget: number;
-    recommendations: RestockRecommendation[];
-    summary: {
-      total_cost: number;
-      total_items: number;
-      projected_revenue: number;
-      roi: number;
-    };
-    insights: string[];
-    warnings: string[];
+  strategy: string;
+  shopId: string;
+  budget: number;
+  recommendations: RestockRecommendation[];
+  summary: {
+    total_cost: number;
+    total_items: number;
+    projected_revenue: number;
+    roi: number;
   };
+  insights: string[];
+  warnings: string[];
 }
 
 export const restockService = {

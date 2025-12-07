@@ -3,6 +3,7 @@ import { UserService } from "../service/user.service";
 import { generateToken } from "../utils/jwt";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
+import prisma from "../lib/prisma";
 
 const userService = new UserService();
 
@@ -11,22 +12,125 @@ export class UserController {
   async register(req: Request, res: Response) {
     try {
       const { email, password, name } = req.body;
-      const user = await userService.register(email, password, name);
 
-      // We don't want to return the password hash
-      const { password: _, ...userWithoutPassword } = user;
-      const token = generateToken(user.id);
+      // Validate input
+      if (!email || !password) {
+        return res.status(400).json({
+          success: false,
+          error: "Email and password are required",
+        });
+      }
+
+      // Basic email validation
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email)) {
+        return res.status(400).json({
+          success: false,
+          error: "Please provide a valid email address",
+        });
+      }
+
+      // Password length validation
+      if (password.length < 6) {
+        return res.status(400).json({
+          success: false,
+          error: "Password must be at least 6 characters long",
+        });
+      }
+      
+      // Check if email already exists
+      const existingUser = await prisma.user.findUnique({
+        where: { email }
+      });
+
+      if (existingUser) {
+        return res.status(400).json({
+          success: false,
+          error: "Email already exists. Please use a different email or login instead.",
+        });
+      }
+      
+      // Validate password is hashed (should be from middleware)
+      if (!password || typeof password !== 'string') {
+        return res.status(400).json({
+          success: false,
+          error: "Password is required",
+        });
+      }
+
+      // Use transaction to ensure shop creation happens with user
+      const result = await prisma.$transaction(async (tx) => {
+        // Double-check email doesn't exist (race condition protection)
+        const existingUserInTx = await tx.user.findUnique({
+          where: { email }
+        });
+
+        if (existingUserInTx) {
+          throw new Error("EMAIL_EXISTS");
+        }
+
+        // Create user
+        // Password is already hashed by hashPasswordMiddleware, so use it directly
+        let user;
+        try {
+          user = await tx.user.create({
+            data: {
+              email,
+              password: password, // Already hashed by middleware
+              name: name ?? null,
+              role: "SELLER" // Default role
+            }
+          });
+        } catch (error: any) {
+          // Handle Prisma unique constraint error (race condition)
+          if (error.code === 'P2002' && error.meta?.target?.includes('email')) {
+            throw new Error("EMAIL_EXISTS");
+          }
+          throw error;
+        }
+
+        // Create shop for SELLER
+        const shop = await tx.shop.create({
+          data: {
+            name: `${name || email.split("@")[0]}'s Shop`,
+            ownerId: user.id,
+          }
+        });
+
+        return { user, shop };
+      });
+
+      const { password: _, ...userWithoutPassword } = result.user;
+      const token = generateToken(
+        result.user.id, 
+        result.user.email, 
+        result.user.name || undefined, 
+        result.user.role, 
+        result.shop.id
+      );
 
       res.status(201).json({
         success: true,
-        data: userWithoutPassword,
+        data: {
+          ...userWithoutPassword,
+          shops: [{ id: result.shop.id, name: result.shop.name }]
+        },
         token,
         message: "User registered successfully",
       });
     } catch (error: any) {
+      // Handle Prisma unique constraint errors and race conditions
+      if (error.code === 'P2002' || error.message === "EMAIL_EXISTS") {
+        return res.status(400).json({
+          success: false,
+          error: "Email already exists. Please use a different email or login instead.",
+        });
+      }
+      
+      console.error("Registration error:", error);
       res.status(400).json({
         success: false,
-        error: error.message,
+        error: error.message || "Registration failed. Please try again.",
       });
     }
   }
@@ -35,21 +139,41 @@ export class UserController {
   async login(req: Request, res: Response) {
     try {
       const { email, password } = req.body;
+
+      // Validate input
+      if (!email || !password) {
+        return res.status(400).json({
+          success: false,
+          error: "Email and password are required",
+        });
+      }
+
       const user = await userService.login(email, password);
 
-      const { password: _, ...userWithoutPassword } = user;
-      const token = generateToken(user.id);
+      // Fetch user's shop if they're a seller
+      const userShops = await prisma.shop.findMany({
+        where: { ownerId: user.id },
+        select: { id: true, name: true }
+      });
+      const shopId = userShops[0]?.id;
 
-      res.json({
+      const { password: _, ...userWithoutPassword } = user;
+      const token = generateToken(user.id, user.email, user.name || undefined, user.role, shopId);
+
+      res.status(200).json({
         success: true,
-        data: userWithoutPassword,
+        data: {
+          ...userWithoutPassword,
+          shops: userShops
+        },
         token,
         message: "Login successful",
       });
     } catch (error: any) {
+      console.error("Login error:", error);
       res.status(401).json({
         success: false,
-        error: error.message,
+        error: error.message || "Invalid email or password",
       });
     }
   }

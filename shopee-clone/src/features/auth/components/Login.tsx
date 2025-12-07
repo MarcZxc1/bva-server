@@ -1,14 +1,33 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../../contexts/AuthContext';
 import shopeeLogo from '../../../assets/Seller/Shopee-logo .png';
 import sellerIllustration from '../../../assets/Seller/Untitled-removebg-preview.png';
 import './Login.css';
 
 const Login = () => {
   const navigate = useNavigate();
+  const { login, loginWithGoogle, isLoading } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
   const [phoneOrEmail, setPhoneOrEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    
+    try {
+      await login(phoneOrEmail, password);
+      navigate('/dashboard');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Login failed');
+    }
+  };
+
+  const handleGoogleLogin = () => {
+    loginWithGoogle();
+  };
 
   return (
     <div className="login-container">
@@ -62,16 +81,13 @@ const Login = () => {
               </button>
             </div>
 
-            <form 
-              className="login-form"
-              onSubmit={(e) => {
-                e.preventDefault();
-                // Handle login logic here
-                console.log('Login submitted', { phoneOrEmail, password });
-                // Redirect to dashboard after successful login
-                navigate('/dashboard');
-              }}
-            >
+            {error && (
+              <div className="error-message" style={{ color: 'red', marginBottom: '1rem', fontSize: '14px' }}>
+                {error}
+              </div>
+            )}
+
+            <form className="login-form" onSubmit={handleSubmit}>
               <div className="input-group">
                 <input
                   type="text"
@@ -112,8 +128,8 @@ const Login = () => {
                 </button>
               </div>
 
-              <button type="submit" className="login-btn">
-                LOG IN
+              <button type="submit" className="login-btn" disabled={isLoading}>
+                {isLoading ? 'LOGGING IN...' : 'LOG IN'}
               </button>
             </form>
 
@@ -132,7 +148,11 @@ const Login = () => {
                 </svg>
                 Facebook
               </button>
-              <button className="social-btn google-btn" type="button">
+              <button 
+                className="social-btn google-btn" 
+                type="button"
+                onClick={handleGoogleLogin}
+              >
                 <svg className="google-icon" width="20" height="20" viewBox="0 0 24 24">
                   <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
                   <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>

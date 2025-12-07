@@ -104,6 +104,11 @@ export const authApi = {
   register: async (data: RegisterRequest): Promise<AuthResponse> => {
     return apiClient.post<AuthResponse>("/api/users/register", data);
   },
+
+  // Get current user info (for OAuth or token refresh)
+  getCurrentUser: async (): Promise<AuthResponse> => {
+    return apiClient.get<AuthResponse>("/api/auth/me");
+  },
 };
 
 // Restock API

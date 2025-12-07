@@ -1,0 +1,8 @@
+# Add this to your ~/.bashrc to prevent mistakes
+# Copy this line and add it to your ~/.bashrc file:
+
+alias ml-start='cd ~/cloned/bva-server/ml-service && ./run.sh'
+
+# Then you can just type: ml-start
+# This prevents typing the wrong command!
+

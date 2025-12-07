@@ -10,11 +10,11 @@ export function useAtRiskInventory(shopId: string, enabled: boolean = true) {
   });
 }
 
-export function useDashboardAnalytics(shopId: string) {
+export function useDashboardAnalytics(shopId: string, enabled: boolean = true) {
   return useQuery<DashboardResponse>({
     queryKey: ["dashboard-analytics", shopId],
     queryFn: () => analyticsService.getDashboardStats(shopId),
-    enabled: !!shopId,
+    enabled: enabled && !!shopId,
     refetchInterval: 300000, // Refetch every 5 minutes
   });
 }

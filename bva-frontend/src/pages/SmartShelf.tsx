@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { AlertTriangle, Package, TrendingDown, Calendar, Loader2, Sparkles } from "lucide-react";
+import { AlertTriangle, Package, TrendingDown, Calendar, Loader2, Sparkles, PackageOpen } from "lucide-react";
 import { useAtRiskInventory } from "@/hooks/useSmartShelf";
 import { useAuth } from "@/contexts/AuthContext";
 import { AdGeneratorDialog } from "@/components/AdGeneratorDialog";
@@ -37,9 +37,10 @@ const getActionIcon = (actionType: string) => {
 export default function SmartShelf() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const shopId = user?.shops?.[0]?.id || "2aad5d00-d302-4c57-86ad-99826e19e610";
+  const shopId = user?.shops?.[0]?.id;
+  const hasShop = !!shopId;
   
-  const { data: atRiskData, isLoading, refetch } = useAtRiskInventory(shopId, true);
+  const { data: atRiskData, isLoading, refetch } = useAtRiskInventory(shopId || "", hasShop);
   
   const [selectedItem, setSelectedItem] = useState<any>(null);
   const [isAdDialogOpen, setIsAdDialogOpen] = useState(false);
@@ -61,6 +62,33 @@ export default function SmartShelf() {
       setIsAdDialogOpen(true);
     }
   };
+
+  // Show empty state if no shop
+  if (!hasShop) {
+    return (
+      <div className="space-y-6">
+        <div className="glass-card p-8">
+          <div className="space-y-2">
+            <h1 className="text-4xl font-bold text-foreground">📊 SmartShelf Analytics</h1>
+            <p className="text-muted-foreground">AI-powered inventory risk detection and optimization</p>
+          </div>
+        </div>
+        <Card className="glass-card">
+          <CardContent className="py-12">
+            <div className="flex flex-col items-center justify-center text-center space-y-4">
+              <PackageOpen className="h-16 w-16 text-muted-foreground/50" />
+              <div className="space-y-2">
+                <h2 className="text-2xl font-bold text-foreground">No Shop Found</h2>
+                <p className="text-muted-foreground max-w-md">
+                  You need a shop to use SmartShelf Analytics. Sellers automatically get a shop created during registration.
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

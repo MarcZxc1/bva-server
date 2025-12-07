@@ -4,11 +4,23 @@ import passport from "../config/passport";
 import { authController } from "../controllers/auth.controller";
 import { authService } from "../service/auth.service";
 import jwt from "jsonwebtoken";
+import prisma from "../lib/prisma";
 
 const router = Router();
 
-// Frontend URL for redirects
-const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:5173";
+// Allowed frontend URLs for redirection
+const ALLOWED_FRONTENDS = [
+  "http://localhost:5173", // Vite default / Shopee Clone
+  "http://localhost:5174", // Alternative Vite port
+  "http://localhost:8080", // BVA Frontend
+  "http://localhost:3001", // Alternative frontend port
+  "https://bva-frontend.vercel.app",
+  "https://shopee-clone.vercel.app"
+];
+
+// Get frontend URL from environment or default
+const FRONTEND_URL = process.env.FRONTEND_URL || process.env.VITE_API_URL?.replace('/api', '') || "http://localhost:5173";
+
 const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key";
 const JWT_EXPIRATION = process.env.JWT_EXPIRATION || "24h";
 
@@ -48,53 +60,167 @@ const authMiddleware = async (req: Request, res: Response, next: Function) => {
  * @desc    Initiate Google OAuth authentication
  * @access  Public
  */
-router.get(
-  "/google",
-  passport.authenticate("google", {
+router.get("/google", (req: Request, res: Response, next) => {
+  const { state } = req.query;
+
+  if (!state || typeof state !== "string") {
+    return res.status(400).send("A 'state' query parameter is required for login.");
+  }
+  
+  // Encode the state to ensure it's safely passed through the OAuth flow
+  const encodedState = Buffer.from(JSON.stringify({ redirectUrl: state })).toString('base64');
+
+  const authenticator = passport.authenticate("google", {
     scope: ["profile", "email"],
     session: false,
-  })
-);
+    state: encodedState,
+  });
+
+  authenticator(req, res, next);
+});
+
 
 /**
  * @route   GET /api/auth/google/callback
  * @desc    Google OAuth callback handler
  * @access  Public
  */
-router.get(
-  "/google/callback",
+router.get("/google/callback", (req, res, next) => {
+  // Extract state and validate it
+  const state = req.query.state as string;
+  let redirectUrl = FRONTEND_URL; // Default to environment or localhost:5173
+  let decodedState: { redirectUrl: string } | null = null;
+
+  try {
+    if (state) {
+      decodedState = JSON.parse(Buffer.from(state, 'base64').toString('utf-8'));
+      if (decodedState && decodedState.redirectUrl) {
+        // Validate redirect URL is in allowed list
+        if (ALLOWED_FRONTENDS.includes(decodedState.redirectUrl)) {
+          redirectUrl = decodedState.redirectUrl;
+        } else {
+          console.warn(`⚠️  Redirect URL not in allowed list: ${decodedState.redirectUrl}, using default: ${redirectUrl}`);
+        }
+      }
+    }
+  } catch (e) {
+    console.error("Invalid state parameter:", e);
+    // Use default redirect URL on error
+    redirectUrl = FRONTEND_URL;
+  }
+  
+  const failureRedirect = `${redirectUrl}/login?error=google_auth_failed`;
+
   passport.authenticate("google", {
     session: false,
-    failureRedirect: `${FRONTEND_URL}/login?error=google_auth_failed`,
-  }),
-  (req: Request, res: Response) => {
+    failureRedirect: failureRedirect,
+  }) (req, res, (err: any) => {
+    if (err) {
+      console.error("Google OAuth authentication error:", err);
+      return res.redirect(`${redirectUrl}/login?error=google_auth_failed&details=${encodeURIComponent(err.message || 'Authentication failed')}`);
+    }
+    
     try {
-      // User is attached to req.user by passport
       const user = req.user as any;
 
       if (!user) {
-        return res.redirect(`${FRONTEND_URL}/login?error=no_user`);
+        console.error("No user returned from Google OAuth");
+        return res.redirect(`${redirectUrl}/login?error=no_user`);
       }
 
-      // Generate JWT token
-      const token = jwt.sign(
-        { userId: user.id, role: user.role },
-        JWT_SECRET,
-        { expiresIn: JWT_EXPIRATION } as jwt.SignOptions
-      );
+      // Get user's shops for the token
+      prisma.shop.findMany({
+        where: { ownerId: user.id },
+        select: { id: true, name: true }
+      }).then(shops => {
+        const token = jwt.sign(
+          { 
+            userId: user.id, 
+            role: user.role,
+            email: user.email,
+            name: user.name || user.firstName || 'User',
+            shops: shops.map(s => ({ id: s.id, name: s.name }))
+          },
+          JWT_SECRET,
+          { expiresIn: JWT_EXPIRATION } as jwt.SignOptions
+        );
+        
+        // Determine destination based on frontend
+        // BVA frontend handles token in /login page
+        const destination = redirectUrl.includes('8080') || redirectUrl.includes('5173') ? '/login' : '/';
+        res.redirect(`${redirectUrl}${destination}?token=${token}`);
+      }).catch(shopError => {
+        console.error("Error fetching user shops:", shopError);
+        // Still generate token even if shops fetch fails
+        const token = jwt.sign(
+          { 
+            userId: user.id, 
+            role: user.role,
+            email: user.email,
+            name: user.name || user.firstName || 'User'
+          },
+          JWT_SECRET,
+          { expiresIn: JWT_EXPIRATION } as jwt.SignOptions
+        );
+        const destination = redirectUrl.includes('8080') || redirectUrl.includes('5173') ? '/login' : '/';
+        res.redirect(`${redirectUrl}${destination}?token=${token}`);
+      });
 
-      // Redirect to frontend with token
-      res.redirect(`${FRONTEND_URL}/login?token=${token}`);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Google callback error:", error);
-      res.redirect(`${FRONTEND_URL}/login?error=token_generation_failed`);
+      const errorMessage = error?.message || 'Token generation failed';
+      res.redirect(`${redirectUrl}/login?error=token_generation_failed&details=${encodeURIComponent(errorMessage)}`);
     }
-  }
-);
+  });
+});
 
 // ==========================================
 // Standard Auth Routes
 // ==========================================
+
+/**
+ * @route   GET /api/auth/me
+ * @desc    Get current user info
+ * @access  Private
+ */
+router.get("/me", authMiddleware, async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).userId;
+    const user = await authService.getUserById(userId);
+    
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    // Get user's shops
+    const shops = await authService.getUserShops(userId);
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        id: user.id,
+        email: user.email,
+        name: user.name || user.firstName || 'User',
+        firstName: user.firstName,
+        lastName: user.lastName,
+        role: user.role,
+        shops: shops.map(shop => ({
+          id: shop.id,
+          name: shop.name,
+        })),
+      },
+    });
+  } catch (error) {
+    console.error("Get user error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to get user information",
+    });
+  }
+});
 
 /**
  * @route   POST /api/auth/register
@@ -130,6 +256,50 @@ router.get("/me", authMiddleware, (req: Request, res: Response) =>
  */
 router.post("/logout", authMiddleware, (req: Request, res: Response) =>
   authController.logout(req, res)
+);
+
+// ==========================================
+// Shopee-Clone SSO Routes
+// ==========================================
+
+/**
+ * @route   POST /api/auth/shopee-sso
+ * @desc    Shopee-Clone Single Sign-On
+ * @access  Public
+ * 
+ * This endpoint allows sellers from Shopee-Clone to instantly log into BVA.
+ * It will:
+ * 1. Find or create a BVA user based on the Shopee-Clone account
+ * 2. Link their shopeeId to the BVA user
+ * 3. Create a shop for them if they're a new SELLER
+ * 4. Trigger a sync of their products and sales from Shopee-Clone
+ * 5. Return a JWT for immediate authentication
+ * 
+ * Request body:
+ * {
+ *   "shopeeUserId": "string (required)",
+ *   "email": "string (required)",
+ *   "name": "string (optional)",
+ *   "role": "SELLER | BUYER | ADMIN | ANALYST (optional, default: SELLER)",
+ *   "apiKey": "string (required) - API key for fetching data from Shopee-Clone"
+ * }
+ */
+router.post("/shopee-sso", (req: Request, res: Response) =>
+  authController.shopeeSSOLogin(req, res)
+);
+
+/**
+ * @route   POST /api/auth/shopee-sync
+ * @desc    Manually trigger Shopee-Clone data sync
+ * @access  Private
+ * 
+ * Request body:
+ * {
+ *   "apiKey": "string (required) - API key for fetching data from Shopee-Clone"
+ * }
+ */
+router.post("/shopee-sync", authMiddleware, (req: Request, res: Response) =>
+  authController.triggerShopeeSync(req, res)
 );
 
 export default router;

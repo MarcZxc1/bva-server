@@ -1,0 +1,33 @@
+{
+  "name": "bva-server-monorepo",
+  "version": "1.0.0",
+  "description": "Business Virtual Assistant - Monorepo",
+  "private": true,
+  "workspaces": [
+    "server",
+    "bva-frontend",
+    "shopee-clone",
+    "shopee-auth"
+  ],
+  "scripts": {
+    "dev": "concurrently -n \"SERVER,FRONTEND,SHOPEE\" -c \"blue,green,yellow\" \"npm run dev:server\" \"npm run dev:frontend\" \"npm run dev:shopee\"",
+    "dev:server": "cd server && npm run dev",
+    "dev:frontend": "cd bva-frontend && npm run dev",
+    "dev:shopee": "cd shopee-clone && npm run dev",
+    "dev:all": "npm run dev",
+    "install:all": "npm install && npm run install:workspaces",
+    "install:workspaces": "npm install --workspace=server && npm install --workspace=bva-frontend && npm install --workspace=shopee-clone",
+    "build": "npm run build --workspace=server && npm run build --workspace=bva-frontend && npm run build --workspace=shopee-clone",
+    "build:server": "npm run build --workspace=server",
+    "build:frontend": "npm run build --workspace=bva-frontend",
+    "build:shopee": "npm run build --workspace=shopee-clone"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  }
+}
+

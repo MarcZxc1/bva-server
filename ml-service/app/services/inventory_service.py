@@ -157,11 +157,26 @@ def _detect_low_stock(df: pd.DataFrame, threshold: int) -> pd.DataFrame:
         DataFrame with added column 'low_stock_flag'
     
     Performance: O(n) vectorized comparison
+    
+    Scoring:
+    - Critical (qty=0): 0.8 (80 points)
+    - Very low (qty=1-2): 0.6-0.7 (60-70 points)
+    - Low (qty=3-5): 0.3-0.5 (30-50 points)
     """
     df['low_stock_flag'] = df['quantity'] <= threshold
+    
+    # Enhanced scoring: critical items (0 stock) get much higher scores
     df['low_stock_score'] = np.where(
         df['low_stock_flag'],
-        0.3 * (1 - df['quantity'] / max(threshold, 1)),
+        np.where(
+            df['quantity'] == 0,
+            0.8,  # Critical: 0 stock = 80 points
+            np.where(
+                df['quantity'] <= 2,
+                0.6 + 0.1 * (2 - df['quantity']) / 2,  # Very low: 60-70 points
+                0.3 * (1 - df['quantity'] / max(threshold, 1))  # Low: 30-50 points
+            )
+        ),
         0.0
     )
     return df
@@ -187,11 +202,12 @@ def _detect_near_expiry(df: pd.DataFrame, warning_days: int) -> pd.DataFrame:
     df['days_to_expiry'] = np.nan
     if 'expiry_date' in df.columns:
         valid_expiry = df['expiry_date'].notna()
-        # Ensure expiry_date is timezone-aware
-        df.loc[valid_expiry, 'expiry_date'] = pd.to_datetime(df.loc[valid_expiry, 'expiry_date'], utc=True)
-        df.loc[valid_expiry, 'days_to_expiry'] = (
-            df.loc[valid_expiry, 'expiry_date'] - now
-        ).dt.days
+        if valid_expiry.any():
+            # Ensure expiry_date is timezone-aware
+            df.loc[valid_expiry, 'expiry_date'] = pd.to_datetime(df.loc[valid_expiry, 'expiry_date'], utc=True)
+            # Use copy() to ensure we're working with a Series
+            expiry_series = df.loc[valid_expiry, 'expiry_date'].copy()
+            df.loc[valid_expiry, 'days_to_expiry'] = (expiry_series - now).dt.days
     
     # Flag near expiry
     df['near_expiry_flag'] = False
@@ -202,10 +218,14 @@ def _detect_near_expiry(df: pd.DataFrame, warning_days: int) -> pd.DataFrame:
             (df['days_to_expiry'] <= warning_days)
         )
         
-        # Score based on urgency
+        # Score based on urgency - critical items (1-2 days) get higher scores
         df['near_expiry_score'] = np.where(
             df['near_expiry_flag'],
-            0.4 * (1 - df['days_to_expiry'] / max(warning_days, 1)),
+            np.where(
+                df['days_to_expiry'] <= 2,
+                0.7 + 0.1 * (2 - df['days_to_expiry']) / 2,  # Critical: 70-80 points
+                0.4 * (1 - df['days_to_expiry'] / max(warning_days, 1))  # Near: 40-70 points
+            ),
             0.0
         )
     else:
@@ -241,9 +261,10 @@ def _compute_risk_score(df: pd.DataFrame, thresholds: AtRiskThresholds) -> pd.Da
     Combine individual risk signals into overall risk score.
     
     Score components:
-    - Low stock: 30% weight
-    - Near expiry: 40% weight (highest priority)
-    - Slow moving: 30% weight
+    - Low stock: up to 0.8 (80 points) for critical cases
+    - Near expiry: up to 0.8 (80 points) for critical cases
+    - Slow moving: up to 0.3 (30 points)
+    - Multiplier: 1.1x boost for items with multiple risk factors
     
     Args:
         df: DataFrame with individual risk scores
@@ -254,13 +275,27 @@ def _compute_risk_score(df: pd.DataFrame, thresholds: AtRiskThresholds) -> pd.Da
     
     Performance: O(n) vectorized arithmetic
     """
+    # Base score is sum of individual risk scores
     df['risk_score'] = (
         df['low_stock_score'] +
         df['near_expiry_score'] +
         df['slow_moving_score']
     )
     
-    # Normalize to 0-1 range (max possible is 1.0 from weights)
+    # Boost score for items with multiple risk factors (critical items)
+    risk_factor_count = (
+        df['low_stock_flag'].astype(int) +
+        df['near_expiry_flag'].astype(int) +
+        df['slow_moving_flag'].astype(int)
+    )
+    # Apply 1.1x multiplier for items with 2+ risk factors
+    df['risk_score'] = np.where(
+        risk_factor_count >= 2,
+        df['risk_score'] * 1.1,
+        df['risk_score']
+    )
+    
+    # Normalize to 0-1 range (max possible is ~0.88 * 1.1 = 0.968, but we cap at 1.0)
     df['risk_score'] = df['risk_score'].clip(0, 1)
     
     # Flag as at-risk if any condition met

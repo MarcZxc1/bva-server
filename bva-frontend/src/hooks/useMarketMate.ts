@@ -12,29 +12,26 @@ import { apiClient } from "@/lib/api-client";
 // ============================================
 
 export interface PromotionResponse {
-  success: boolean;
-  data: {
-    promotions: Array<{
-      event_id: string;
-      event_title: string;
-      product_id: string;
-      product_name: string;
-      suggested_discount_pct: number;
-      promo_copy: string;
-      start_date: string;
-      end_date: string;
-      expected_clear_days: number;
-      projected_sales_lift: number;
-      confidence: string;
-      reasoning: string;
-    }>;
-    meta: {
-      shop_id: string;
-      total_items: number;
-      total_events: number;
-      promotions_generated: number;
-      analysis_date: string;
-    };
+  promotions: Array<{
+    event_id: string;
+    event_title: string;
+    product_id: string;
+    product_name: string;
+    suggested_discount_pct: number;
+    promo_copy: string;
+    start_date: string;
+    end_date: string;
+    expected_clear_days: number;
+    projected_sales_lift: number;
+    confidence: string;
+    reasoning: string;
+  }>;
+  meta: {
+    shop_id: string;
+    total_items: number;
+    total_events: number;
+    promotions_generated: number;
+    analysis_date: string;
   };
 }
 
@@ -116,5 +113,174 @@ export function usePromotions(shopId: string, enabled: boolean = true) {
     },
     enabled: enabled && !!shopId,
     refetchInterval: 300000, // Refresh every 5 minutes
+  });
+}
+
+/**
+ * Get all generated ad campaigns
+ * Usage: const { data, isLoading } = useCampaigns(shopId);
+ */
+export function useCampaigns(shopId: string, enabled: boolean = true) {
+  return useQuery<any[]>({
+    queryKey: ["campaigns", shopId],
+    queryFn: async () => {
+      return adsService.getCampaigns();
+    },
+    enabled: enabled && !!shopId,
+  });
+}
+
+/**
+ * Create a new campaign
+ * Usage: const { mutate, isPending } = useCreateCampaign();
+ */
+export function useCreateCampaign() {
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: async (data: any) => {
+      return adsService.createCampaign(data);
+    },
+    onSuccess: () => {
+      toast({
+        title: "Success",
+        description: "Campaign created successfully!",
+      });
+    },
+    onError: (error: any) => {
+      const errorMessage = 
+        error?.response?.data?.error || 
+        error?.message || 
+        "Failed to create campaign";
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    },
+  });
+}
+
+/**
+ * Update a campaign
+ * Usage: const { mutate, isPending } = useUpdateCampaign();
+ */
+export function useUpdateCampaign() {
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: any }) => {
+      return adsService.updateCampaign(id, data);
+    },
+    onSuccess: () => {
+      toast({
+        title: "Success",
+        description: "Campaign updated successfully!",
+      });
+    },
+    onError: (error: any) => {
+      const errorMessage = 
+        error?.response?.data?.error || 
+        error?.message || 
+        "Failed to update campaign";
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    },
+  });
+}
+
+/**
+ * Schedule a campaign
+ * Usage: const { mutate, isPending } = useScheduleCampaign();
+ */
+export function useScheduleCampaign() {
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: async ({ id, scheduledAt }: { id: string; scheduledAt: string }) => {
+      return adsService.scheduleCampaign(id, scheduledAt);
+    },
+    onSuccess: () => {
+      toast({
+        title: "Success",
+        description: "Campaign scheduled successfully!",
+      });
+    },
+    onError: (error: any) => {
+      const errorMessage = 
+        error?.response?.data?.error || 
+        error?.message || 
+        "Failed to schedule campaign";
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    },
+  });
+}
+
+/**
+ * Publish a campaign
+ * Usage: const { mutate, isPending } = usePublishCampaign();
+ */
+export function usePublishCampaign() {
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      return adsService.publishCampaign(id);
+    },
+    onSuccess: () => {
+      toast({
+        title: "Success",
+        description: "Campaign published successfully!",
+      });
+    },
+    onError: (error: any) => {
+      const errorMessage = 
+        error?.response?.data?.error || 
+        error?.message || 
+        "Failed to publish campaign";
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    },
+  });
+}
+
+/**
+ * Delete a campaign
+ * Usage: const { mutate, isPending } = useDeleteCampaign();
+ */
+export function useDeleteCampaign() {
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      return adsService.deleteCampaign(id);
+    },
+    onSuccess: () => {
+      toast({
+        title: "Success",
+        description: "Campaign deleted successfully!",
+      });
+    },
+    onError: (error: any) => {
+      const errorMessage = 
+        error?.response?.data?.error || 
+        error?.message || 
+        "Failed to delete campaign";
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    },
   });
 }

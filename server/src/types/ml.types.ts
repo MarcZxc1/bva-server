@@ -74,6 +74,7 @@ export interface MLInventoryItem {
   sku: string;
   name: string;
   quantity: number;
+  expiry_date?: string; // ISO date string for products with expiration dates
   price: number;
   categories: string[];
 }

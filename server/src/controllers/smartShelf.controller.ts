@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import prisma from "../lib/prisma";
 import { mlClient } from "../utils/mlClient";
+import { getDashboardAnalytics as getDashboardAnalyticsService } from "../service/smartShelf.service";
 import { 
   MLAtRiskRequest, 
   MLAtRiskResponse, 
@@ -25,7 +26,39 @@ export const getDashboardAnalytics = async (req: Request, res: Response) => {
       });
     }
 
-    // 1. Fetch Local Data from Prisma
+    // Use service layer for dashboard analytics
+    const dashboardData = await getDashboardAnalyticsService(shopId);
+
+    res.json({
+      success: true,
+      data: dashboardData,
+    });
+
+  } catch (error: any) {
+    console.error("Error in getDashboardAnalytics:", error);
+    res.status(500).json({
+      success: false,
+      error: error.message || "Internal Server Error",
+    });
+  }
+};
+
+/**
+ * GET /api/smart-shelf/at-risk/:shopId
+ * Get only at-risk inventory items
+ */
+export const getAtRiskInventory = async (req: Request, res: Response) => {
+  try {
+    const { shopId } = req.params;
+
+    if (!shopId) {
+      return res.status(400).json({
+        success: false,
+        error: "Shop ID is required",
+      });
+    }
+
+    // 1. Fetch products and inventory
     const products = await prisma.product.findMany({
       where: { shopId },
       include: { inventories: { take: 1 } },
@@ -47,14 +80,21 @@ export const getDashboardAnalytics = async (req: Request, res: Response) => {
     });
 
     // 2. Prepare Data for ML Service
-    const inventoryItems: MLInventoryItem[] = products.map(p => ({
-      product_id: p.id,
-      sku: p.sku || `SKU-${p.id}`,
-      name: p.name,
-      quantity: p.inventories[0]?.quantity || 0,
-      price: p.price,
-      categories: p.description ? [p.description] : []
-    }));
+    const inventoryItems: MLInventoryItem[] = products.map(p => {
+      const item: MLInventoryItem = {
+        product_id: p.id,
+        sku: p.sku || `SKU-${p.id}`,
+        name: p.name,
+        quantity: p.inventories[0]?.quantity ?? p.stock ?? 0, // Use inventory quantity, fallback to product stock
+        price: p.price,
+        categories: p.description ? [p.description] : []
+      };
+      // Only include expiry_date if it exists
+      if (p.expiryDate) {
+        item.expiry_date = p.expiryDate.toISOString();
+      }
+      return item;
+    });
 
     const salesRecords: MLSalesRecord[] = [];
     sales.forEach(sale => {
@@ -71,90 +111,50 @@ export const getDashboardAnalytics = async (req: Request, res: Response) => {
       }
     });
 
-    // 3. Call ML Service Endpoints (Parallel)
-    const atRiskPromise = mlClient.post<MLAtRiskResponse>("/api/v1/smart-shelf/at-risk", {
+    // 3. Call ML Service
+    const atRiskResult = await mlClient.post<MLAtRiskResponse>("/api/v1/smart-shelf/at-risk", {
       shop_id: shopId,
       inventory: inventoryItems,
       sales: salesRecords,
       thresholds: {
-        low_stock: 10,
-        expiry_days: 30,
+        low_stock: 5,  // Match seed script critical items (≤5 units)
+        expiry_days: 7,  // Match seed script near expiry items (3-7 days)
         slow_moving_window: 30
+        // slow_moving_threshold defaults to 0.5 in ML service
       }
     } as MLAtRiskRequest);
 
-    const insightsPromise = mlClient.post<MLInsightsResponse>("/api/v1/smart-shelf/insights", {
-      shop_id: shopId,
-      sales: salesRecords,
-      range: {
-        start: ninetyDaysAgo.toISOString(),
-        end: new Date().toISOString()
-      },
-      granularity: "daily",
-      top_k: 5
-    } as MLInsightsRequest);
+    // 4. Convert scores from 0-1 to 0-100 for frontend display
+    const atRiskItems = (atRiskResult.at_risk || []).map(item => ({
+      ...item,
+      score: Math.round(item.score * 100) // Convert 0-1 to 0-100
+    }));
 
-    // Execute calls with error handling
-    const [atRiskResult, insightsResult] = await Promise.allSettled([
-      atRiskPromise,
-      insightsPromise
-    ]);
-
-    // 4. Process Results
-    let atRiskData: MLAtRiskResponse | null = null;
-    let insightsData: MLInsightsResponse | null = null;
-    let warnings: string[] = [];
-
-    if (atRiskResult.status === "fulfilled") {
-      atRiskData = atRiskResult.value;
-    } else {
-      console.warn("At-Risk detection failed:", atRiskResult.reason);
-      warnings.push("At-risk inventory analysis unavailable");
-    }
-
-    if (insightsResult.status === "fulfilled") {
-      insightsData = insightsResult.value;
-    } else {
-      console.warn("Insights generation failed:", insightsResult.reason);
-      warnings.push("Sales insights unavailable");
-    }
-
-    // 5. Construct Dashboard Response
-    const localStats = {
-      total_products: products.length,
-      total_stock: products.reduce((sum, p) => sum + (p.inventories[0]?.quantity || 0), 0),
-      low_stock_count: products.filter(p => (p.inventories[0]?.quantity || 0) < 10).length,
-    };
-
-    const response = {
-      local_stats: localStats,
-      at_risk_items: atRiskData?.at_risk || [],
-      forecast_chart: insightsData?.series || [],
-      top_products: insightsData?.top_items || [],
-      insights: insightsData?.recommendations || [],
-      warnings: warnings.length > 0 ? warnings : undefined
-    };
-
+    // 5. Return at-risk items with meta
     res.json({
       success: true,
-      data: response,
+      data: {
+        at_risk: atRiskItems,
+        meta: {
+          shop_id: shopId,
+          total_products: products.length,
+          flagged_count: atRiskItems.length,
+          analysis_date: new Date().toISOString(),
+          thresholds_used: {
+            low_stock: 5,
+            expiry_days: 7,
+            slow_moving_window: 30,
+            slow_moving_threshold: 0.5  // Default from ML service
+          }
+        }
+      }
     });
 
   } catch (error: any) {
-    console.error("Error in getDashboardAnalytics:", error);
+    console.error("Error in getAtRiskInventory:", error);
     res.status(500).json({
       success: false,
       error: error.message || "Internal Server Error",
     });
   }
-};
-
-/**
- * GET /api/smart-shelf/at-risk/:shopId
- * (Legacy/Specific endpoint if needed, otherwise covered by dashboard)
- */
-export const getAtRiskInventory = async (req: Request, res: Response) => {
-    // Re-using the dashboard logic or implementing specific logic if needed.
-    // For now, redirecting to dashboard or implementing a simple version.
-    return getDashboardAnalytics(req, res);
 };
