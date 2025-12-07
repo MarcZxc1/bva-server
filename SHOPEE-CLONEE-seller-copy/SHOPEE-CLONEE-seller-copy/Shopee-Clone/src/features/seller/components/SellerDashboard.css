@@ -1,0 +1,1403 @@
+.seller-dashboard {
+  min-height: 100vh;
+  background-color: #f5f5f5;
+  display: flex;
+  flex-direction: column;
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Roboto', sans-serif;
+}
+
+/* Header */
+.dashboard-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 40px;
+  background-color: #ffffff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.shopee-logo {
+  height: 32px;
+  width: auto;
+  object-fit: contain;
+  display: block;
+}
+
+.seller-centre-text {
+  font-size: 16px;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  line-height: 1.5;
+}
+
+.shopee-text {
+  color: #ee4d2d;
+  font-weight: 500;
+  margin-right: 4px;
+}
+
+.seller-centre-label {
+  color: #000000;
+  font-weight: 500;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.profile-dropdown {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  padding: 6px 12px;
+  border-radius: 4px;
+  transition: background-color 0.2s;
+}
+
+.profile-dropdown:hover {
+  background-color: #f5f5f5;
+}
+
+.profile-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background-color: #ee4d2d;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 18px;
+  overflow: hidden;
+}
+
+.profile-icon svg {
+  width: 20px;
+  height: 20px;
+}
+
+.username {
+  font-size: 14px;
+  color: #333;
+  font-weight: 500;
+}
+
+.dropdown-arrow {
+  font-size: 10px;
+  color: #666;
+}
+
+.header-icons {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.icon-wrapper {
+  position: relative;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 4px;
+  transition: background-color 0.2s;
+}
+
+.icon-wrapper:hover {
+  background-color: #f5f5f5;
+}
+
+.icon {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  color: #ee4d2d;
+}
+
+.notification-badge {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  background-color: #ee4d2d;
+  color: white;
+  border-radius: 50%;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.profile-dropdown-wrapper {
+  position: relative;
+}
+
+/* User Dropdown */
+.user-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  background-color: #ffffff;
+  border-radius: 8px 8px 0 0;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  min-width: 280px;
+  z-index: 1000;
+  overflow: hidden;
+}
+
+.dropdown-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 20px 16px 16px;
+}
+
+.dropdown-logo {
+  margin-bottom: 12px;
+}
+
+.logo-circle {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  border: 2px solid #ee4d2d;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background-color: #ffffff;
+  position: relative;
+}
+
+.logo-text-top {
+  font-size: 9px;
+  font-weight: 700;
+  color: #ee4d2d;
+  line-height: 1.1;
+  text-align: center;
+  letter-spacing: 0.3px;
+}
+
+.logo-text-bottom {
+  font-size: 9px;
+  font-weight: 700;
+  color: #ee4d2d;
+  line-height: 1.1;
+  text-align: center;
+  letter-spacing: 0.3px;
+  margin-top: 1px;
+}
+
+.logo-books-icon {
+  margin-top: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dropdown-username {
+  font-size: 14px;
+  color: #333333;
+  font-weight: 400;
+  text-align: center;
+}
+
+.dropdown-separator {
+  height: 1px;
+  background-color: #e8e8e8;
+  margin: 0;
+}
+
+.dropdown-menu {
+  padding: 8px 0;
+}
+
+.dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  color: #333333;
+  font-size: 14px;
+}
+
+.dropdown-item:hover {
+  background-color: #f5f5f5;
+}
+
+.dropdown-item span:last-child:not(.dropdown-chevron) {
+  flex: 1;
+}
+
+.dropdown-icon {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  stroke: #666666;
+}
+
+.dropdown-chevron {
+  color: #999999;
+  font-size: 12px;
+  margin-left: auto;
+}
+
+/* Dashboard Content */
+.dashboard-content {
+  display: flex;
+  flex: 1;
+  overflow: visible;
+  min-height: 0;
+  position: relative;
+}
+
+/* Sidebar */
+.sidebar {
+  width: 240px;
+  background-color: #ffffff;
+  border-right: 1px solid #e8e8e8;
+  overflow-y: auto;
+  overflow-x: hidden;
+  flex-shrink: 0;
+  position: sticky;
+  top: 64px;
+  align-self: flex-start;
+  height: calc(100vh - 64px);
+  min-height: calc(100vh - 64px);
+  max-height: calc(100vh - 64px);
+}
+
+/* Custom Scrollbar for Sidebar */
+.sidebar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.sidebar::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+.sidebar::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 3px;
+}
+
+.sidebar::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}
+
+.sidebar-nav {
+  padding: 16px 0;
+}
+
+.nav-section {
+  margin-bottom: 4px;
+}
+
+.nav-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 20px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  color: #333;
+  transition: background-color 0.2s;
+}
+
+.nav-section-header:hover {
+  background-color: #f5f5f5;
+}
+
+.section-arrow {
+  font-size: 10px;
+  color: #666;
+}
+
+.nav-items {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.nav-item {
+  display: block;
+  padding: 10px 20px 10px 40px;
+  font-size: 13px;
+  color: #666;
+  cursor: pointer;
+  transition: background-color 0.2s, color 0.2s;
+  text-decoration: none;
+}
+
+.nav-item:hover {
+  background-color: #f5f5f5;
+  color: #333;
+}
+
+.nav-item.active {
+  color: #333;
+}
+
+/* Main Content */
+.dashboard-main {
+  flex: 1;
+  padding: 20px;
+  overflow-y: auto;
+  background-color: #f5f5f5;
+}
+
+/* Warning Banner */
+.warning-banner {
+  background-color: #fffbe6;
+  border: 1px solid #ffe58f;
+  border-radius: 4px;
+  padding: 12px 16px;
+  margin-bottom: 20px;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  font-size: 13px;
+  color: #333;
+  line-height: 1.5;
+}
+
+.warning-icon {
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+.warning-text {
+  flex: 1;
+}
+
+.warning-link {
+  color: #ee4d2d;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.warning-link:hover {
+  text-decoration: underline;
+}
+
+/* Dashboard Grid */
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: 1.6fr 1fr;
+  gap: 18px;
+  margin-bottom: 18px;
+  align-items: stretch;
+}
+
+.dashboard-left-column {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  height: 100%;
+}
+
+.dashboard-right-column {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  height: 100%;
+}
+
+/* Marketing Section */
+.marketing-section {
+  margin-top: 18px;
+}
+
+.marketing-top-full {
+  margin-bottom: 18px;
+}
+
+.marketing-top-full .dashboard-card {
+  width: 100%;
+}
+
+.marketing-middle-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+  margin-bottom: 18px;
+}
+
+.marketing-bottom-row {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 18px;
+}
+
+/* Affiliate Marketing Card */
+.affiliate-marketing-card {
+  min-height: auto;
+}
+
+.affiliate-banner {
+  background: linear-gradient(135deg, #fff0f5 0%, #ffe4e1 100%);
+  padding: 12px;
+  border-radius: 4px;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.affiliate-banner-icon {
+  font-size: 32px;
+  flex-shrink: 0;
+}
+
+.affiliate-banner-text {
+  font-size: 13px;
+  color: #333;
+  margin: 0;
+  font-weight: 500;
+}
+
+.affiliate-section h4 {
+  font-size: 14px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 8px;
+}
+
+.affiliate-info {
+  font-size: 12px;
+  color: #999;
+  margin-bottom: 12px;
+}
+
+.commission-input-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.commission-input {
+  width: 60px;
+  padding: 6px 8px;
+  border: 1px solid #d9d9d9;
+  border-radius: 3px;
+  font-size: 14px;
+}
+
+.percent-sign {
+  font-size: 14px;
+  color: #666;
+}
+
+.check-btn {
+  background-color: #52c41a;
+  color: white;
+  border: none;
+  border-radius: 3px;
+  width: 28px;
+  height: 28px;
+  cursor: pointer;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.suggested-text {
+  font-size: 11px;
+  color: #999;
+  margin-bottom: 8px;
+}
+
+.potential-sales {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: #52c41a;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.arrow-up {
+  font-size: 16px;
+}
+
+/* Livestream Card */
+.livestream-card {
+  min-height: auto;
+}
+
+.livestream-illustration {
+  background: linear-gradient(135deg, #fff4e6 0%, #ffe0b2 100%);
+  border-radius: 4px;
+  padding: 16px;
+  min-height: 180px;
+  position: relative;
+  overflow: hidden;
+}
+
+.livestream-text {
+  position: relative;
+  z-index: 2;
+}
+
+.livestream-text p {
+  font-size: 16px;
+  color: #333;
+  margin-bottom: 16px;
+  font-weight: 500;
+}
+
+.livestream-text strong {
+  color: #ee4d2d;
+}
+
+.create-stream-btn {
+  background-color: #ee4d2d;
+  color: white;
+  border: none;
+  border-radius: 3px;
+  padding: 10px 20px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.create-stream-btn:hover {
+  background-color: #d73211;
+}
+
+/* Fulfilled by Shopee Card */
+.fulfilled-card {
+  min-height: auto;
+}
+
+.fulfilled-illustration {
+  background: linear-gradient(135deg, #fff4e6 0%, #ffe0b2 100%);
+  border-radius: 4px;
+  padding: 16px;
+  min-height: 140px;
+  position: relative;
+  overflow: hidden;
+}
+
+.fulfilled-text {
+  font-size: 13px;
+  color: #666;
+  margin-bottom: 16px;
+  line-height: 1.5;
+}
+
+/* Seller Missions Card */
+.missions-card {
+  min-height: auto;
+}
+
+.missions-content {
+  text-align: center;
+  padding: 16px;
+}
+
+.trophy-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.trophy-icon {
+  font-size: 48px;
+}
+
+.stars {
+  font-size: 20px;
+}
+
+.missions-content p {
+  font-size: 13px;
+  color: #666;
+  line-height: 1.5;
+  margin: 0;
+}
+
+/* Campaign Card Updates */
+.campaign-item {
+  min-width: 280px;
+  padding: 0;
+  background-color: #ffffff;
+  border-radius: 4px;
+  border: 1px solid #e8e8e8;
+  overflow: hidden;
+}
+
+.campaign-banner {
+  padding: 16px;
+  text-align: center;
+  position: relative;
+}
+
+.payday-sale .campaign-banner {
+  background-color: #ee4d2d;
+}
+
+.mega-discount .campaign-banner {
+  background-color: #ffc107;
+}
+
+.live-xtra .campaign-banner {
+  background-color: #ff6b35;
+}
+
+.shipping-support .campaign-banner {
+  background-color: #52c41a;
+}
+
+.campaign-logo-text,
+.campaign-banner-text {
+  font-size: 14px;
+  font-weight: 700;
+  color: white;
+  display: block;
+  margin-bottom: 4px;
+}
+
+.campaign-subtext {
+  font-size: 10px;
+  color: white;
+  display: block;
+  opacity: 0.9;
+}
+
+.campaign-details {
+  padding: 16px;
+}
+
+.campaign-details h4 {
+  font-size: 14px;
+  font-weight: 600;
+  color: #333;
+  margin: 0 0 4px 0;
+}
+
+.campaign-details p {
+  font-size: 12px;
+  color: #999;
+  margin: 0 0 12px 0;
+}
+
+.dashboard-card {
+  background-color: #ffffff;
+  border-radius: 4px;
+  border: 1px solid #e8e8e8;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  padding: 18px;
+  width: 100%;
+}
+
+/* To Do List Card */
+.todo-card {
+  min-height: auto;
+}
+
+.todo-list {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.todo-item {
+  text-align: center;
+  padding: 12px 8px;
+  background-color: #fafafa;
+  border-radius: 4px;
+}
+
+.todo-number {
+  font-size: 28px;
+  font-weight: 700;
+  color: #333;
+  margin-bottom: 6px;
+}
+
+.todo-number.blue {
+  color: #1890ff;
+}
+
+.todo-label {
+  font-size: 11px;
+  color: #666;
+  line-height: 1.3;
+}
+
+/* Business Insights Card */
+.insights-card {
+  min-height: auto;
+}
+
+.card-title-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.info-icon {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background-color: #e6f7ff;
+  color: #1890ff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.info-icon-small {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background-color: #e6f7ff;
+  color: #1890ff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 600;
+  margin-left: 4px;
+  cursor: pointer;
+}
+
+.header-right-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.insights-subtitle-header {
+  font-size: 11px;
+  color: #999;
+  line-height: 1.4;
+}
+
+.insights-subtitle {
+  font-size: 11px;
+  color: #999;
+  margin-bottom: 12px;
+  line-height: 1.4;
+}
+
+.insights-metrics {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 10px;
+}
+
+.metric-item {
+  text-align: center;
+  padding: 10px 8px;
+  background-color: #fafafa;
+  border-radius: 4px;
+  position: relative;
+}
+
+.metric-label {
+  font-size: 11px;
+  color: #666;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+.metric-value {
+  font-size: 18px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 4px;
+}
+
+.metric-change {
+  font-size: 11px;
+  color: #999;
+}
+
+.metric-change.negative {
+  color: #999;
+}
+
+.metric-icon {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  font-size: 16px;
+  opacity: 0.5;
+}
+
+/* Shopee Ads Card Updates */
+.shopee-ads-card {
+  background-color: #ffffff;
+  border: 1px solid #e8e8e8;
+}
+
+.ads-card-white {
+  background-color: #ffffff;
+  border: 1px solid #b3d8ff;
+  border-radius: 4px;
+  padding: 16px;
+  position: relative;
+}
+
+.ads-icon-blue {
+  flex-shrink: 0;
+  color: #1890ff;
+}
+
+.ads-content {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.ads-text h4 {
+  font-size: 14px;
+  font-weight: 600;
+  color: #333;
+  margin: 0 0 8px 0;
+}
+
+.ads-text p {
+  font-size: 12px;
+  color: #666;
+  margin: 0;
+  line-height: 1.5;
+}
+
+.ads-button-container {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 12px;
+}
+
+.ads-btn {
+  background-color: #ee4d2d;
+  color: white;
+  border: none;
+  border-radius: 3px;
+  padding: 8px 16px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.ads-btn:hover {
+  background-color: #d73211;
+}
+
+/* Shopee Ads Card - Updated styling removed, using new styles below */
+
+/* Shop Performance Card */
+.performance-card {
+  flex-shrink: 0;
+}
+
+.performance-content {
+  padding: 20px 16px;
+  position: relative;
+  min-height: 100px;
+}
+
+.performance-rating {
+  font-size: 24px;
+  font-weight: 700;
+  color: #52c41a;
+  margin-bottom: 8px;
+}
+
+.performance-rating.blue {
+  color: #1890ff;
+}
+
+.performance-text {
+  font-size: 13px;
+  color: #666;
+  margin-bottom: 0;
+  line-height: 1.5;
+}
+
+.performance-arrow {
+  position: absolute;
+  right: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 18px;
+  color: #999;
+}
+
+/* Announcements Card */
+.announcements-card {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.announcements-card .card-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.announcements-list {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.announcements-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.announcement-item {
+  padding-bottom: 12px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.announcement-item:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.announcement-item.featured {
+  padding: 0;
+  background-color: transparent;
+  border: none;
+  border-radius: 0;
+}
+
+.announcement-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  background-color: #ee4d2d;
+  border-radius: 4px 4px 0 0;
+  position: relative;
+}
+
+.banner-logo-container {
+  display: flex;
+  align-items: center;
+}
+
+.banner-logo {
+  font-size: 24px;
+  filter: brightness(0) invert(1);
+}
+
+.banner-text {
+  font-size: 16px;
+  font-weight: 700;
+  color: white;
+  flex: 1;
+  letter-spacing: 0.5px;
+}
+
+.banner-content-wrapper {
+  padding: 16px;
+  background-color: #fff5f3;
+  border-radius: 0 0 4px 4px;
+  border: 1px solid #ffccc7;
+  border-top: none;
+}
+
+.announcement-content-banner {
+  font-size: 12px;
+  color: #333;
+  line-height: 1.6;
+  margin-bottom: 12px;
+}
+
+.banner-button-wrapper {
+  display: flex;
+  justify-content: flex-end;
+  clear: both;
+}
+
+.announcement-btn-banner {
+  background-color: #1890ff;
+  color: white;
+  border: none;
+  border-radius: 3px;
+  padding: 8px 16px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.announcement-btn-banner:hover {
+  background-color: #096dd9;
+}
+
+.announcement-content {
+  font-size: 12px;
+  color: #666;
+  line-height: 1.5;
+  margin-bottom: 12px;
+}
+
+.announcement-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.announcement-icon {
+  font-size: 16px;
+}
+
+.announcement-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #333;
+}
+
+.announcement-content-small {
+  font-size: 12px;
+  color: #666;
+  line-height: 1.5;
+  margin-bottom: 8px;
+}
+
+.announcement-link {
+  color: #ee4d2d;
+  text-decoration: none;
+}
+
+.announcement-link:hover {
+  text-decoration: underline;
+}
+
+.announcement-time {
+  font-size: 11px;
+  color: #999;
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.card-title-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.card-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #333;
+  margin: 0;
+}
+
+.new-badge {
+  background-color: #ee4d2d;
+  color: white;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 2px;
+}
+
+.more-link {
+  font-size: 12px;
+  color: #666;
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+.more-link:hover {
+  color: #ee4d2d;
+}
+
+.card-content {
+  color: #666;
+}
+
+.card-description {
+  font-size: 13px;
+  margin-bottom: 12px;
+  line-height: 1.5;
+}
+
+/* Affiliate Marketing Card */
+.affiliate-section h4 {
+  font-size: 14px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 8px;
+}
+
+.affiliate-info {
+  font-size: 12px;
+  color: #999;
+  margin-bottom: 12px;
+}
+
+.commission-input-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.commission-input {
+  width: 60px;
+  padding: 6px 8px;
+  border: 1px solid #d9d9d9;
+  border-radius: 3px;
+  font-size: 14px;
+}
+
+.percent-sign {
+  font-size: 14px;
+  color: #666;
+}
+
+.check-btn {
+  background-color: #52c41a;
+  color: white;
+  border: none;
+  border-radius: 3px;
+  width: 28px;
+  height: 28px;
+  cursor: pointer;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.suggested-text {
+  font-size: 11px;
+  color: #999;
+  margin-bottom: 8px;
+}
+
+.potential-sales {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: #52c41a;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.arrow-up {
+  font-size: 16px;
+}
+
+/* Livestream Card */
+.create-stream-btn {
+  background-color: #ee4d2d;
+  color: white;
+  border: none;
+  border-radius: 3px;
+  padding: 10px 20px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.create-stream-btn:hover {
+  background-color: #d73211;
+}
+
+/* Fulfilled by Shopee Card */
+.learn-more-btn {
+  background-color: #ee4d2d;
+  color: white;
+  border: none;
+  border-radius: 3px;
+  padding: 10px 20px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.learn-more-btn:hover {
+  background-color: #d73211;
+}
+
+/* Campaign Card */
+.campaign-card {
+  width: 100%;
+}
+
+.campaign-scroll {
+  display: flex;
+  gap: 16px;
+  overflow-x: auto;
+  padding-bottom: 8px;
+}
+
+.campaign-item {
+  min-width: 280px;
+  padding: 16px;
+  background-color: #fafafa;
+  border-radius: 4px;
+  border: 1px solid #e8e8e8;
+}
+
+.campaign-header-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.campaign-logo,
+.campaign-icon {
+  font-size: 24px;
+}
+
+.campaign-header-item h4 {
+  font-size: 14px;
+  font-weight: 600;
+  color: #333;
+  margin: 0 0 4px 0;
+}
+
+.campaign-header-item p {
+  font-size: 12px;
+  color: #999;
+  margin: 0;
+}
+
+.campaign-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.campaign-type-btn {
+  flex: 1;
+  padding: 6px 12px;
+  background-color: white;
+  border: 1px solid #d9d9d9;
+  border-radius: 3px;
+  font-size: 11px;
+  color: #666;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+
+.campaign-type-btn:hover {
+  border-color: #ee4d2d;
+}
+
+.join-btn {
+  padding: 6px 16px;
+  background-color: #ee4d2d;
+  color: white;
+  border: none;
+  border-radius: 3px;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.join-btn:hover {
+  background-color: #d73211;
+}
+
+/* Seller Missions Card */
+.missions-content {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.trophy-icon {
+  font-size: 48px;
+}
+
+.missions-content p {
+  font-size: 13px;
+  color: #666;
+  line-height: 1.5;
+  margin: 0;
+}
+
+/* Responsive */
+@media (max-width: 1200px) {
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .insights-metrics {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .todo-list {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .sidebar {
+    width: 200px;
+  }
+
+  .dashboard-header {
+    padding: 12px 20px;
+  }
+
+  .insights-metrics {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .todo-list {
+    grid-template-columns: 1fr;
+  }
+}
+
