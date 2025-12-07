@@ -5,7 +5,10 @@ import { authMiddleware } from "../middlewares/auth.middleware";
 const router = Router();
 
 // Get all products (public - for buyer landing page)
-router.get("/", productController.getAllProducts);
+router.get("/", (req, res, next) => {
+  console.log("[PRODUCT ROUTE] GET /api/products hit");
+  productController.getAllProducts(req, res, next);
+});
 
 // Get product by ID (public)
 router.get("/:id", productController.getProductById);

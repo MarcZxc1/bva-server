@@ -102,7 +102,10 @@ app.use("/api/users", userRoutes);
 app.use("/api/v1/notifications", notificationRoutes);
 
 // Register Product Router
-app.use("/api/products", productRoutes);
+app.use("/api/products", (req, res, next) => {
+  console.log(`[APP] ${req.method} ${req.path} -> /api/products`);
+  productRoutes(req, res, next);
+});
 
 // Register Reports Router
 app.use("/api/reports", reportsRoutes);
