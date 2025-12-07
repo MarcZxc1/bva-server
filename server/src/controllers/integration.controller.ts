@@ -190,7 +190,19 @@ export class IntegrationController {
           error: "Integration ID is required",
         });
       }
-      const result = await integrationService.testConnection(id);
+      
+      // Get JWT token from Authorization header
+      const authHeader = req.headers.authorization;
+      const token = authHeader?.replace("Bearer ", "");
+      
+      if (!token) {
+        return res.status(401).json({
+          success: false,
+          error: "Authentication token required",
+        });
+      }
+      
+      const result = await integrationService.testConnection(id, token);
 
       return res.json(result);
     } catch (error: any) {
@@ -215,7 +227,19 @@ export class IntegrationController {
           error: "Integration ID is required",
         });
       }
-      const result = await integrationService.syncIntegration(id);
+      
+      // Get JWT token from Authorization header
+      const authHeader = req.headers.authorization;
+      const token = authHeader?.replace("Bearer ", "");
+      
+      if (!token) {
+        return res.status(401).json({
+          success: false,
+          error: "Authentication token required",
+        });
+      }
+      
+      const result = await integrationService.syncIntegration(id, token);
 
       return res.json(result);
     } catch (error: any) {

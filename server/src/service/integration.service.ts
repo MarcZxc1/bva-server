@@ -127,19 +127,13 @@ class IntegrationService {
 
   /**
    * Test integration connection
+   * Uses JWT token for authentication
    */
-  async testConnection(integrationId: string) {
+  async testConnection(integrationId: string, token: string) {
     const integration = await this.getIntegrationById(integrationId);
     
     if (!integration) {
       throw new Error("Integration not found");
-    }
-
-    const settings = integration.settings as Record<string, any>;
-    const apiKey = settings?.apiKey;
-
-    if (!apiKey) {
-      throw new Error("API key not found in integration settings");
     }
 
     // Test connection based on platform
@@ -147,7 +141,7 @@ class IntegrationService {
       case Platform.SHOPEE:
         try {
           // Try to fetch products to test connection
-          const products = await shopeeIntegrationService.fetchProducts(apiKey);
+          const products = await shopeeIntegrationService.fetchProducts(token);
           return {
             success: true,
             message: "Connection successful",
@@ -166,19 +160,13 @@ class IntegrationService {
 
   /**
    * Sync data from integration
+   * Uses JWT token for authentication
    */
-  async syncIntegration(integrationId: string) {
+  async syncIntegration(integrationId: string, token: string) {
     const integration = await this.getIntegrationById(integrationId);
     
     if (!integration) {
       throw new Error("Integration not found");
-    }
-
-    const settings = integration.settings as Record<string, any>;
-    const apiKey = settings?.apiKey;
-
-    if (!apiKey) {
-      throw new Error("API key not found in integration settings");
     }
 
     const userId = integration.shop.owner.id;
@@ -186,7 +174,7 @@ class IntegrationService {
     // Sync based on platform
     switch (integration.platform) {
       case Platform.SHOPEE:
-        const result = await shopeeIntegrationService.syncAllData(userId, apiKey);
+        const result = await shopeeIntegrationService.syncAllData(userId, token);
         return {
           success: true,
           message: "Sync completed",
