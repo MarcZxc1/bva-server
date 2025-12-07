@@ -75,6 +75,15 @@ app.get("/health", (req: Request, res: Response) => {
 app.use("/test", (req, res) => {
   res.send("WORKING!");
 });
+
+// Debug route to test product routes
+app.post("/test-products", (req, res) => {
+  res.json({ 
+    message: "POST route test successful",
+    timestamp: new Date().toISOString(),
+    body: req.body 
+  });
+});
 // Register your Ad Router
 // All routes in adRouter will be prefixed with /api/v1/ads
 app.use("/api/v1/ads", adRouter);
