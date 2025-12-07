@@ -19,15 +19,15 @@ import BuyerCheckout from './features/buyer/BuyerCheckout';
 
 function App() {
   return (
-    <AuthProvider>
-      <CartProvider>
-        <OrderProvider>
-          <Router
-            future={{
-              v7_startTransition: true,
-              v7_relativeSplatPath: true,
-            }}
-          >
+    <Router
+      future={{
+        v7_startTransition: true,
+        v7_relativeSplatPath: true,
+      }}
+    >
+      <AuthProvider>
+        <CartProvider>
+          <OrderProvider>
             <Routes>
               {/* Buyer Routes */}
               <Route path="/" element={<BuyerLandingPage />} />
@@ -87,10 +87,10 @@ function App() {
                 } 
               />
             </Routes>
-          </Router>
-        </OrderProvider>
-      </CartProvider>
-    </AuthProvider>
+          </OrderProvider>
+        </CartProvider>
+      </AuthProvider>
+    </Router>
   );
 }
 
