@@ -1,12 +1,16 @@
 // API Service Layer for Shopee-Clone
 // Use relative URLs in development (goes through Vite proxy) or absolute URL in production
 const getBaseURL = () => {
+  // If VITE_API_URL is explicitly set, use it (bypasses proxy)
+  if (import.meta.env.VITE_API_URL) {
+    return import.meta.env.VITE_API_URL;
+  }
   // In development, use relative URLs to leverage Vite proxy
   if (import.meta.env.DEV) {
-    return ''; // Empty string means relative URLs
+    return ''; // Empty string means relative URLs - goes through Vite proxy
   }
-  // In production, use the full API URL
-  return import.meta.env.VITE_API_URL || 'http://localhost:3000';
+  // In production, default to port 3000
+  return 'http://localhost:3000';
 };
 
 class ApiClient {
