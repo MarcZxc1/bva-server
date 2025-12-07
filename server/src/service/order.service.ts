@@ -76,7 +76,7 @@ export async function createOrder(data: {
           revenue: shopTotal,
           profit,
           customerEmail: data.userId,
-          status: "pending",
+          status: "to-pay", // Initial status: buyer needs to confirm payment
         },
       });
 

@@ -218,12 +218,32 @@ const MyOrders = () => {
     onOrderUpdate: fetchOrders,
   });
 
-  const handleUpdateStatus = async (orderId: string, newStatus: string) => {
+  const [confirmingDelivery, setConfirmingDelivery] = useState<string | null>(null);
+
+  const handleShipNow = async (orderId: string) => {
     try {
-      await apiClient.updateOrderStatus(orderId, newStatus);
+      await apiClient.updateOrderStatus(orderId, 'to-receive');
       fetchOrders(); // Refresh orders
+      alert('Order shipped! The buyer will be notified.');
     } catch (err: any) {
-      alert(err.message || 'Failed to update order status');
+      alert(err.message || 'Failed to ship order');
+    }
+  };
+
+  const handleConfirmDelivery = async (orderId: string) => {
+    setConfirmingDelivery(orderId);
+    
+    // Simulate 3-second loading
+    await new Promise(resolve => setTimeout(resolve, 3000));
+    
+    try {
+      await apiClient.updateOrderStatus(orderId, 'completed');
+      fetchOrders(); // Refresh orders
+      alert('Delivery confirmed! Order marked as completed.');
+    } catch (err: any) {
+      alert(err.message || 'Failed to confirm delivery');
+    } finally {
+      setConfirmingDelivery(null);
     }
   };
 
@@ -259,8 +279,12 @@ const MyOrders = () => {
 
   const getStatusLabel = (status: string) => {
     switch (status) {
-      case 'pending':
+      case 'to-pay':
+        return 'To Pay';
+      case 'to-ship':
         return 'To Ship';
+      case 'to-receive':
+        return 'To Receive';
       case 'shipping':
         return 'Shipping';
       case 'completed':
@@ -276,8 +300,12 @@ const MyOrders = () => {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'pending':
+      case 'to-pay':
         return '#ff9800';
+      case 'to-ship':
+        return '#ff9800';
+      case 'to-receive':
+        return '#9c27b0';
       case 'shipping':
         return '#2196f3';
       case 'completed':
@@ -683,28 +711,39 @@ const MyOrders = () => {
                 </span>
               </div>
               <div className="order-countdown">
-                {order.status === 'pending' && (
+                {order.status === 'to-ship' && (
                   <span className="countdown-text">Ship within 3 days</span>
+                )}
+                {order.status === 'to-receive' && (
+                  <span className="countdown-text">Out for delivery</span>
                 )}
               </div>
               <div className="order-channel">
                 <span>{order.platform || 'Shopee'}</span>
               </div>
               <div className="order-actions">
-                {order.status === 'pending' && (
+                {order.status === 'to-ship' && (
                   <button
-                    onClick={() => handleUpdateStatus(order.id, 'shipping')}
+                    onClick={() => handleShipNow(order.id)}
                     className="btn-ship"
                   >
                     Ship Now
                   </button>
                 )}
-                {order.status === 'shipping' && (
+                {order.status === 'to-receive' && (
                   <button
-                    onClick={() => handleUpdateStatus(order.id, 'completed')}
-                    className="btn-complete"
+                    onClick={() => handleConfirmDelivery(order.id)}
+                    disabled={confirmingDelivery === order.id}
+                    className={`btn-complete ${confirmingDelivery === order.id ? 'opacity-50 cursor-not-allowed' : ''}`}
                   >
-                    Mark Complete
+                    {confirmingDelivery === order.id ? (
+                      <span className="flex items-center gap-2">
+                        <span className="animate-spin">⏳</span>
+                        Confirming...
+                      </span>
+                    ) : (
+                      'Confirm Delivery'
+                    )}
                   </button>
                 )}
                 <button
