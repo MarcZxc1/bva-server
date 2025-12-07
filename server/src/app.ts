@@ -102,10 +102,15 @@ app.use("/api/users", userRoutes);
 app.use("/api/v1/notifications", notificationRoutes);
 
 // Register Product Router
-app.use("/api/products", (req, res, next) => {
-  console.log(`[APP] ${req.method} ${req.path} -> /api/products`);
-  productRoutes(req, res, next);
+console.log("🔧 Registering Product Routes at /api/products");
+app.get("/api/products/test-direct", (req, res) => {
+  console.log("[TEST] Direct route hit!");
+  res.json({ message: "Direct route works!", test: true });
 });
+app.use("/api/products", (req, res, next) => {
+  console.log(`[DEBUG] Product route middleware: ${req.method} ${req.url}`);
+  next();
+}, productRoutes);
 
 // Register Reports Router
 app.use("/api/reports", reportsRoutes);
