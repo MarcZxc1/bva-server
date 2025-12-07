@@ -6,6 +6,7 @@ import HeroBanner from './components/HeroBanner';
 import FeatureIcons from './components/FeatureIcons';
 import CategoryCard from './components/CategoryCard';
 import apiClient from '../../services/api';
+import { dailyDiscoverProducts, Product as MockProduct } from '../../data/dailyDiscoverProducts';
 
 // Payment Methods
 import spayImg from '../../assets/PAYMENTS/buyer-spay.png';
@@ -74,28 +75,8 @@ interface Product {
 }
 
 const BuyerLandingPage: React.FC = () => {
-  const [products, setProducts] = useState<Product[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    const fetchProducts = async () => {
-      try {
-        setIsLoading(true);
-        setError(null);
-        const data = await apiClient.getProducts();
-        setProducts(data || []);
-      } catch (err: any) {
-        console.error('Error fetching products:', err);
-        setError(err.message || 'Failed to load products');
-        setProducts([]);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchProducts();
-  }, []);
+  // Use mock data for the original design
+  const products = dailyDiscoverProducts;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -182,66 +163,73 @@ const BuyerLandingPage: React.FC = () => {
             <div className="h-1 bg-shopee-orange w-full mt-3"></div>
           </div>
           
-          {isLoading ? (
-            <div className="text-center py-12">
-              <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-shopee-orange"></div>
-              <p className="mt-4 text-gray-500">Loading products...</p>
-            </div>
-          ) : error ? (
-            <div className="text-center py-12">
-              <p className="text-red-500">{error}</p>
-              <button
-                onClick={() => window.location.reload()}
-                className="mt-4 text-shopee-orange hover:text-shopee-orange-dark"
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
+            {products.map((product) => (
+              <Link
+                to={`/product/${product.id}`}
+                key={product.id}
+                className="bg-white border border-gray-200 hover:border-shopee-orange transition-all cursor-pointer group flex flex-col"
               >
-                Retry
-              </button>
-            </div>
-          ) : products.length === 0 ? (
-            <div className="text-center py-12">
-              <p className="text-gray-500">No products available</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
-              {products.map((product) => (
-                <Link
-                  to={`/product/${product.id}`}
-                  key={product.id}
-                  className="bg-white border border-gray-200 hover:shadow-lg transition-all cursor-pointer group flex flex-col"
-                >
-                  {/* Product Image */}
-                  <div className="relative aspect-square bg-gray-50 overflow-hidden">
-                    {product.imageUrl ? (
-                      <img
-                        src={product.imageUrl}
-                        alt={product.name}
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200">
-                        <span className="text-5xl opacity-50">📦</span>
-                      </div>
-                    )}
-                  </div>
+                {/* Product Image */}
+                <div className="relative aspect-square bg-gray-50 overflow-hidden">
+                  {product.image && (product.image.startsWith('http') || product.image.startsWith('/')) ? (
+                    <img
+                      src={product.image}
+                      alt={product.name}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200">
+                      <span className="text-5xl opacity-50">{product.image || '📦'}</span>
+                    </div>
+                  )}
                   
-                  {/* Product Info */}
-                  <div className="p-2 flex-1 flex flex-col">
-                    <div className="text-shopee-orange text-lg font-medium mb-1">
-                      ₱{product.price?.toLocaleString() || '0'}
+                  {/* Discount Badge */}
+                  {product.discount && product.discount > 0 && (
+                    <div className="absolute top-2 right-2 bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded">
+                      -{product.discount}%
                     </div>
-                    <div className="text-xs text-gray-600 line-clamp-2 flex-1">
-                      {product.name}
+                  )}
+                  
+                  {/* Video Play Icon */}
+                  {product.hasVideo && (
+                    <div className="absolute bottom-2 left-2 bg-black/60 rounded-full p-1.5">
+                      <Play size={14} className="text-white" fill="white" />
                     </div>
-                    {product.shop && (
-                      <div className="text-xs text-gray-400 mt-1">
-                        {product.shop.name}
-                      </div>
+                  )}
+                  
+                  {/* Badges */}
+                  <div className="absolute top-2 left-2 flex flex-col gap-1">
+                    {product.badges.includes('Preferred') && (
+                      <span className="bg-yellow-400 text-yellow-900 text-[10px] font-semibold px-1.5 py-0.5 rounded">Preferred</span>
+                    )}
+                    {product.badges.includes('COD') && (
+                      <span className="bg-blue-500 text-white text-[10px] font-semibold px-1.5 py-0.5 rounded">COD</span>
                     )}
                   </div>
-                </Link>
-              ))}
-            </div>
-          )}
+                </div>
+                
+                {/* Product Info */}
+                <div className="p-2 flex-1 flex flex-col">
+                  <div className="text-shopee-orange text-lg font-medium mb-1">
+                    ₱{product.price.toLocaleString()}
+                  </div>
+                  {product.originalPrice && product.originalPrice > product.price && (
+                    <div className="flex items-center gap-1 mb-1">
+                      <span className="text-gray-400 text-[10px] line-through">₱{product.originalPrice.toLocaleString()}</span>
+                    </div>
+                  )}
+                  <div className="text-xs text-gray-600 line-clamp-2 flex-1 mb-1">
+                    {product.name}
+                  </div>
+                  {/* Sold Count */}
+                  <div className="text-xs text-gray-400 mt-auto">
+                    {product.sold >= 10000 ? '10K++++' : product.sold}+ sold
+                  </div>
+                </div>
+              </Link>
+            ))}
+          </div>
 
           {/* See More Button */}
           <div className="mt-8 text-center">
