@@ -12,6 +12,7 @@
     "db:view": "npx prisma studio",
     "db:clear": "ts-node prisma/clear-db.ts",
     "db:clear-sales": "ts-node prisma/clear-sales-inventory.ts",
+    "db:clear-products": "ts-node prisma/clear-products.ts",
     "db:reset": "ts-node prisma/clear-db.ts && ts-node prisma/seed.ts"
   },
   "keywords": [],
