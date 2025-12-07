@@ -85,6 +85,7 @@ export class CacheService {
       const keys = await redis.keys(pattern);
       if (keys.length > 0) {
         await redis.del(...keys);
+        console.log(`🗑️  Deleted ${keys.length} cache keys matching pattern: ${pattern}`);
       }
     } catch (error) {
       console.error(`Cache delete pattern error for ${pattern}:`, error);
@@ -95,13 +96,17 @@ export class CacheService {
    * Invalidate cache for a shop
    */
   static async invalidateShop(shopId: string): Promise<void> {
+    console.log(`🔄 Invalidating cache for shop: ${shopId}`);
     await Promise.all([
       this.delPattern(`shop:${shopId}:*`),
       this.del(`dashboard:${shopId}`),
-      this.del(`at-risk:${shopId}`),
+      this.del(`dashboard-analytics:${shopId}`), // Dashboard analytics cache
+      this.del(`at-risk:${shopId}`), // At-risk inventory cache
       this.del(`products:${shopId}`),
-      this.del(`sales:${shopId}:*`),
+      this.delPattern(`sales:${shopId}:*`),
+      this.delPattern(`reports:${shopId}:*`), // Reports cache
     ]);
+    console.log(`✅ Cache invalidated for shop: ${shopId}`);
   }
 
   /**

@@ -126,80 +126,117 @@ export async function getDashboardAnalytics(shopId: string) {
     async () => {
       // 1. Calculate basic metrics from database
       const products = await prisma.product.findMany({
-    where: { shopId },
-    include: {
-      inventories: { take: 1 },
-    },
-  });
+        where: { shopId },
+        include: {
+          inventories: { take: 1 },
+        },
+      });
 
-  // 2. Get sales data for the last 30 days
-  const thirtyDaysAgo = new Date();
-  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      // 2. Get ALL sales for lifetime metrics (total revenue, total orders)
+      const allSales = await prisma.sale.findMany({
+        where: {
+          shopId,
+        },
+        select: {
+          items: true,
+          total: true,
+          revenue: true,
+          profit: true,
+          createdAt: true,
+          status: true,
+        },
+      });
 
-  const sales = await prisma.sale.findMany({
-    where: {
-      shopId,
-      createdAt: {
-        gte: thirtyDaysAgo,
-      },
-    },
-    select: {
-      items: true,
-      total: true,
-      createdAt: true,
-    },
-  });
+      // Debug logging
+      console.log(`📊 Dashboard Analytics for shop ${shopId}: Found ${allSales.length} total sales`);
 
-  // 3. Calculate totals
-  let totalRevenue = 0;
-  let totalCost = 0;
-  let totalItems = 0;
-  const salesRecords: any[] = [];
+      // 3. Get sales data for the last 30 days (for forecast/trends)
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-  sales.forEach((sale) => {
-    totalRevenue += sale.total;
+      const recentSales = allSales.filter(
+        (sale) => sale.createdAt >= thirtyDaysAgo
+      );
 
-    const items =
-      typeof sale.items === "string" ? JSON.parse(sale.items) : sale.items;
+      // 4. Calculate lifetime totals from ALL sales
+      let totalRevenue = 0;
+      let totalCost = 0;
+      let totalItems = 0;
+      let totalOrders = 0;
+      const salesRecords: any[] = [];
 
-    if (Array.isArray(items)) {
-      items.forEach((item: any) => {
-        const product = products.find((p) => p.id === item.productId);
-        if (product) {
-          totalCost += (product.cost || 0) * (item.quantity || 0);
-          totalItems += item.quantity || 0;
-        }
+      allSales.forEach((sale) => {
+        // Count all orders (regardless of status for total count)
+        totalOrders++;
+        
+        // Use revenue if available, otherwise use total
+        const saleRevenue = sale.revenue || sale.total || 0;
+        totalRevenue += saleRevenue;
 
-        if (item.productId) {
-          salesRecords.push({
-            product_id: item.productId,
-            date: sale.createdAt.toISOString(),
-            qty: item.quantity || 0,
+        const items =
+          typeof sale.items === "string" ? JSON.parse(sale.items) : sale.items;
+
+        if (Array.isArray(items)) {
+          items.forEach((item: any) => {
+            const product = products.find((p) => p.id === item.productId);
+            if (product) {
+              // Use actual cost from product if available
+              totalCost += (product.cost || 0) * (item.quantity || 0);
+              totalItems += item.quantity || 0;
+            }
+
+            // Only add to salesRecords if it's in the last 30 days (for forecast)
+            if (sale.createdAt >= thirtyDaysAgo && item.productId) {
+              salesRecords.push({
+                product_id: item.productId,
+                date: sale.createdAt.toISOString(),
+                qty: item.quantity || 0,
+              });
+            }
           });
         }
       });
-    }
-  });
 
-  const totalProfit = totalRevenue - totalCost;
-  const profitMargin = totalRevenue > 0 ? (totalProfit / totalRevenue) * 100 : 0;
-
-  // 4. Get forecast from ML Service (optional - only if products exist)
-  let forecast = null;
-  if (products.length > 0) {
-    try {
-      const productIds = products.slice(0, 10).map((p) => p.id); // Top 10 products
-      forecast = await mlClient.getDashboardForecast({
-        shop_id: shopId,
-        product_list: productIds,
-        sales: salesRecords,
-        periods: 7,
+      // Calculate profit (use stored profit if available, otherwise calculate)
+      let totalProfit = 0;
+      allSales.forEach((sale) => {
+        if (sale.profit !== null && sale.profit !== undefined) {
+          totalProfit += sale.profit;
+        } else {
+          // Fallback: calculate from revenue - cost
+          const saleRevenue = sale.revenue || sale.total || 0;
+          const items =
+            typeof sale.items === "string" ? JSON.parse(sale.items) : sale.items;
+          if (Array.isArray(items)) {
+            items.forEach((item: any) => {
+              const product = products.find((p) => p.id === item.productId);
+              if (product) {
+                totalProfit += (item.price || 0) * (item.quantity || 0) - (product.cost || 0) * (item.quantity || 0);
+              }
+            });
+          }
+        }
       });
-    } catch (error) {
-      console.warn("Failed to get forecast from ML service:", error);
-      // Continue without forecast data
-    }
-  }
+
+      const profitMargin = totalRevenue > 0 ? (totalProfit / totalRevenue) * 100 : 0;
+
+      // 5. Get forecast from ML Service (optional - only if products exist)
+      // Use recent sales (last 30 days) for forecast
+      let forecast = null;
+      if (products.length > 0 && recentSales.length > 0) {
+        try {
+          const productIds = products.slice(0, 10).map((p) => p.id); // Top 10 products
+          forecast = await mlClient.getDashboardForecast({
+            shop_id: shopId,
+            product_list: productIds,
+            sales: salesRecords,
+            periods: 7,
+          });
+        } catch (error) {
+          console.warn("Failed to get forecast from ML service:", error);
+          // Continue without forecast data
+        }
+      }
 
       return {
         metrics: {
@@ -208,7 +245,7 @@ export async function getDashboardAnalytics(shopId: string) {
           profitMargin,
           totalItems,
           totalProducts: products.length,
-          totalSales: sales.length,
+          totalSales: totalOrders, // All-time total orders count
         },
         forecast,
         period: {

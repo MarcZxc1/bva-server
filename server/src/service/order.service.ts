@@ -1,6 +1,7 @@
 import prisma from "../lib/prisma";
 import { Platform } from "../generated/prisma";
 import { notifyNewOrder, notifyLowStock, notifyInventoryUpdate, OrderNotificationData } from "../services/socket.service";
+import { CacheService } from "../lib/redis";
 
 export async function createOrder(data: {
   userId: string;
@@ -79,6 +80,8 @@ export async function createOrder(data: {
           status: "to-pay", // Initial status: buyer needs to confirm payment
         },
       });
+
+      console.log(`✅ Order created: ID=${sale.id}, shopId=${shopId}, total=${shopTotal}, revenue=${shopTotal}`);
 
       // Update product stock and inventory atomically
       const inventoryUpdates: Array<{
@@ -186,6 +189,14 @@ export async function createOrder(data: {
     setImmediate(() => {
       notifyNewOrder(orderNotificationData);
     });
+
+    // Invalidate cache for dashboard analytics immediately
+    try {
+      await CacheService.invalidateShop(shopId);
+      console.log(`✅ Cache invalidated for shop ${shopId} after order creation`);
+    } catch (err) {
+      console.error("Error invalidating cache after order creation:", err);
+    }
 
     createdOrders.push({
       ...order,
