@@ -9,8 +9,9 @@ export default defineConfig({
     host: true,
     proxy: {
       '/api': {
-        // Use VITE_API_URL if set, otherwise try common ports (3000, 5000)
-        // The server default is 5000, but it might be running on 3000
+        // Main server runs on port 3000
+        // BVA Frontend runs on port 8080
+        // Shopee-Clone runs on port 5174
         target: process.env.VITE_API_URL || 'http://localhost:3000',
         changeOrigin: true,
         secure: false,
