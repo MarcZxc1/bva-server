@@ -1,29 +1,26 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Search, ShoppingCart, Bell, HelpCircle, Facebook, Instagram, User } from 'lucide-react';
 import shopeeLogo from '/src/assets/LANDING-PAGE-LOGO/buyer-shopee-logo.png';
 import { useCart } from '../../../contexts/CartContext';
+import { useAuth } from '../../../contexts/AuthContext';
 
 const BuyerNavbar: React.FC = () => {
-  const [user, setUser] = useState<string | null>(null);
   const navigate = useNavigate();
   const location = useLocation();
   const { cartItems } = useCart();
+  const { user, logout: authLogout, isAuthenticated } = useAuth();
 
   const cartItemCount = cartItems.reduce((total, item) => total + item.quantity, 0);
   const isProductDetailPage = location.pathname.startsWith('/product/');
   const isCheckoutPage = location.pathname === '/checkout';
 
-  useEffect(() => {
-    const stored = localStorage.getItem('demoUser');
-    setUser(stored);
-  }, []);
-
   const logout = () => {
-    localStorage.removeItem('demoUser');
-    setUser(null);
+    authLogout();
     navigate('/');
   };
+
+  const userName = user?.name || user?.username || user?.email || null;
 
   return (
     <nav 
@@ -67,18 +64,18 @@ const BuyerNavbar: React.FC = () => {
                 <HelpCircle size={14} />
                 <span>Help</span>
               </a>
-              {!user && (
+              {!isAuthenticated && (
                 <>
                   <Link to="/signup" className="hover:text-gray-200">Sign Up</Link>
                   <span className="text-white/40">|</span>
                   <Link to="/buyer-login" className="hover:text-gray-200">Login</Link>
                 </>
               )}
-              {user && (
+              {isAuthenticated && userName && (
                 <div className="relative group">
                   <div className="flex items-center gap-2 cursor-pointer">
                     <User size={16} className="opacity-90" />
-                    <span className="font-medium">{user}</span>
+                    <span className="font-medium">{userName}</span>
                   </div>
                   <div className="absolute right-0 mt-0 w-40 bg-white text-gray-800 rounded shadow-lg opacity-0 group-hover:opacity-100 invisible group-hover:visible z-[100] top-full pt-2">
                     <div className="relative">

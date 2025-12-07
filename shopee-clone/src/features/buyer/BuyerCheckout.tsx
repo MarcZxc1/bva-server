@@ -6,13 +6,25 @@ import { MapPin, MessageCircle, Tag, ShieldCheck, Coins } from 'lucide-react';
 import shopeeLogo from '/src/assets/LANDING-PAGE-LOGO/buyer-shopee-logo.png';
 import { useCart } from '../../contexts/CartContext';
 import { useOrders } from '../../contexts/OrderContext';
+import { useAuth } from '../../contexts/AuthContext';
+import apiClient from '../../services/api';
 
 const BuyerCheckout: React.FC = () => {
   const navigate = useNavigate();
   const { cartItems, removeSelectedItems } = useCart();
   const { addOrder } = useOrders();
+  const { isAuthenticated } = useAuth();
   const [merchandiseProtection, setMerchandiseProtection] = useState(true);
   const [messageForSeller, setMessageForSeller] = useState('');
+  const [isPlacingOrder, setIsPlacingOrder] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      navigate('/buyer-login');
+      return;
+    }
+  }, [isAuthenticated, navigate]);
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'auto' });
@@ -76,18 +88,40 @@ const BuyerCheckout: React.FC = () => {
     );
   }
 
-  const handlePlaceOrder = (e: React.MouseEvent) => {
+  const handlePlaceOrder = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
     
-    try {
-      if (selectedItems.length === 0) {
-        alert('Please select items to place an order');
-        return;
-      }
+    if (selectedItems.length === 0) {
+      setError('Please select items to place an order');
+      return;
+    }
 
-      selectedItems.forEach(item => {
-        try {
+    setIsPlacingOrder(true);
+    setError(null);
+
+    try {
+      // Group items by shop and create orders
+      const shopGroups = Object.entries(groupedByShop);
+      
+      for (const [shopName, items] of shopGroups) {
+        const orderItems = items.map(item => ({
+          productId: item.productId?.toString() || '',
+          quantity: item.quantity,
+          price: item.unitPrice,
+        }));
+
+        const shopTotal = calculateShopTotal(items);
+        
+        await apiClient.createOrder({
+          items: orderItems,
+          total: shopTotal.total,
+          shippingAddress: deliveryAddress.address,
+          paymentMethod: paymentMethod === 'Cash on Delivery' ? 'cash' : 'online',
+        });
+
+        // Also add to local order context for immediate UI update
+        items.forEach(item => {
           addOrder({
             product: {
               name: item.name,
@@ -102,16 +136,16 @@ const BuyerCheckout: React.FC = () => {
             unitPrice: item.unitPrice,
             paymentMethod: paymentMethod === 'Cash on Delivery' ? 'cash' : 'online',
           });
-        } catch (error) {
-          console.error('Error adding order:', error);
-        }
-      });
+        });
+      }
       
       removeSelectedItems();
       navigate('/purchase');
-    } catch (error) {
-      console.error('Error placing order:', error);
-      alert('An error occurred while placing your order. Please try again.');
+    } catch (err: any) {
+      console.error('Error placing order:', err);
+      setError(err.message || 'An error occurred while placing your order. Please try again.');
+    } finally {
+      setIsPlacingOrder(false);
     }
   };
 
@@ -391,14 +425,14 @@ const BuyerCheckout: React.FC = () => {
             </div>
             <button
               onClick={handlePlaceOrder}
-              disabled={selectedItems.length === 0}
+              disabled={selectedItems.length === 0 || isPlacingOrder}
               className={`px-12 py-4 rounded-lg font-semibold text-lg transition-colors ${
-                selectedItems.length === 0
+                selectedItems.length === 0 || isPlacingOrder
                   ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                   : 'bg-shopee-orange text-white hover:bg-shopee-orange-dark cursor-pointer'
               }`}
             >
-              Place Order
+              {isPlacingOrder ? 'Placing Order...' : 'Place Order'}
             </button>
           </div>
         </div>

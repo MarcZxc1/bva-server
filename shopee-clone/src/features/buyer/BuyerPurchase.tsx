@@ -1,19 +1,37 @@
 import React, { useState, useEffect } from 'react';
 import { Package, Truck, CheckCircle, XCircle, RotateCw, User, MessageCircle, Store, Bell, Gift, Coins } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import BuyerNavbar from './components/BuyerNavbar';
 import BuyerFooter from './components/BuyerFooter';
 import { useOrders, OrderStatus } from '../../contexts/OrderContext';
+import { useAuth } from '../../contexts/AuthContext';
+import apiClient from '../../services/api';
 
 const BuyerPurchase: React.FC = () => {
   const { orders, updateOrderStatus } = useOrders();
+  const { isAuthenticated, user } = useAuth();
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<OrderStatus>('all');
-  const [user, setUser] = useState<string | null>(null);
+  
+  const userName = user?.name || user?.username || user?.email || 'Guest User';
 
   useEffect(() => {
-    const stored = localStorage.getItem('demoUser');
-    setUser(stored);
-  }, []);
+    if (!isAuthenticated) {
+      navigate('/buyer-login');
+      return;
+    }
+    // Fetch orders from API
+    const fetchOrders = async () => {
+      try {
+        await apiClient.getMyOrders();
+        // Update order context with API orders
+        // Note: You may need to transform API orders to match OrderContext format
+      } catch (error) {
+        console.error('Failed to fetch orders:', error);
+      }
+    };
+    fetchOrders();
+  }, [isAuthenticated, navigate]);
 
   React.useEffect(() => {
     // Add style to make navbar static on this page
@@ -134,7 +152,7 @@ const BuyerPurchase: React.FC = () => {
                   <div className="w-24 h-24 bg-gray-200 rounded-full mx-auto mb-4 flex items-center justify-center overflow-hidden">
                     <User size={48} className="text-gray-400" />
                   </div>
-                  <h3 className="font-semibold text-gray-800 mb-1">{user || 'Guest User'}</h3>
+                  <h3 className="font-semibold text-gray-800 mb-1">{userName}</h3>
                   <Link to="/account" className="text-sm text-gray-500 hover:text-shopee-orange">✏️ Edit Profile</Link>
                 </div>
               </div>

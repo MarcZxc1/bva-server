@@ -1,5 +1,5 @@
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useEffect, useState, useCallback } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import shopeeLogo from '../../assets/LANDING-PAGE-LOGO/buyer-shopee-logo-sign-log.png';
 import { QrCode, Eye, EyeOff } from 'lucide-react';
@@ -35,7 +35,6 @@ const BuyerLogIn: React.FC = React.memo(() => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const navigate = useNavigate();
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'auto' });
@@ -394,8 +393,6 @@ const BuyerLogIn: React.FC = React.memo(() => {
       </div>
     </div>
   );
-};
-
 });
 
 BuyerLogIn.displayName = 'BuyerLogIn';

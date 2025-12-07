@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import shopeeLogo from '../../../assets/Seller/Shopee-logo .png';
 import UserDropdown from './UserDropdown';
+import { useAuth } from '../../../contexts/AuthContext';
 import './SellerDashboard.css';
 
 const DashboardHeader = () => {
+  const { user } = useAuth();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
   const toggleDropdown = () => {
@@ -13,6 +15,9 @@ const DashboardHeader = () => {
   const closeDropdown = () => {
     setIsDropdownOpen(false);
   };
+
+  const userName = user?.name || user?.username || user?.email || 'User';
+  const shopName = user?.shops?.[0]?.name || 'My Shop';
 
   return (
     <header className="dashboard-header">
@@ -32,7 +37,7 @@ const DashboardHeader = () => {
                 <path d="M6 21c0-4 2.5-6 6-6s6 2 6 6" fill="#8B5CF6" stroke="#8B5CF6" strokeWidth="1"/>
               </svg>
             </div>
-            <span className="username">theavidbookshop</span>
+            <span className="username">{userName}</span>
             <span className="dropdown-arrow">▼</span>
           </div>
           <UserDropdown isOpen={isDropdownOpen} onClose={closeDropdown} />

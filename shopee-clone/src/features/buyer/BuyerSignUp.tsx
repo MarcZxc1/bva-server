@@ -1,5 +1,5 @@
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useEffect, useState, useCallback } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import shopeeLogo from '../../assets/LANDING-PAGE-LOGO/buyer-shopee-logo-sign-log.png';
 
@@ -31,7 +31,6 @@ import appGalleryImg from '../../assets/APP-DOWNLOAD/buyer-app-gallery.png';
 
 const BuyerSignUp: React.FC = React.memo(() => {
   const { register, isLoading, error, handleGoogleAuth } = useAuth();
-  const navigate = useNavigate();
   const [phoneNumber, setPhoneNumber] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -63,12 +62,11 @@ const BuyerSignUp: React.FC = React.memo(() => {
 
     try {
       await register({
-        username: username.trim() || phoneNumber.trim(),
         email: email.trim(),
         password: password,
         phoneNumber: phoneNumber.trim(),
         role: 'BUYER',
-        name: username.trim() || phoneNumber.trim(),
+        username: username.trim() || phoneNumber.trim(),
       });
     } catch (error: any) {
       // Error is handled by AuthContext and displayed via error state
@@ -307,7 +305,6 @@ const BuyerSignUp: React.FC = React.memo(() => {
                     Have an account?{' '}
                     <Link to="/buyer-login" className="text-shopee-orange hover:underline font-medium">Log In</Link>
                   </div>
-                </form>
               </div>
             </div>
           </div>
@@ -493,8 +490,6 @@ const BuyerSignUp: React.FC = React.memo(() => {
       </div>
     </div>
   );
-};
-
 });
 
 BuyerSignUp.displayName = 'BuyerSignUp';
