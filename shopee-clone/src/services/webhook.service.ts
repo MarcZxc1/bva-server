@@ -1,8 +1,6 @@
 // src/services/webhook.service.ts
 // Service to send webhooks to BVA server when data changes in Shopee-Clone
 
-import apiClient from './api';
-
 const BVA_WEBHOOK_BASE_URL = import.meta.env.VITE_BVA_WEBHOOK_URL || '/api/webhooks';
 
 class WebhookService {

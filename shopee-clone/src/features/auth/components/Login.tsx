@@ -1,12 +1,10 @@
 import { useState, useCallback, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../../contexts/AuthContext';
 import shopeeLogo from '../../../assets/Seller/Shopee-logo .png';
 import sellerIllustration from '../../../assets/Seller/Untitled-removebg-preview.png';
 import './Login.css';
 
 const Login = () => {
-  const navigate = useNavigate();
   const { login, isLoading, error, handleGoogleAuth } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
   const [phoneOrEmail, setPhoneOrEmail] = useState('');
