@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 
 export interface CartItem {
   id: string;
-  productId: number;
+  productId: string | number; // Support both string and number for compatibility
   name: string;
   fullName: string;
   image: string;

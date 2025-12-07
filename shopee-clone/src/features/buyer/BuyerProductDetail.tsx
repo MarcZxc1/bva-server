@@ -145,16 +145,19 @@ const BuyerProductDetail: React.FC = () => {
   const handleAddToCart = () => {
     if (!product) return;
     
+    const productImage = product.imageUrl || '📦';
+    const shopName = product.shop?.name || 'Shop';
+    const productPrice = product.price;
+    
     addToCart({
       productId: product.id,
       name: product.name,
       fullName: product.name,
       image: productImage,
       shopName: shopName,
-      shopId: product.shop?.id || '',
       unitPrice: productPrice,
       quantity: quantity,
-      variations: selectedVariation ? [selectedVariation] : [],
+      variations: selectedVariation || '',
     });
   };
 
@@ -193,17 +196,21 @@ const BuyerProductDetail: React.FC = () => {
                 </div>
               </div>
               <div className="grid grid-cols-5 gap-2 mb-4">
-                {[productImage, productImage, productImage, productImage, productImage].map((t, i) => (
+                {[product.imageUrl || '📦', product.imageUrl || '📦', product.imageUrl || '📦', product.imageUrl || '📦', product.imageUrl || '📦'].map((img, i) => (
                   <div
                     key={i}
                     onClick={() => setSelectedImage(i)}
-                    className={`aspect-square border-2 bg-white flex flex-col items-center justify-center cursor-pointer transition-all relative ${
+                    className={`aspect-square border-2 bg-white flex flex-col items-center justify-center cursor-pointer transition-all relative overflow-hidden ${
                       selectedImage === i
                         ? 'border-shopee-orange'
                         : 'border-gray-200 hover:border-shopee-orange'
                     }`}
                   >
-                    <span className="text-2xl mb-1">{t}</span>
+                    {img && (img.startsWith('http') || img.startsWith('/') || img.startsWith('data:')) ? (
+                      <img src={img} alt={`${product.name} ${i + 1}`} className="w-full h-full object-cover" />
+                    ) : (
+                      <span className="text-2xl mb-1">{img}</span>
+                    )}
                     <span className="text-[10px] text-gray-500 absolute bottom-1">{i + 1}</span>
                   </div>
                 ))}
@@ -253,8 +260,8 @@ const BuyerProductDetail: React.FC = () => {
               <div className="mt-4 bg-gradient-to-r from-orange-500 to-red-500 text-white p-4 rounded">
                 <div className="text-xs font-semibold mb-2">FLASH DEALS</div>
                 <div className="flex items-baseline gap-3 mb-2">
-                  <div className="text-3xl font-bold">₱{productPrice.toLocaleString()}</div>
-                  {product.cost && product.cost > productPrice && (
+                  <div className="text-3xl font-bold">₱{product.price.toLocaleString()}</div>
+                  {product.cost && product.cost > product.price && (
                     <span className="text-sm line-through opacity-80">₱{product.cost.toLocaleString()}</span>
                   )}
                 </div>
@@ -349,7 +356,7 @@ const BuyerProductDetail: React.FC = () => {
                   onClick={handleBuyNow}
                   className="flex-1 px-6 py-4 bg-shopee-orange text-white rounded-lg font-semibold hover:bg-shopee-orange-dark transition-colors text-lg"
                 >
-                  Buy With Voucher ₱{productPrice.toLocaleString()}
+                  Buy With Voucher ₱{product.price.toLocaleString()}
                 </button>
               </div>
             </div>
@@ -361,10 +368,10 @@ const BuyerProductDetail: React.FC = () => {
           <div className="flex items-start justify-between">
             <div className="flex items-center gap-4">
               <div className="w-16 h-16 rounded-full bg-gradient-to-br from-purple-400 to-pink-400 flex items-center justify-center text-white text-2xl font-bold">
-                {shopName.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()}
+                {(product.shop?.name || 'Shop').split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()}
               </div>
               <div>
-                <h3 className="text-lg font-semibold text-gray-800">{shopName}</h3>
+                <h3 className="text-lg font-semibold text-gray-800">{product.shop?.name || 'Shop'}</h3>
                 <p className="text-sm text-gray-500">Active Now</p>
               </div>
             </div>

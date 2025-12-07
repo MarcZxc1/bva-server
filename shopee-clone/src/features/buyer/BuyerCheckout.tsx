@@ -105,49 +105,71 @@ const BuyerCheckout: React.FC = () => {
     setError(null);
 
     try {
+      // Validate product IDs
+      const invalidItems = selectedItems.filter(item => !item.productId);
+      if (invalidItems.length > 0) {
+        setError('Some items are missing product information. Please remove them from cart and try again.');
+        setIsPlacingOrder(false);
+        return;
+      }
+
       // Group items by shop and create orders
       const shopGroups = Object.entries(groupedByShop);
+      const createdOrders = [];
       
       for (const [shopName, items] of shopGroups) {
         const orderItems = items.map(item => ({
-          productId: item.productId?.toString() || '',
+          productId: String(item.productId), // Ensure it's a string
           quantity: item.quantity,
           price: item.unitPrice,
         }));
 
         const shopTotal = calculateShopTotal(items);
         
-        await apiClient.createOrder({
-          items: orderItems,
-          total: shopTotal.total,
-          shippingAddress: deliveryAddress.address,
-          paymentMethod: paymentMethod === 'Cash on Delivery' ? 'cash' : 'online',
-        });
-
-        // Also add to local order context for immediate UI update
-        items.forEach(item => {
-          addOrder({
-            product: {
-              name: item.name,
-              fullName: item.fullName,
-              image: item.image,
-            },
-            price: item.unitPrice,
-            quantity: item.quantity,
-            totalPrice: item.unitPrice * item.quantity,
-            shopName: item.shopName,
-            variations: item.variations,
-            unitPrice: item.unitPrice,
+        try {
+          const orderResponse = await apiClient.createOrder({
+            items: orderItems,
+            total: shopTotal.total,
+            shippingAddress: deliveryAddress.address,
             paymentMethod: paymentMethod === 'Cash on Delivery' ? 'cash' : 'online',
           });
-        });
+
+          createdOrders.push(orderResponse);
+
+          // Also add to local order context for immediate UI update
+          items.forEach(item => {
+            addOrder({
+              product: {
+                name: item.name,
+                fullName: item.fullName,
+                image: item.image,
+              },
+              price: item.unitPrice,
+              quantity: item.quantity,
+              totalPrice: item.unitPrice * item.quantity,
+              shopName: item.shopName,
+              variations: item.variations,
+              unitPrice: item.unitPrice,
+              paymentMethod: paymentMethod === 'Cash on Delivery' ? 'cash' : 'online',
+            });
+          });
+        } catch (shopError: any) {
+          console.error(`Error creating order for shop ${shopName}:`, shopError);
+          // Continue with other shops even if one fails
+          setError(`Failed to create order for ${shopName}: ${shopError.message || 'Unknown error'}`);
+        }
       }
-      
-      removeSelectedItems();
-      navigate('/purchase');
+
+      if (createdOrders.length > 0) {
+        removeSelectedItems();
+        navigate('/purchase');
+      } else {
+        setError('Failed to create any orders. Please try again.');
+      }
     } catch (err: any) {
       console.error('Error placing order:', err);
-      setError(err.message || 'An error occurred while placing your order. Please try again.');
+      const errorMessage = err.message || err.response?.data?.error || 'An error occurred while placing your order. Please try again.';
+      setError(errorMessage);
     } finally {
       setIsPlacingOrder(false);
     }
@@ -412,6 +434,24 @@ const BuyerCheckout: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Error Display */}
+      {error && (
+        <div className="max-w-[1200px] mx-auto px-5 mb-4">
+          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-red-500">⚠️</span>
+              <span>{error}</span>
+            </div>
+            <button
+              onClick={() => setError(null)}
+              className="text-red-500 hover:text-red-700 font-bold text-xl"
+            >
+              ×
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-40">
         <div className="max-w-[1200px] mx-auto px-5 py-4">
