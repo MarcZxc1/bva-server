@@ -54,14 +54,39 @@ class ApiClient {
       }
 
       // Check if response is JSON before parsing
-      const contentType = response.headers.get('content-type');
-      if (!contentType || !contentType.includes('application/json')) {
+      const contentType = response.headers.get('content-type') || '';
+      
+      // Handle non-JSON responses (proxy errors, HTML error pages, etc.)
+      if (!contentType.includes('application/json')) {
+        const text = await response.text();
+        
+        // Handle proxy connection errors (500 from Vite proxy usually means connection refused)
+        if (response.status === 500) {
+          if (text.includes('ECONNREFUSED') || text.includes('connect') || !text.trim()) {
+            const proxyTarget = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+            throw new Error(
+              `❌ Cannot connect to backend server!\n\n` +
+              `The proxy is trying to connect to: ${proxyTarget}\n\n` +
+              `Troubleshooting steps:\n` +
+              `1. Make sure the server is running: cd server && npm run dev\n` +
+              `2. Check what port the server is running on (check server console output)\n` +
+              `3. Update vite.config.ts proxy target to match your server port\n` +
+              `4. Or set VITE_API_URL environment variable: VITE_API_URL=http://localhost:PORT npm run dev\n\n` +
+              `Original error: ${text.substring(0, 200)}`
+            );
+          }
+        }
+        
         // If it's HTML (like a 404 page), extract error message
         if (response.status === 404) {
           throw new Error(`API endpoint not found: ${endpoint}. Please check if the server is running and the route exists.`);
         }
-        const text = await response.text();
-        throw new Error(`Unexpected response format. Expected JSON but got ${contentType}. Status: ${response.status}. Response: ${text.substring(0, 100)}`);
+        
+        throw new Error(
+          `Unexpected response format. Expected JSON but got ${contentType || 'unknown'}. ` +
+          `Status: ${response.status}. ` +
+          `Response: ${text.substring(0, 200)}`
+        );
       }
 
       const data = await response.json();
