@@ -79,6 +79,9 @@ const MyProducts: React.FC = () => {
 
     try {
       await apiClient.deleteProduct(productId);
+      // Send webhook to BVA server
+      const { webhookService } = await import('../../../../services/webhook.service');
+      await webhookService.sendProductDeleted(productId);
       setProducts(products.filter(p => p.id !== productId));
     } catch (err: any) {
       alert(err.message || 'Failed to delete product');
