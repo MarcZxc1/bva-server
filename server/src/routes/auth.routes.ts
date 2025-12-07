@@ -300,4 +300,14 @@ router.post("/shopee-sync", authMiddleware, (req: Request, res: Response) =>
   authController.triggerShopeeSync(req, res)
 );
 
+/**
+ * @route   POST /api/auth/generate-api-key
+ * @desc    Generate API key for external integrations
+ * @access  Private
+ */
+import { apiKeyController } from "../controllers/apiKey.controller";
+router.post("/generate-api-key", authMiddleware, (req: Request, res: Response) =>
+  apiKeyController.generateApiKey(req, res)
+);
+
 export default router;

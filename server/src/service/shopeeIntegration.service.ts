@@ -2,7 +2,8 @@
 import prisma from "../lib/prisma";
 
 // Shopee-Clone API base URL
-const SHOPEE_CLONE_API_URL = process.env.SHOPEE_CLONE_API_URL || "http://localhost:3001";
+// Note: Shopee-Clone uses the same server (port 3000) but we need to use the external API endpoints
+const SHOPEE_CLONE_API_URL = process.env.SHOPEE_CLONE_API_URL || "http://localhost:3000";
 
 // Interfaces for Shopee-Clone API responses
 interface ShopeeProduct {
@@ -79,7 +80,8 @@ class ShopeeIntegrationService {
     try {
       console.log(`📦 Syncing products for shop ${shopId}...`);
 
-      const response = await fetch(`${SHOPEE_CLONE_API_URL}/api/products`, {
+      // Use external API endpoint for products
+      const response = await fetch(`${SHOPEE_CLONE_API_URL}/api/external/products`, {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
@@ -160,8 +162,9 @@ class ShopeeIntegrationService {
     try {
       console.log(`💰 Syncing sales for shop ${shopId}...`);
 
-      // Try different endpoints that Shopee-Clone might use
+      // Use external API endpoint for orders
       const endpoints = [
+        "/api/external/orders",
         "/api/orders",
         "/api/sales",
         "/api/seller/orders",
@@ -321,7 +324,8 @@ class ShopeeIntegrationService {
    */
   async fetchProducts(apiKey: string): Promise<ShopeeProduct[]> {
     try {
-      const response = await fetch(`${SHOPEE_CLONE_API_URL}/api/products`, {
+      // Use external API endpoint for products
+      const response = await fetch(`${SHOPEE_CLONE_API_URL}/api/external/products`, {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
@@ -347,7 +351,8 @@ class ShopeeIntegrationService {
    */
   async fetchSales(apiKey: string): Promise<ShopeeOrder[]> {
     try {
-      const response = await fetch(`${SHOPEE_CLONE_API_URL}/api/orders`, {
+      // Use external API endpoint for orders
+      const response = await fetch(`${SHOPEE_CLONE_API_URL}/api/external/orders`, {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
