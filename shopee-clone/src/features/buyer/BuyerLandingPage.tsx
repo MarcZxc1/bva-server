@@ -97,42 +97,45 @@ const BuyerLandingPage: React.FC = () => {
         const apiProducts: ApiProduct[] = await apiClient.getProducts();
         
         // Transform API products to match the original design structure
-        const transformedProducts: DisplayProduct[] = apiProducts.map((product) => {
-          // Calculate discount (random 10-50% for demo, or based on cost if available)
-          const discount = Math.floor(Math.random() * 40) + 10;
-          const originalPrice = Math.round(product.price * (1 + discount / 100));
-          
-          // Generate sold count (random for demo, or use actual sales data if available)
-          const sold = Math.floor(Math.random() * 5000) + 100;
-          
-          // Determine badges based on product properties
-          const badges: string[] = [];
-          if (product.stock && product.stock > 50) {
-            badges.push('Preferred');
-          }
-          if (Math.random() > 0.7) {
-            badges.push('COD');
-          }
-          if (Math.random() > 0.8) {
-            badges.push('SPayLater');
-          }
-          
-          // Use imageUrl if available, otherwise use emoji fallback
-          const image = product.imageUrl || '📦';
-          
-          return {
-            id: product.id,
-            name: product.name,
-            price: product.price,
-            originalPrice,
-            discount,
-            sold,
-            image,
-            shopName: product.shopName || 'Shop',
-            badges,
-            hasVideo: Math.random() > 0.9, // 10% chance of having video
-          };
-        });
+        // Filter out products with stock 0 or show them with out-of-stock badge
+        const transformedProducts: DisplayProduct[] = apiProducts
+          .filter((product) => product.stock === undefined || product.stock === null || product.stock > 0) // Only show in-stock products
+          .map((product) => {
+            // Calculate discount (random 10-50% for demo, or based on cost if available)
+            const discount = Math.floor(Math.random() * 40) + 10;
+            const originalPrice = Math.round(product.price * (1 + discount / 100));
+            
+            // Generate sold count (random for demo, or use actual sales data if available)
+            const sold = Math.floor(Math.random() * 5000) + 100;
+            
+            // Determine badges based on product properties
+            const badges: string[] = [];
+            if (product.stock && product.stock > 50) {
+              badges.push('Preferred');
+            }
+            if (Math.random() > 0.7) {
+              badges.push('COD');
+            }
+            if (Math.random() > 0.8) {
+              badges.push('SPayLater');
+            }
+            
+            // Use imageUrl if available, otherwise use emoji fallback
+            const image = product.imageUrl || '📦';
+            
+            return {
+              id: product.id,
+              name: product.name,
+              price: product.price,
+              originalPrice,
+              discount,
+              sold,
+              image,
+              shopName: product.shopName || 'Shop',
+              badges,
+              hasVideo: Math.random() > 0.9, // 10% chance of having video
+            };
+          });
         
         setProducts(transformedProducts);
       } catch (err: any) {

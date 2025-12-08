@@ -145,7 +145,29 @@ export async function createOrder(data: {
 
       for (const item of items) {
         const product = productDetails.find(p => p.id === item.productId);
-        if (!product) continue;
+        if (!product) {
+          throw new Error(`Product not found: ${item.productId}`);
+        }
+
+        // Check stock availability BEFORE updating
+        const currentProduct = await tx.product.findUnique({
+          where: { id: item.productId },
+          select: { id: true, name: true, stock: true },
+        });
+
+        if (!currentProduct) {
+          throw new Error(`Product not found: ${item.productId}`);
+        }
+
+        if (currentProduct.stock < item.quantity) {
+          throw new Error(
+            `Insufficient stock for ${currentProduct.name}. Available: ${currentProduct.stock}, Requested: ${item.quantity}`
+          );
+        }
+
+        if (currentProduct.stock === 0) {
+          throw new Error(`${currentProduct.name} is out of stock`);
+        }
 
         // Update product stock
         const updatedProduct = await tx.product.update({
@@ -527,6 +549,102 @@ export async function getSellerOrders(
 }
 
 export async function updateOrderStatus(orderId: string, status: string) {
+  // Get the order first to restore stock if cancelling/returning
+  const order = await prisma.sale.findUnique({
+    where: { id: orderId },
+    select: {
+      id: true,
+      items: true,
+      status: true,
+    },
+  });
+
+  if (!order) {
+    throw new Error("Order not found");
+  }
+
+  // If order is being cancelled or returned, restore stock
+  const shouldRestoreStock = 
+    (status === 'cancelled' || status === 'return-refund') &&
+    (order.status !== 'cancelled' && order.status !== 'return-refund');
+
+  if (shouldRestoreStock) {
+    // Parse items
+    let items: Array<{ productId: string; quantity: number }> = [];
+    const rawItems = order.items;
+    
+    if (Array.isArray(rawItems)) {
+      // Validate and filter items to ensure they have the correct structure
+      items = rawItems
+        .filter((item: any): item is { productId: string; quantity: number } => 
+          item && 
+          typeof item === 'object' && 
+          typeof item.productId === 'string' && 
+          typeof item.quantity === 'number'
+        );
+    } else if (typeof rawItems === 'string') {
+      try {
+        const parsed = JSON.parse(rawItems);
+        if (Array.isArray(parsed)) {
+          items = parsed
+            .filter((item: any): item is { productId: string; quantity: number } => 
+              item && 
+              typeof item === 'object' && 
+              typeof item.productId === 'string' && 
+              typeof item.quantity === 'number'
+            );
+        }
+      } catch {
+        items = [];
+      }
+    } else if (rawItems && typeof rawItems === 'object') {
+      // Handle case where items is a single object (shouldn't happen, but handle it)
+      items = [];
+    }
+
+    // Restore stock for each item
+    await prisma.$transaction(async (tx) => {
+      for (const item of items) {
+        if (item.productId && item.quantity) {
+          // Restore product stock
+          await tx.product.update({
+            where: { id: item.productId },
+            data: {
+              stock: {
+                increment: item.quantity,
+              },
+            },
+          });
+
+          // Restore inventory
+          const inventory = await tx.inventory.findFirst({
+            where: { productId: item.productId },
+            orderBy: { updatedAt: "desc" },
+          });
+
+          if (inventory) {
+            await tx.inventory.update({
+              where: { id: inventory.id },
+              data: {
+                quantity: {
+                  increment: item.quantity,
+                },
+              },
+            });
+
+            await tx.inventoryLog.create({
+              data: {
+                inventoryId: inventory.id,
+                delta: item.quantity,
+                reason: `Order ${status === 'cancelled' ? 'cancelled' : 'returned'}`,
+              },
+            });
+          }
+        }
+      }
+    });
+  }
+
   return prisma.sale.update({
     where: { id: orderId },
     data: { status },

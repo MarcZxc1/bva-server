@@ -113,6 +113,33 @@ const BuyerCheckout: React.FC = () => {
         return;
       }
 
+      // Validate stock availability before placing order
+      try {
+        for (const item of selectedItems) {
+          const productData = await apiClient.getProductById(String(item.productId));
+          if (productData.stock === undefined || productData.stock === null) {
+            setError(`Stock information unavailable for ${item.name}. Please try again later.`);
+            setIsPlacingOrder(false);
+            return;
+          }
+          if (productData.stock === 0) {
+            setError(`${item.name} is out of stock. Please remove it from your cart.`);
+            setIsPlacingOrder(false);
+            return;
+          }
+          if (item.quantity > productData.stock) {
+            setError(`Only ${productData.stock} units available for ${item.name}. Please adjust quantity.`);
+            setIsPlacingOrder(false);
+            return;
+          }
+        }
+      } catch (stockError: any) {
+        console.error('Error validating stock:', stockError);
+        setError('Failed to validate stock availability. Please try again.');
+        setIsPlacingOrder(false);
+        return;
+      }
+
       // Group items by shop and create orders
       const shopGroups = Object.entries(groupedByShop);
       const createdOrders = [];

@@ -11,6 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useProducts } from "@/hooks/useProducts";
 import { useIntegration } from "@/hooks/useIntegration";
 import { AlertCircle } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const getRiskColor = (score: number): "destructive" | "secondary" | "outline" => {
   if (score >= 80) return "destructive";
@@ -124,8 +125,32 @@ export default function SmartShelf() {
     );
   }
 
+  // Show skeleton loading while checking integration
+  if (isLoadingIntegration) {
+    return (
+      <div className="space-y-6">
+        <div className="glass-card p-8">
+          <div className="space-y-2">
+            <Skeleton className="h-10 w-64" />
+            <Skeleton className="h-5 w-96" />
+          </div>
+        </div>
+        <Card className="glass-card border-primary/20">
+          <CardContent className="py-8">
+            <div className="space-y-4">
+              <Skeleton className="h-6 w-64" />
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-3/4" />
+              <Skeleton className="h-10 w-32" />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   // Show integration required message if no active integration
-  if (!isLoadingIntegration && !hasActiveIntegration) {
+  if (!hasActiveIntegration) {
     return (
       <div className="space-y-6">
         <div className="glass-card p-8">

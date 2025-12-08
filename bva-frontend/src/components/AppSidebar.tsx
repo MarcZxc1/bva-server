@@ -2,6 +2,7 @@ import { LayoutDashboard, Package, TrendingUp, Megaphone, FileText, Settings, Lo
 import { NavLink, useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { useIntegration } from "@/hooks/useIntegration";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Sidebar,
   SidebarContent,
@@ -57,7 +58,7 @@ export function AppSidebar() {
   const [showLogoutDialog, setShowLogoutDialog] = useState(false);
 
   // Check integration status
-  const { hasActiveIntegration } = useIntegration();
+  const { hasActiveIntegration, isLoading: isLoadingIntegration } = useIntegration();
 
   const getNavClass = ({ isActive }: { isActive: boolean }) =>
     isActive 
@@ -116,10 +117,34 @@ export function AppSidebar() {
             Platform Connections
           </SidebarGroupLabel>
           <SidebarGroupContent>
-            {isCollapsed ? (
+            {isLoadingIntegration ? (
+              // Skeleton loading for platform connections
+              isCollapsed ? (
+                <div className="flex flex-col gap-1.5">
+                  {[1, 2, 3].map((i) => (
+                    <div key={i} className="flex items-center justify-center p-1.5">
+                      <Skeleton className="h-5 w-5 rounded" />
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  {[1, 2, 3].map((i) => (
+                    <div key={i} className="flex items-center justify-between p-2">
+                      <div className="flex items-center gap-2 flex-1">
+                        <Skeleton className="h-6 w-6 rounded" />
+                        <Skeleton className="h-4 w-24" />
+                      </div>
+                      <Skeleton className="h-2.5 w-2.5 rounded-full" />
+                    </div>
+                  ))}
+                </div>
+              )
+            ) : isCollapsed ? (
               <div className="flex flex-col gap-1.5">
                 {platformDefinitions.map((platformDef) => {
                   // For Shopee, check if there's an active integration
+                  // Default to NOT connected unless explicitly connected
                   const isConnected = platformDef.platform === "SHOPEE" ? hasActiveIntegration : false;
                   const statusColor = isConnected ? "bg-green-500" : "bg-orange-500";
                   return (
@@ -142,6 +167,7 @@ export function AppSidebar() {
               <div className="space-y-1">
                 {platformDefinitions.map((platformDef) => {
                   // For Shopee, check if there's an active integration
+                  // Default to NOT connected unless explicitly connected
                   const isConnected = platformDef.platform === "SHOPEE" ? hasActiveIntegration : false;
                   const statusColor = isConnected ? "bg-green-500" : "bg-orange-500";
                   return (

@@ -196,7 +196,21 @@ const MyProducts: React.FC = () => {
               <div key={product.id} className="product-card">
                 <div className="product-image">
                   {product.imageUrl ? (
-                    <img src={product.imageUrl} alt={product.name} />
+                    <img 
+                      src={product.imageUrl} 
+                      alt={product.name}
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement;
+                        target.style.display = 'none';
+                        const parent = target.parentElement;
+                        if (parent && !parent.querySelector('.product-placeholder')) {
+                          const placeholder = document.createElement('div');
+                          placeholder.className = 'product-placeholder';
+                          placeholder.innerHTML = '<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>';
+                          parent.appendChild(placeholder);
+                        }
+                      }}
+                    />
                   ) : (
                     <div className="product-placeholder">
                       <Package size={32} />

@@ -22,9 +22,10 @@ cd bva-server
 npm run install:all
 
 # Setup environment variables
-cd server
-cp .env.example .env
-# Edit .env with your database credentials
+cd server && cp .env.example .env
+cd ../ml-service && cp .env.example .env
+cd ../bva-frontend && cp .env.example .env
+# Edit .env files with your configuration (see SETUP.md for details)
 
 # Setup database
 npx prisma migrate dev

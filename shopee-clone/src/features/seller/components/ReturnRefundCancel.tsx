@@ -11,6 +11,7 @@ interface ReturnRequest {
   orderId: string;
   productId: string;
   productName: string;
+  imageUrl?: string | null;
   reason: string;
   type: 'return' | 'refund' | 'cancel';
   status: 'pending' | 'approved' | 'rejected' | 'processing' | 'completed';
@@ -56,6 +57,7 @@ const ReturnRefundCancel: React.FC = () => {
                 orderId: order.id,
                 productId: item.productId,
                 productName: item.productName || 'Unknown Product',
+                imageUrl: item.imageUrl || null,
                 reason: item.returnReason || item.refundReason || item.cancelReason || 'Not specified',
                 type: item.returnRequest ? 'return' : item.refundRequest ? 'refund' : 'cancel',
                 status: item.requestStatus || 'pending',
@@ -273,6 +275,39 @@ const ReturnRefundCancel: React.FC = () => {
                 </div>
                 <div className="request-body">
                   <div className="request-info">
+                    {/* Product Image */}
+                    {request.imageUrl && (
+                      <div className="info-row" style={{ marginBottom: '12px' }}>
+                        <div style={{ 
+                          width: '80px', 
+                          height: '80px', 
+                          borderRadius: '8px',
+                          overflow: 'hidden',
+                          backgroundColor: '#f5f5f5',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          border: '1px solid #e0e0e0'
+                        }}>
+                          <img 
+                            src={request.imageUrl} 
+                            alt={request.productName}
+                            style={{ 
+                              width: '100%', 
+                              height: '100%', 
+                              objectFit: 'cover' 
+                            }}
+                            onError={(e) => {
+                              const target = e.target as HTMLImageElement;
+                              target.style.display = 'none';
+                              if (target.parentElement) {
+                                target.parentElement.innerHTML = '<span style="font-size: 24px;">📦</span>';
+                              }
+                            }}
+                          />
+                        </div>
+                      </div>
+                    )}
                     <div className="info-row">
                       <span className="info-label">Order ID:</span>
                       <span className="info-value">{request.orderId}</span>

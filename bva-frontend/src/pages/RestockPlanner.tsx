@@ -16,6 +16,7 @@ import { useIntegration } from "@/hooks/useIntegration";
 import { useRealtimeDashboard } from "@/hooks/useRealtimeDashboard";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const getPriorityColor = (priorityScore: number) => {
   if (priorityScore >= 80) return "destructive";
@@ -185,8 +186,32 @@ export default function RestockPlanner() {
     );
   }
 
+  // Show skeleton loading while checking integration
+  if (isLoadingIntegration) {
+    return (
+      <div className="space-y-6">
+        <div className="glass-card p-8">
+          <div className="space-y-2">
+            <Skeleton className="h-10 w-64" />
+            <Skeleton className="h-5 w-96" />
+          </div>
+        </div>
+        <Card className="glass-card border-primary/20">
+          <CardContent className="py-8">
+            <div className="space-y-4">
+              <Skeleton className="h-6 w-64" />
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-3/4" />
+              <Skeleton className="h-10 w-32" />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   // Show integration required message
-  if (!isLoadingIntegration && !hasActiveIntegration) {
+  if (!hasActiveIntegration) {
     return (
       <div className="space-y-6">
         <div className="glass-card p-8">

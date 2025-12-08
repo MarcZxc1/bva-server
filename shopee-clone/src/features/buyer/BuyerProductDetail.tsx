@@ -150,6 +150,23 @@ const BuyerProductDetail: React.FC = () => {
   const handleAddToCart = () => {
     if (!product) return;
     
+    // Check stock availability
+    if (product.stock === undefined || product.stock === null) {
+      alert('Stock information is not available for this product.');
+      return;
+    }
+    
+    if (product.stock === 0) {
+      alert('This product is out of stock.');
+      return;
+    }
+    
+    if (quantity > product.stock) {
+      alert(`Only ${product.stock} units available in stock.`);
+      setQuantity(product.stock);
+      return;
+    }
+    
     const productImage = product.imageUrl || '📦';
     const shopName = product.shop?.name || 'Shop';
     const productPrice = product.price;
@@ -167,6 +184,25 @@ const BuyerProductDetail: React.FC = () => {
   };
 
   const handleBuyNow = () => {
+    if (!product) return;
+    
+    // Check stock availability
+    if (product.stock === undefined || product.stock === null) {
+      alert('Stock information is not available for this product.');
+      return;
+    }
+    
+    if (product.stock === 0) {
+      alert('This product is out of stock.');
+      return;
+    }
+    
+    if (quantity > product.stock) {
+      alert(`Only ${product.stock} units available in stock.`);
+      setQuantity(product.stock);
+      return;
+    }
+    
     handleAddToCart();
     navigate('/cart');
   };
@@ -195,10 +231,29 @@ const BuyerProductDetail: React.FC = () => {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             {/* Left: Gallery */}
             <div>
-              <div className="aspect-square bg-white flex items-center justify-center border border-gray-200 mb-3">
-                <div className="text-center text-gray-400">
-                  <div className="text-sm mb-1">Thumbnail {selectedImage + 1}</div>
-                </div>
+              <div className="aspect-square bg-white flex items-center justify-center border border-gray-200 mb-3 relative overflow-hidden">
+                {product.imageUrl && (product.imageUrl.startsWith('http') || product.imageUrl.startsWith('/') || product.imageUrl.startsWith('data:')) ? (
+                  <img 
+                    src={product.imageUrl} 
+                    alt={product.name}
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      const target = e.target as HTMLImageElement;
+                      target.style.display = 'none';
+                      const parent = target.parentElement;
+                      if (parent && !parent.querySelector('.image-fallback')) {
+                        const fallback = document.createElement('div');
+                        fallback.className = 'image-fallback w-full h-full flex items-center justify-center bg-gray-100';
+                        fallback.innerHTML = '<span class="text-5xl opacity-50">📦</span>';
+                        parent.appendChild(fallback);
+                      }
+                    }}
+                  />
+                ) : (
+                  <div className="text-center text-gray-400">
+                    <span className="text-5xl opacity-50">{product.imageUrl || '📦'}</span>
+                  </div>
+                )}
               </div>
               <div className="grid grid-cols-5 gap-2 mb-4">
                 {[product.imageUrl || '📦', product.imageUrl || '📦', product.imageUrl || '📦', product.imageUrl || '📦', product.imageUrl || '📦'].map((img, i) => (
@@ -212,7 +267,22 @@ const BuyerProductDetail: React.FC = () => {
                     }`}
                   >
                     {img && (img.startsWith('http') || img.startsWith('/') || img.startsWith('data:')) ? (
-                      <img src={img} alt={`${product.name} ${i + 1}`} className="w-full h-full object-cover" />
+                      <img 
+                        src={img} 
+                        alt={`${product.name} ${i + 1}`} 
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement;
+                          target.style.display = 'none';
+                          const parent = target.parentElement;
+                          if (parent && !parent.querySelector('.image-fallback')) {
+                            const fallback = document.createElement('span');
+                            fallback.className = 'text-2xl mb-1 image-fallback';
+                            fallback.textContent = '📦';
+                            parent.appendChild(fallback);
+                          }
+                        }}
+                      />
                     ) : (
                       <span className="text-2xl mb-1">{img}</span>
                     )}
@@ -326,25 +396,53 @@ const BuyerProductDetail: React.FC = () => {
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                      className="w-8 h-8 border border-gray-300 rounded flex items-center justify-center hover:bg-gray-50"
+                      className="w-8 h-8 border border-gray-300 rounded flex items-center justify-center hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                      disabled={quantity <= 1 || (product.stock !== undefined && product.stock === 0)}
                     >
                       <span className="text-lg">−</span>
                     </button>
                     <input
                       type="number"
                       value={quantity}
-                      onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
+                      onChange={(e) => {
+                        const newQuantity = Math.max(1, parseInt(e.target.value) || 1);
+                        const maxQuantity = product.stock !== undefined ? product.stock : Infinity;
+                        setQuantity(Math.min(newQuantity, maxQuantity));
+                      }}
                       className="w-16 h-8 border border-gray-300 rounded text-center text-sm"
                       min="1"
+                      max={product.stock !== undefined ? product.stock : undefined}
+                      disabled={product.stock !== undefined && product.stock === 0}
                     />
                     <button
-                      onClick={() => setQuantity(quantity + 1)}
-                      className="w-8 h-8 border border-gray-300 rounded flex items-center justify-center hover:bg-gray-50"
+                      onClick={() => {
+                        const maxQuantity = product.stock !== undefined ? product.stock : Infinity;
+                        setQuantity(Math.min(quantity + 1, maxQuantity));
+                      }}
+                      className="w-8 h-8 border border-gray-300 rounded flex items-center justify-center hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                      disabled={product.stock !== undefined && (quantity >= product.stock || product.stock === 0)}
                     >
                       <span className="text-lg">+</span>
                     </button>
                   </div>
-                  <span className="text-sm text-green-600 font-semibold">IN STOCK</span>
+                  <span className={`text-sm font-semibold ${
+                    product.stock === undefined || product.stock === null
+                      ? 'text-gray-500'
+                      : product.stock === 0
+                      ? 'text-red-600'
+                      : product.stock <= 5
+                      ? 'text-orange-600'
+                      : 'text-green-600'
+                  }`}>
+                    {product.stock === undefined || product.stock === null
+                      ? 'STOCK UNKNOWN'
+                      : product.stock === 0
+                      ? 'OUT OF STOCK'
+                      : product.stock <= 5
+                      ? `LOW STOCK (${product.stock} left)`
+                      : `IN STOCK (${product.stock} available)`
+                    }
+                  </span>
                 </div>
               </div>
 
@@ -352,16 +450,18 @@ const BuyerProductDetail: React.FC = () => {
               <div className="mt-6 flex gap-3">
                 <button
                   onClick={handleAddToCart}
-                  className="flex-1 px-6 py-3 border-2 border-shopee-orange bg-white text-shopee-orange rounded-lg font-semibold hover:bg-orange-50 transition-colors flex items-center justify-center gap-2"
+                  disabled={product.stock !== undefined && product.stock === 0}
+                  className="flex-1 px-6 py-3 border-2 border-shopee-orange bg-white text-shopee-orange rounded-lg font-semibold hover:bg-orange-50 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:border-gray-300 disabled:text-gray-400"
                 >
                   <ShoppingCart size={20} className="text-shopee-orange" />
-                  <span>Add To Cart</span>
+                  <span>{product.stock === 0 ? 'Out of Stock' : 'Add To Cart'}</span>
                 </button>
                 <button
                   onClick={handleBuyNow}
-                  className="flex-1 px-6 py-4 bg-shopee-orange text-white rounded-lg font-semibold hover:bg-shopee-orange-dark transition-colors text-lg"
+                  disabled={product.stock !== undefined && product.stock === 0}
+                  className="flex-1 px-6 py-4 bg-shopee-orange text-white rounded-lg font-semibold hover:bg-shopee-orange-dark transition-colors text-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-gray-400"
                 >
-                  Buy With Voucher ₱{product.price.toLocaleString()}
+                  {product.stock === 0 ? 'Out of Stock' : `Buy With Voucher ₱${product.price.toLocaleString()}`}
                 </button>
               </div>
             </div>

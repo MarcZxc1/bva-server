@@ -2,6 +2,13 @@
 
 A comprehensive guide to set up and run the Business Virtual Assistant (BVA) platform on **Windows** and **Linux**.
 
+> **📝 Environment Variables:** Complete `.env.example` files are provided in each service directory:
+> - `server/.env.example` - Backend server configuration
+> - `ml-service/.env.example` - ML service configuration  
+> - `bva-frontend/.env.example` - Frontend configuration
+> 
+> Copy these files to `.env` and configure according to your setup. See the [Environment Variables](#environment-variables) section for details.
+
 ## 📋 Table of Contents
 
 - [Prerequisites](#prerequisites)
@@ -100,12 +107,19 @@ npm run install:all
 # Navigate to server directory and setup environment
 cd server
 copy .env.example .env
-# Edit .env file with your database credentials
+
+# ML Service environment
+cd ..\ml-service
+copy .env.example .env
+
+# BVA Frontend environment (optional)
+cd ..\bva-frontend
+copy .env.example .env
 ```
 
 ### Step 6: Configure Environment Variables
 
-Edit `server/.env` file:
+**Edit `server/.env` file with your configuration:**
 
 ```env
 # Database
@@ -114,20 +128,72 @@ DATABASE_URL="postgresql://postgres:your_password@localhost:5432/bva_db?schema=p
 # Server
 PORT=3000
 NODE_ENV=development
+BASE_URL=http://localhost:3000
 
 # Frontend URL
 FRONTEND_URL=http://localhost:8080
 
-# JWT Secret (generate a random string)
+# JWT Secret (generate a random string using: openssl rand -base64 32)
 JWT_SECRET=your_jwt_secret_here
+JWT_EXPIRES_IN=7d
 
-# Google OAuth (if using)
+# Google OAuth (Optional - for Google Sign-In)
 GOOGLE_CLIENT_ID=your_google_client_id
 GOOGLE_CLIENT_SECRET=your_google_client_secret
 
+# Facebook OAuth (Optional - for Facebook Sign-In)
+FACEBOOK_APP_ID=your_facebook_app_id
+FACEBOOK_APP_SECRET=your_facebook_app_secret
+
 # ML Service
 ML_SERVICE_URL=http://localhost:8001
+
+# Redis (Optional but Recommended)
+REDIS_URL=redis://localhost:6379
+
+# Supabase (Optional)
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_ANON_KEY=your_supabase_anon_key
+SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
 ```
+
+**Edit `ml-service/.env` file:**
+
+```env
+# Application
+HOST=0.0.0.0
+PORT=8001
+DEBUG=false
+
+# Redis
+REDIS_URL=redis://localhost:6379/0
+CELERY_BROKER_URL=redis://localhost:6379/0
+CELERY_RESULT_BACKEND=redis://localhost:6379/1
+
+# Model Configuration
+MODEL_DIR=./models
+DEFAULT_FORECAST_PERIODS=14
+
+# Google Gemini API (for AI features)
+GEMINI_API_KEY=your_gemini_api_key_here
+GEMINI_MODEL=gemini-2.0-flash-exp
+
+# Backend API (Optional)
+BACKEND_API_URL=http://localhost:3000
+```
+
+**Edit `bva-frontend/.env` file (optional):**
+
+```env
+# Backend API URL
+VITE_API_URL=http://localhost:3000
+
+# Supabase (Optional)
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+```
+
+> **Note:** See `.env.example` files in each directory for complete environment variable documentation.
 
 ### Step 7: Setup Database
 
@@ -290,29 +356,97 @@ nano .env  # or use your preferred editor
 
 ### Step 6: Configure Environment Variables
 
-Edit `server/.env` file:
+**Create environment files from examples:**
+
+```powershell
+# Server environment
+cd server
+copy .env.example .env
+
+# ML Service environment
+cd ..\ml-service
+copy .env.example .env
+
+# BVA Frontend environment (optional)
+cd ..\bva-frontend
+copy .env.example .env
+```
+
+**Edit `server/.env` file with your configuration:**
 
 ```env
 # Database
-DATABASE_URL="postgresql://bva_user:your_password@localhost:5432/bva_db?schema=public"
+DATABASE_URL="postgresql://postgres:your_password@localhost:5432/bva_db?schema=public"
 
 # Server
 PORT=3000
 NODE_ENV=development
+BASE_URL=http://localhost:3000
 
 # Frontend URL
 FRONTEND_URL=http://localhost:8080
 
-# JWT Secret (generate a random string)
+# JWT Secret (generate a random string using: openssl rand -base64 32)
 JWT_SECRET=your_jwt_secret_here
+JWT_EXPIRES_IN=7d
 
-# Google OAuth (if using)
+# Google OAuth (Optional - for Google Sign-In)
 GOOGLE_CLIENT_ID=your_google_client_id
 GOOGLE_CLIENT_SECRET=your_google_client_secret
 
+# Facebook OAuth (Optional - for Facebook Sign-In)
+FACEBOOK_APP_ID=your_facebook_app_id
+FACEBOOK_APP_SECRET=your_facebook_app_secret
+
 # ML Service
 ML_SERVICE_URL=http://localhost:8001
+
+# Redis (Optional but Recommended)
+REDIS_URL=redis://localhost:6379
+
+# Supabase (Optional)
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_ANON_KEY=your_supabase_anon_key
+SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
 ```
+
+**Edit `ml-service/.env` file:**
+
+```env
+# Application
+HOST=0.0.0.0
+PORT=8001
+DEBUG=false
+
+# Redis
+REDIS_URL=redis://localhost:6379/0
+CELERY_BROKER_URL=redis://localhost:6379/0
+CELERY_RESULT_BACKEND=redis://localhost:6379/1
+
+# Model Configuration
+MODEL_DIR=./models
+DEFAULT_FORECAST_PERIODS=14
+
+# Google Gemini API (for AI features)
+GEMINI_API_KEY=your_gemini_api_key_here
+GEMINI_MODEL=gemini-2.0-flash-exp
+
+# Backend API (Optional)
+BACKEND_API_URL=http://localhost:3000
+```
+
+**Edit `bva-frontend/.env` file (optional):**
+
+```env
+# Backend API URL
+VITE_API_URL=http://localhost:3000
+
+# Supabase (Optional)
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+```
+
+> **Note:** See `.env.example` files in each directory for complete environment variable documentation.
 
 ### Step 7: Setup Database
 
@@ -387,7 +521,11 @@ Once all services are running:
 
 ## Environment Variables
 
+Complete `.env.example` files are provided in each service directory. Copy them to `.env` and fill in your values.
+
 ### Server Environment Variables (`server/.env`)
+
+**Required Variables:**
 
 ```env
 # Database Configuration
@@ -396,6 +534,7 @@ DATABASE_URL="postgresql://user:password@localhost:5432/bva_db?schema=public"
 # Server Configuration
 PORT=3000
 NODE_ENV=development
+BASE_URL=http://localhost:3000
 
 # Frontend Configuration
 FRONTEND_URL=http://localhost:8080
@@ -403,30 +542,91 @@ FRONTEND_URL=http://localhost:8080
 # Authentication
 JWT_SECRET=your_jwt_secret_here
 JWT_EXPIRES_IN=7d
+```
 
-# Google OAuth (Optional)
+**Optional Variables:**
+
+```env
+# OAuth Configuration
 GOOGLE_CLIENT_ID=your_google_client_id
 GOOGLE_CLIENT_SECRET=your_google_client_secret
+FACEBOOK_APP_ID=your_facebook_app_id
+FACEBOOK_APP_SECRET=your_facebook_app_secret
 
 # ML Service
 ML_SERVICE_URL=http://localhost:8001
 
-# Redis (Optional)
+# Redis (Recommended for caching)
 REDIS_URL=redis://localhost:6379
+
+# Supabase (Optional)
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_ANON_KEY=your_supabase_anon_key
+SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
 ```
+
+> **See `server/.env.example` for complete documentation of all available variables.**
 
 ### ML Service Environment Variables (`ml-service/.env`)
 
+**Required Variables:**
+
 ```env
-# ML Service Configuration
-ML_SERVICE_PORT=8001
+# Application Configuration
+HOST=0.0.0.0
+PORT=8001
+DEBUG=false
 
-# Database (if ML service needs direct access)
-DATABASE_URL=postgresql://user:password@localhost:5432/bva_db
-
-# Redis (Optional)
-REDIS_URL=redis://localhost:6379
+# Redis Configuration
+REDIS_URL=redis://localhost:6379/0
+CELERY_BROKER_URL=redis://localhost:6379/0
+CELERY_RESULT_BACKEND=redis://localhost:6379/1
 ```
+
+**Optional Variables:**
+
+```env
+# Model Configuration
+MODEL_DIR=./models
+DEFAULT_FORECAST_PERIODS=14
+DEFAULT_FORECAST_METHOD=auto
+
+# Google Gemini API (for AI features)
+GEMINI_API_KEY=your_gemini_api_key_here
+GEMINI_MODEL=gemini-2.0-flash-exp
+IMAGEN_MODEL=gemini-2.5-flash-image
+
+# Backend API (Optional)
+BACKEND_API_URL=http://localhost:3000
+BACKEND_API_KEY=your_backend_api_key
+
+# Social Media APIs (Optional)
+FACEBOOK_ACCESS_TOKEN=your_facebook_access_token
+INSTAGRAM_ACCESS_TOKEN=your_instagram_access_token
+
+# Logging
+LOG_LEVEL=INFO
+LOG_FORMAT=json
+```
+
+> **See `ml-service/.env.example` for complete documentation of all available variables.**
+
+### BVA Frontend Environment Variables (`bva-frontend/.env`)
+
+**Optional Variables:**
+
+```env
+# Backend API URL
+# In development, leave empty to use Vite proxy
+# In production, set to your backend URL
+VITE_API_URL=http://localhost:3000
+
+# Supabase (Optional)
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+```
+
+> **See `bva-frontend/.env.example` for complete documentation of all available variables.**
 
 ---
 

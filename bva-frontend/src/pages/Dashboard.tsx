@@ -8,6 +8,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useIntegration } from "@/hooks/useIntegration";
 import { useState } from "react";
 import { apiClient } from "@/lib/api-client";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -137,6 +138,20 @@ export default function Dashboard() {
         </div>
       </div>
 
+      {/* Skeleton Loading for Integration Check */}
+      {isLoadingIntegration && (
+        <Card className="glass-card border-primary/20">
+          <CardContent className="py-8">
+            <div className="space-y-4">
+              <Skeleton className="h-6 w-64" />
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-3/4" />
+              <Skeleton className="h-10 w-32" />
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Integration Required Message - Show first if no integration */}
       {!isLoadingIntegration && hasNoIntegration && (
         <Card className="glass-card border-primary/20">
@@ -174,14 +189,41 @@ export default function Dashboard() {
       {!isLoadingIntegration && hasActiveIntegration && (
         <>
           {isLoading ? (
-            <Card className="glass-card">
-              <CardContent className="py-12 flex items-center justify-center">
-                <div className="text-center space-y-2">
-                  <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto" />
-                  <p className="text-sm text-muted-foreground">Loading dashboard data...</p>
-                </div>
-              </CardContent>
-            </Card>
+            <div className="space-y-4">
+              {/* Skeleton for metrics cards */}
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                {[1, 2, 3, 4].map((i) => (
+                  <Card key={i} className="glass-card">
+                    <CardHeader className="space-y-2">
+                      <Skeleton className="h-4 w-24" />
+                    </CardHeader>
+                    <CardContent>
+                      <Skeleton className="h-8 w-32 mb-2" />
+                      <Skeleton className="h-3 w-40" />
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+              {/* Skeleton for charts */}
+              <div className="grid gap-4 md:grid-cols-2">
+                <Card className="glass-card">
+                  <CardHeader>
+                    <Skeleton className="h-5 w-48" />
+                  </CardHeader>
+                  <CardContent>
+                    <Skeleton className="h-64 w-full" />
+                  </CardContent>
+                </Card>
+                <Card className="glass-card">
+                  <CardHeader>
+                    <Skeleton className="h-5 w-48" />
+                  </CardHeader>
+                  <CardContent>
+                    <Skeleton className="h-64 w-full" />
+                  </CardContent>
+                </Card>
+              </div>
+            </div>
           ) : (
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
               <Card className="glass-card">

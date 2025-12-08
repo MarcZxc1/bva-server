@@ -12,6 +12,7 @@ import { userApi } from "@/lib/api";
 import { toast } from "sonner";
 import { integrationService, Integration } from "@/services/integration.service";
 import { IntegrationAgreementDialog } from "@/components/IntegrationAgreementDialog";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export default function Settings() {
   const { user } = useAuth();
@@ -80,8 +81,14 @@ export default function Settings() {
     mutationFn: (data: { platform: string }) =>
       integrationService.createIntegration(data as any),
     onSuccess: () => {
+      // Invalidate integrations query to refresh status
       queryClient.invalidateQueries({ queryKey: ["integrations"] });
-      toast.success("Integration connected successfully!");
+      // Invalidate dependent queries that rely on integration status
+      queryClient.invalidateQueries({ queryKey: ["dashboard-analytics"] });
+      queryClient.invalidateQueries({ queryKey: ["at-risk-inventory"] });
+      queryClient.invalidateQueries({ queryKey: ["products"] });
+      queryClient.invalidateQueries({ queryKey: ["restock"] });
+      toast.success("Integration connected successfully! You can now sync your data.");
     },
     onError: (error: any) => {
       toast.error(error.message || "Failed to connect integration");
@@ -113,6 +120,11 @@ export default function Settings() {
     mutationFn: (id: string) => integrationService.deleteIntegration(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["integrations"] });
+      // Also invalidate dependent queries that rely on integration status
+      queryClient.invalidateQueries({ queryKey: ["dashboard-analytics"] });
+      queryClient.invalidateQueries({ queryKey: ["at-risk-inventory"] });
+      queryClient.invalidateQueries({ queryKey: ["products"] });
+      queryClient.invalidateQueries({ queryKey: ["restock"] });
       toast.success("Integration disconnected successfully");
     },
     onError: (error: any) => {
@@ -294,8 +306,24 @@ export default function Settings() {
             </CardHeader>
             <CardContent className="space-y-4">
               {integrationsLoading ? (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                <div className="space-y-4">
+                  {/* Skeleton loading for integrations */}
+                  {[1, 2, 3].map((i) => (
+                    <div key={i} className="flex items-center justify-between p-4 glass-card-sm">
+                      <div className="flex items-center gap-3 flex-1">
+                        <Skeleton className="h-10 w-10 rounded-lg" />
+                        <div className="flex-1 space-y-2">
+                          <Skeleton className="h-5 w-32" />
+                          <Skeleton className="h-4 w-40" />
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <Skeleton className="h-8 w-16" />
+                        <Skeleton className="h-8 w-16" />
+                        <Skeleton className="h-8 w-10" />
+                      </div>
+                    </div>
+                  ))}
                 </div>
               ) : integrations && integrations.length > 0 ? (
                 <>

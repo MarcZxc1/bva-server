@@ -4,6 +4,7 @@ import BuyerFooter from './components/BuyerFooter';
 import { Link, useNavigate } from 'react-router-dom';
 import { ShoppingCart, ChevronDown, MessageCircle, Minus, Plus } from 'lucide-react';
 import { useCart } from '../../contexts/CartContext';
+import apiClient from '../../services/api';
 
 const BuyerCart: React.FC = () => {
   const { cartItems, updateCartItem, removeFromCart, toggleItemSelection, toggleShopSelection, toggleSelectAll, removeSelectedItems } = useCart();
@@ -19,17 +20,61 @@ const BuyerCart: React.FC = () => {
   const isAnyItemSelected = totalSelectedItems > 0;
   const isAllItemsSelected = cartItems.length > 0 && cartItems.every(item => item.isSelected);
 
-  const handleQuantityChange = (id: string, delta: number) => {
+  const handleQuantityChange = async (id: string, delta: number) => {
     const item = cartItems.find(i => i.id === id);
-    if (item) {
-      const newQuantity = Math.max(1, item.quantity + delta);
-      updateCartItem(id, { quantity: newQuantity });
+    if (!item) return;
+
+    const newQuantity = Math.max(1, item.quantity + delta);
+    
+    // Validate stock availability
+    try {
+      const productData = await apiClient.getProductById(String(item.productId));
+      if (productData.stock !== undefined && productData.stock !== null) {
+        if (productData.stock === 0) {
+          alert(`${item.name} is out of stock. Please remove it from your cart.`);
+          return;
+        }
+        if (newQuantity > productData.stock) {
+          alert(`Only ${productData.stock} units available for ${item.name}.`);
+          updateCartItem(id, { quantity: productData.stock });
+          return;
+        }
+      }
+    } catch (err) {
+      console.error('Error validating stock:', err);
+      // Continue with update if stock check fails (non-blocking)
     }
+
+    updateCartItem(id, { quantity: newQuantity });
   };
 
-  const handleQuantityInput = (id: string, e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleQuantityInput = async (id: string, e: React.ChangeEvent<HTMLInputElement>) => {
+    const item = cartItems.find(i => i.id === id);
+    if (!item) return;
+
     const value = parseInt(e.target.value) || 1;
-    updateCartItem(id, { quantity: Math.max(1, value) });
+    const newQuantity = Math.max(1, value);
+    
+    // Validate stock availability
+    try {
+      const productData = await apiClient.getProductById(String(item.productId));
+      if (productData.stock !== undefined && productData.stock !== null) {
+        if (productData.stock === 0) {
+          alert(`${item.name} is out of stock. Please remove it from your cart.`);
+          return;
+        }
+        if (newQuantity > productData.stock) {
+          alert(`Only ${productData.stock} units available for ${item.name}.`);
+          updateCartItem(id, { quantity: productData.stock });
+          return;
+        }
+      }
+    } catch (err) {
+      console.error('Error validating stock:', err);
+      // Continue with update if stock check fails (non-blocking)
+    }
+
+    updateCartItem(id, { quantity: newQuantity });
   };
 
   const handleCheckout = () => {
