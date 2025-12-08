@@ -151,10 +151,6 @@ ML_SERVICE_URL=http://localhost:8001
 # Redis (Optional but Recommended)
 REDIS_URL=redis://localhost:6379
 
-# Supabase (Optional)
-SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_ANON_KEY=your_supabase_anon_key
-SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
 ```
 
 **Edit `ml-service/.env` file:**
@@ -188,9 +184,6 @@ BACKEND_API_URL=http://localhost:3000
 # Backend API URL
 VITE_API_URL=http://localhost:3000
 
-# Supabase (Optional)
-VITE_SUPABASE_URL=https://your-project.supabase.co
-VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
 ```
 
 > **Note:** See `.env.example` files in each directory for complete environment variable documentation.
@@ -404,10 +397,6 @@ ML_SERVICE_URL=http://localhost:8001
 # Redis (Optional but Recommended)
 REDIS_URL=redis://localhost:6379
 
-# Supabase (Optional)
-SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_ANON_KEY=your_supabase_anon_key
-SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
 ```
 
 **Edit `ml-service/.env` file:**
@@ -441,9 +430,6 @@ BACKEND_API_URL=http://localhost:3000
 # Backend API URL
 VITE_API_URL=http://localhost:3000
 
-# Supabase (Optional)
-VITE_SUPABASE_URL=https://your-project.supabase.co
-VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
 ```
 
 > **Note:** See `.env.example` files in each directory for complete environment variable documentation.
@@ -559,10 +545,6 @@ ML_SERVICE_URL=http://localhost:8001
 # Redis (Recommended for caching)
 REDIS_URL=redis://localhost:6379
 
-# Supabase (Optional)
-SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_ANON_KEY=your_supabase_anon_key
-SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
 ```
 
 > **See `server/.env.example` for complete documentation of all available variables.**
@@ -621,9 +603,6 @@ LOG_FORMAT=json
 # In production, set to your backend URL
 VITE_API_URL=http://localhost:3000
 
-# Supabase (Optional)
-VITE_SUPABASE_URL=https://your-project.supabase.co
-VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
 ```
 
 > **See `bva-frontend/.env.example` for complete documentation of all available variables.**

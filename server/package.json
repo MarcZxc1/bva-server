@@ -36,7 +36,6 @@
     "@google/generative-ai": "^0.24.1",
     "@prisma/adapter-pg": "^6.19.0",
     "@prisma/client": "^6.17.1",
-    "@supabase/supabase-js": "^2.86.2",
     "@types/axios": "^0.9.36",
     "@types/cors": "^2.8.19",
     "@types/dotenv": "^6.1.1",

@@ -120,17 +120,29 @@ const MyProducts: React.FC = () => {
       let savedProduct;
       if (editingProduct) {
         savedProduct = await apiClient.updateProduct(editingProduct.id, submitData);
+        console.log('✅ Product updated:', savedProduct);
         // Send webhook to BVA server
-        const { webhookService } = await import('../../../services/webhook.service');
-        await webhookService.sendProductUpdated({ ...savedProduct, ...submitData });
+        try {
+          const { webhookService } = await import('../../../services/webhook.service');
+          await webhookService.sendProductUpdated({ ...savedProduct, ...submitData });
+        } catch (webhookError) {
+          console.warn('Webhook error (non-critical):', webhookError);
+        }
       } else {
         savedProduct = await apiClient.createProduct(submitData);
+        console.log('✅ Product created:', savedProduct);
         // Send webhook to BVA server
-        const { webhookService } = await import('../../../services/webhook.service');
-        await webhookService.sendProductCreated({ ...savedProduct, ...submitData });
+        try {
+          const { webhookService } = await import('../../../services/webhook.service');
+          await webhookService.sendProductCreated({ ...savedProduct, ...submitData });
+        } catch (webhookError) {
+          console.warn('Webhook error (non-critical):', webhookError);
+        }
       }
 
+      // Refresh products list to show the new/updated product
       await fetchProducts();
+      console.log('✅ Products list refreshed');
     } catch (err: any) {
       console.error('Error submitting product:', err);
       throw new Error(err.message || 'Failed to save product');

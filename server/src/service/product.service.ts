@@ -42,16 +42,11 @@ export async function getAllProducts() {
 }
 
 export async function getProductsByShop(shopId: string) {
-  // Check if shop has active integration with terms accepted
-  const hasIntegration = await hasActiveIntegration(shopId);
+  // For shopee-clone sellers, show ALL products (both synced and locally created)
+  // This endpoint is primarily used by shopee-clone, so we show all products
+  // BVA frontend can filter on its side if needed
   
-  if (!hasIntegration) {
-    // Return empty array if no active integration
-    // This ensures data isolation - no data shown without integration
-    return [];
-  }
-
-  // Get shop integrations to determine platform
+  // Get shop integrations to determine platform (for platform assignment)
   const integrations = await prisma.integration.findMany({
     where: { shopId },
     select: { platform: true },
@@ -60,12 +55,12 @@ export async function getProductsByShop(shopId: string) {
   // Get platform values from integrations
   const integrationPlatforms = integrations.map(integration => integration.platform);
 
-  // Get products (only synced products from integrations)
-  // Filter to only show products that came from integrations (have externalId)
+  // Get ALL products for the shop (both synced from integrations and locally created)
+  // This allows shopee-clone sellers to see all their products
   const products = await prisma.product.findMany({
     where: { 
       shopId,
-      externalId: { not: null }, // Only show products synced from integrations
+      // No filter - show all products regardless of externalId
     },
     include: {
       inventories: {
@@ -225,7 +220,20 @@ export async function createProduct(data: {
     },
   });
 
-  return product;
+  // Return product with serialized dates and proper format
+  return {
+    id: product.id,
+    sku: product.sku,
+    name: product.name,
+    description: product.description,
+    price: product.price,
+    cost: product.cost,
+    stock: product.stock,
+    category: product.category,
+    imageUrl: product.imageUrl,
+    createdAt: product.createdAt.toISOString(),
+    updatedAt: product.updatedAt.toISOString(),
+  };
 }
 
 export async function updateProduct(
@@ -272,7 +280,20 @@ export async function updateProduct(
     }
   }
 
-  return product;
+  // Return product with serialized dates and proper format
+  return {
+    id: product.id,
+    sku: product.sku,
+    name: product.name,
+    description: product.description,
+    price: product.price,
+    cost: product.cost,
+    stock: product.stock,
+    category: product.category,
+    imageUrl: product.imageUrl,
+    createdAt: product.createdAt.toISOString(),
+    updatedAt: product.updatedAt.toISOString(),
+  };
 }
 
 export async function deleteProduct(productId: string) {

@@ -50,99 +50,6 @@ const authMiddleware = async (req: Request, res: Response, next: Function) => {
 };
 
 // ==========================================
-// Supabase Auth Routes (Facebook OAuth handled by Supabase)
-// ==========================================
-
-/**
- * @route   POST /api/auth/supabase/verify
- * @desc    Verify Supabase access token and sync user to local database
- * @access  Public
- * 
- * This endpoint is called by the frontend after Supabase OAuth completes.
- * It verifies the Supabase token, syncs the user to the local database,
- * and returns a JWT token for the local API.
- */
-router.post("/supabase/verify", async (req: Request, res: Response) => {
-  try {
-    const { accessToken } = req.body;
-
-    if (!accessToken) {
-      return res.status(400).json({
-        success: false,
-        message: "Access token is required",
-      });
-    }
-
-    // Import here to avoid circular dependencies
-    const { supabaseAuthService } = await import("../service/supabaseAuth.service");
-    const { supabase } = await import("../lib/supabase");
-
-    if (!supabase) {
-      return res.status(500).json({
-        success: false,
-        message: "Supabase not configured",
-      });
-    }
-
-    // Verify token with Supabase
-    console.log('🔐 Verifying Supabase token...');
-    const supabaseUser = await supabaseAuthService.verifyToken(accessToken);
-
-    if (!supabaseUser) {
-      console.error('❌ Token verification failed');
-      return res.status(401).json({
-        success: false,
-        message: "Invalid or expired token",
-      });
-    }
-
-    console.log('✅ Token verified, syncing user to database...');
-    // Sync user to local database (this will create shop if needed for SELLERs)
-    const { user: localUser, created } = await supabaseAuthService.syncUser(supabaseUser);
-    console.log(`✅ User ${created ? 'created' : 'updated'}:`, localUser.email);
-
-    // Get user's shops (should exist for SELLERs after sync)
-    const shops = await prisma.shop.findMany({
-      where: { ownerId: localUser.id },
-      select: { id: true, name: true },
-    });
-
-    // Generate JWT token for local API
-    const token = jwt.sign(
-      {
-        userId: localUser.id,
-        role: localUser.role,
-        email: localUser.email,
-        name: localUser.name || localUser.firstName || 'User',
-        shops: shops.map(s => ({ id: s.id, name: s.name })),
-      },
-      JWT_SECRET,
-      { expiresIn: JWT_EXPIRATION } as jwt.SignOptions
-    );
-
-    return res.status(200).json({
-      success: true,
-      token,
-      user: {
-        id: localUser.id,
-        email: localUser.email,
-        name: localUser.name || localUser.firstName || 'User',
-        role: localUser.role,
-        shops: shops.map(s => ({ id: s.id, name: s.name })),
-      },
-      created,
-    });
-  } catch (error: any) {
-    console.error("Supabase verify error:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Failed to verify token",
-      error: error.message,
-    });
-  }
-});
-
-// ==========================================
 // Google OAuth Routes
 // ==========================================
 
@@ -739,7 +646,7 @@ router.get("/social-media/facebook", authMiddleware, async (req: Request, res: R
  */
 // ==========================================
 // Meta (Facebook) Data Deletion Endpoint
-// Called by Supabase Edge Function
+// Called by external webhook services
 // ==========================================
 router.delete("/facebook/delete-user", async (req: Request, res: Response) => {
   try {

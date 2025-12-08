@@ -9,7 +9,6 @@ import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { AxiosError } from "axios";
 import { ArrowLeft, Mail, Lock, User } from "lucide-react";
-import { supabase } from "@/lib/supabase";
 
 // Google Icon SVG Component
 const GoogleIcon = () => (
@@ -199,41 +198,9 @@ export default function Login() {
   };
 
   const handleFacebookLogin = async () => {
-    if (!supabase) {
-      const errorMsg = "Supabase not configured. Please add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to your .env file.";
-      console.error('❌', errorMsg);
-      toast.error(errorMsg);
-      return;
-    }
-
-    try {
-      setIsSubmitting(true);
-      console.log('🔵 Initiating Facebook OAuth via Supabase...');
-      
-      // Initiate Facebook OAuth via Supabase
-      // This will redirect the browser to Facebook, then back to our app
-      const { data, error: supabaseError } = await supabase.auth.signInWithOAuth({
-        provider: 'facebook',
-        options: {
-          redirectTo: `${window.location.origin}/login`,
-          scopes: 'email public_profile', // Request email and public_profile permissions
-        },
-      });
-
-      if (supabaseError) {
-        console.error('❌ Supabase OAuth error:', supabaseError);
-        throw supabaseError;
-      }
-
-      console.log('✅ OAuth initiated, redirecting to Facebook...');
-      // Note: The browser will be redirected, so this code may not execute
-      // The callback will be handled in AuthContext
-    } catch (error: any) {
-      console.error('❌ Facebook OAuth error:', error);
-      const errorMessage = error.message || 'Failed to initiate Facebook login. Please check your Supabase configuration.';
-      toast.error(errorMessage);
-      setIsSubmitting(false);
-    }
+    // Facebook OAuth is not currently available without Supabase
+    // Users can use Google OAuth instead
+    toast.error("Facebook OAuth is not currently available. Please use Google OAuth instead.");
   };
 
   return (

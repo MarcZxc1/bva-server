@@ -1,7 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import apiClient from '../services/api';
-import { supabase } from '../lib/supabase';
 
 interface User {
   id: string;
@@ -66,212 +65,44 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Handle Supabase OAuth callback and check for existing sessions
+  // Handle OAuth callback and check for existing sessions
   useEffect(() => {
-    const handleSupabaseAuth = async () => {
-      if (!supabase) {
-        // Fallback to old token-based flow
-        const urlParams = new URLSearchParams(location.search);
-        const tokenParam = urlParams.get('token');
-        const errorParam = urlParams.get('error');
-        const errorDetails = urlParams.get('details');
+    const handleOAuthCallback = async () => {
+      const urlParams = new URLSearchParams(location.search);
+      const tokenParam = urlParams.get('token');
+      const errorParam = urlParams.get('error');
+      const errorDetails = urlParams.get('details');
 
-        if (tokenParam) {
-          console.log('🔵 Processing OAuth token from URL...');
-          await handleGoogleCallbackToken(tokenParam);
-          // Clean up URL - remove token parameter
-          const newUrl = new URL(window.location.href);
-          newUrl.searchParams.delete('token');
-          window.history.replaceState({}, '', newUrl.pathname + newUrl.search);
-        } else if (errorParam) {
-          // Get detailed error message if available
-          const errorMessage = errorParam === 'google_auth_failed' 
-            ? (errorDetails ? `Google authentication failed: ${decodeURIComponent(errorDetails)}` : 'Google authentication failed. Please try again.')
-            : (errorDetails ? `${errorParam}: ${decodeURIComponent(errorDetails)}` : errorParam);
-          console.error('❌ Google OAuth error:', errorParam, errorDetails);
-          setError(errorMessage);
-          setIsLoading(false);
-          window.history.replaceState({}, '', location.pathname);
-        } else {
-          const storedToken = localStorage.getItem('auth_token');
-          if (storedToken) {
-            setToken(storedToken);
-            apiClient.setToken(storedToken);
-            fetchUser();
-          } else {
-            setIsLoading(false);
-          }
-        }
-        return;
-      }
-
-      // Check for Supabase OAuth callback in URL hash
-      // Supabase redirects with tokens in the URL hash after OAuth
-      const hashParams = new URLSearchParams(window.location.hash.substring(1));
-      const accessToken = hashParams.get('access_token');
-      const errorDescription = hashParams.get('error_description');
-      const errorCode = hashParams.get('error');
-
-      if (errorDescription || errorCode) {
-        console.error('❌ OAuth error in callback:', errorDescription || errorCode);
-        const errorMsg = errorDescription || `OAuth error: ${errorCode}`;
-        setError(errorMsg);
+      if (tokenParam) {
+        console.log('🔵 Processing OAuth token from URL...');
+        await handleGoogleCallbackToken(tokenParam);
+        // Clean up URL - remove token parameter
+        const newUrl = new URL(window.location.href);
+        newUrl.searchParams.delete('token');
+        window.history.replaceState({}, '', newUrl.pathname + newUrl.search);
+      } else if (errorParam) {
+        // Get detailed error message if available
+        const errorMessage = errorParam === 'google_auth_failed' 
+          ? (errorDetails ? `Google authentication failed: ${decodeURIComponent(errorDetails)}` : 'Google authentication failed. Please try again.')
+          : (errorDetails ? `${errorParam}: ${decodeURIComponent(errorDetails)}` : errorParam);
+        console.error('❌ Google OAuth error:', errorParam, errorDetails);
+        setError(errorMessage);
         setIsLoading(false);
         window.history.replaceState({}, '', location.pathname);
-        alert(`Facebook Login Failed: ${errorMsg}`);
-        return;
-      }
-
-      // Check for Supabase session (either from hash or existing session)
-      let session = null;
-      
-      if (accessToken) {
-        console.log('🔵 OAuth callback detected, setting session...');
-        // New OAuth callback - set the session
-        const { data: { session: newSession }, error: setSessionError } = await supabase.auth.setSession({
-          access_token: accessToken,
-          refresh_token: hashParams.get('refresh_token') || '',
-        });
-        
-        if (setSessionError) {
-          console.error('❌ Error setting session:', setSessionError);
-          setError('Failed to set authentication session: ' + setSessionError.message);
-          setIsLoading(false);
-          window.history.replaceState({}, '', location.pathname);
-          alert(`Session Error: ${setSessionError.message}`);
-          return;
-        }
-        
-        if (!newSession) {
-          console.error('❌ No session returned from setSession');
-          setError('Failed to create authentication session');
-          setIsLoading(false);
-          window.history.replaceState({}, '', location.pathname);
-          return;
-        }
-        
-        session = newSession;
-        console.log('✅ Session set successfully');
-        // Clean up URL hash
-        window.history.replaceState({}, '', location.pathname);
       } else {
-        // Check for existing session
-        const { data: { session: existingSession }, error: sessionError } = await supabase.auth.getSession();
-        
-        if (sessionError) {
-          console.error('⚠️ Session error:', sessionError);
-        }
-        
-        session = existingSession;
-        
-        if (session) {
-          console.log('✅ Existing session found');
-        }
-      }
-
-      if (session?.access_token) {
-        try {
-          console.log('🔐 Verifying token with backend...');
-          // Verify token with backend and get local JWT
-          // Use /api/auth/supabase/verify endpoint
-          const response = await fetch(`${API_BASE_URL}/api/auth/supabase/verify`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ accessToken: session.access_token }),
-          });
-
-          if (!response.ok) {
-            const errorData = await response.json().catch(() => ({ message: 'Network error' }));
-            throw new Error(errorData.message || `HTTP ${response.status}: ${response.statusText}`);
-          }
-
-          const result = await response.json();
-
-          if (result.success && result.token) {
-            console.log('✅ Token verified, user logged in:', result.user.email);
-            // Store local JWT token
-            setToken(result.token);
-            apiClient.setToken(result.token);
-            localStorage.setItem('auth_token', result.token);
-
-            // Set user data
-            const normalizedUser: User = {
-              id: result.user.id,
-              userId: result.user.id,
-              email: result.user.email,
-              username: result.user.name,
-              name: result.user.name,
-              role: result.user.role,
-              shops: result.user.shops || [],
-            };
-            setUser(normalizedUser);
-
-            // Clean up URL
-            window.history.replaceState({}, '', location.pathname);
-
-            // Redirect based on role
-            console.log('🚀 Redirecting to:', normalizedUser.role === 'SELLER' ? '/dashboard' : '/');
-            if (normalizedUser.role === 'SELLER') {
-              navigate('/dashboard');
-            } else {
-              navigate('/');
-            }
-          } else {
-            throw new Error(result.message || 'Failed to verify token');
-          }
-        } catch (err: any) {
-          console.error('❌ Failed to verify Supabase token:', err);
-          const errorMsg = err.message || 'Failed to complete authentication. Please try again.';
-          setError(errorMsg);
-          setIsLoading(false);
-          // Sign out from Supabase on error
-          try {
-            await supabase.auth.signOut();
-          } catch (signOutError) {
-            console.error('Error signing out:', signOutError);
-          }
-          alert(`Authentication Error: ${errorMsg}`);
-        }
-      } else {
-        // Check for old token-based flow as fallback
-        const urlParams = new URLSearchParams(location.search);
-        const tokenParam = urlParams.get('token');
-        const errorParam = urlParams.get('error');
-        const errorDetails = urlParams.get('details');
-
-        if (tokenParam) {
-          console.log('🔵 Processing OAuth token from URL...');
-          await handleGoogleCallbackToken(tokenParam);
-          // Clean up URL - remove token parameter
-          const newUrl = new URL(window.location.href);
-          newUrl.searchParams.delete('token');
-          window.history.replaceState({}, '', newUrl.pathname + newUrl.search);
-        } else if (errorParam) {
-          // Get detailed error message if available
-          const errorMessage = errorParam === 'google_auth_failed' 
-            ? (errorDetails ? `Google authentication failed: ${decodeURIComponent(errorDetails)}` : 'Google authentication failed. Please try again.')
-            : (errorDetails ? `${errorParam}: ${decodeURIComponent(errorDetails)}` : errorParam);
-          console.error('❌ Google OAuth error:', errorParam, errorDetails);
-          setError(errorMessage);
-          setIsLoading(false);
-          window.history.replaceState({}, '', location.pathname);
+        // Check for existing token
+        const storedToken = localStorage.getItem('auth_token');
+        if (storedToken) {
+          setToken(storedToken);
+          apiClient.setToken(storedToken);
+          fetchUser();
         } else {
-          // Check for existing token
-          const storedToken = localStorage.getItem('auth_token');
-          if (storedToken) {
-            setToken(storedToken);
-            apiClient.setToken(storedToken);
-            fetchUser();
-          } else {
-            setIsLoading(false);
-          }
+          setIsLoading(false);
         }
       }
     };
 
-    handleSupabaseAuth();
+    handleOAuthCallback();
   }, [location]);
 
   const fetchUser = useCallback(async () => {
@@ -490,11 +321,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }, [navigate]);
 
   const logout = useCallback(async () => {
-    // Sign out from Supabase if configured
-    if (supabase) {
-      await supabase.auth.signOut();
-    }
-    
     setUser(null);
     setToken(null);
     apiClient.setToken(null);
@@ -532,55 +358,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   }, [location, handleGoogleCallbackToken]);
 
-  const handleFacebookAuth = useCallback(async (role: 'BUYER' | 'SELLER' = 'BUYER') => {
-    if (!supabase) {
-      const errorMsg = 'Supabase not configured. Please add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to your .env file.';
-      console.error('❌', errorMsg);
-      setError(errorMsg);
-      setIsLoading(false);
-      return;
-    }
-
-    try {
-      setIsLoading(true);
-      setError(null);
-
-      console.log('🔵 Initiating Facebook OAuth via Supabase...');
-      
-      // Initiate Facebook OAuth via Supabase
-      // This will redirect the browser to Facebook, then back to our app
-      const { error: supabaseError } = await supabase.auth.signInWithOAuth({
-        provider: 'facebook',
-        options: {
-          redirectTo: `${window.location.origin}${location.pathname}`,
-          scopes: 'email public_profile', // Request email and public_profile permissions
-          queryParams: {
-            role,
-          },
-        },
-      });
-
-      if (supabaseError) {
-        console.error('❌ Supabase OAuth error:', supabaseError);
-        throw supabaseError;
-      }
-
-      // If we get here, Supabase should redirect the browser
-      // The redirect will happen automatically, so we don't need to do anything else
-      console.log('✅ OAuth initiated, redirecting to Facebook...');
-      
-      // Note: The browser will be redirected, so this code may not execute
-      // The callback will be handled in the useEffect hook below
-    } catch (err: any) {
-      console.error('❌ Facebook OAuth error:', err);
-      const errorMessage = err.message || 'Failed to initiate Facebook login. Please check your Supabase configuration.';
-      setError(errorMessage);
-      setIsLoading(false);
-      
-      // Show alert for better visibility
-      alert(`Facebook Login Error: ${errorMessage}`);
-    }
-  }, [location.pathname]);
+  const handleFacebookAuth = useCallback(async (_role: 'BUYER' | 'SELLER' = 'BUYER') => {
+    // Facebook OAuth is not currently supported without Supabase
+    // Users can use Google OAuth instead
+    const errorMsg = 'Facebook OAuth is not currently available. Please use Google OAuth instead.';
+    console.error('❌', errorMsg);
+    setError(errorMsg);
+    alert(errorMsg);
+  }, []);
 
   const handleFacebookCallback = useCallback(() => {
     // This is handled in useEffect via URL params (same as Google)
