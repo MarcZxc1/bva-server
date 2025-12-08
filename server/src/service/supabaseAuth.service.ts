@@ -94,6 +94,30 @@ export class SupabaseAuthService {
         where: { id: user.id },
         data: userData,
       });
+      
+      // Check if existing SELLER user has a shop, create one if missing
+      if (user.role === 'SELLER') {
+        const existingShops = await prisma.shop.findMany({
+          where: { ownerId: user.id },
+          select: { id: true },
+        });
+        
+        if (existingShops.length === 0) {
+          try {
+            await prisma.shop.create({
+              data: {
+                name: `${user.name || user.firstName || user.email?.split("@")[0] || 'My'}'s Shop`,
+                ownerId: user.id,
+              },
+            });
+            console.log(`✅ Created shop for existing SELLER user: ${user.email}`);
+          } catch (shopError) {
+            console.error("Error creating shop for existing SELLER:", shopError);
+            // Continue even if shop creation fails
+          }
+        }
+      }
+      
       return { user, created: false };
     } else {
       // Create new user
@@ -109,7 +133,7 @@ export class SupabaseAuthService {
       if (user.role === 'SELLER') {
         await prisma.shop.create({
           data: {
-            name: `${user.name || 'My'}'s Shop`,
+            name: `${user.name || user.firstName || user.email?.split("@")[0] || 'My'}'s Shop`,
             ownerId: user.id,
           },
         });

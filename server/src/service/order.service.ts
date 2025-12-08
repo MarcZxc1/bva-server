@@ -9,7 +9,7 @@ export async function createOrder(data: {
     productId: string;
     quantity: number;
     price: number;
-  }>;
+  }>;                                                                                                                                                                                   
   total: number;
   shippingAddress?: string;
   paymentMethod?: string;

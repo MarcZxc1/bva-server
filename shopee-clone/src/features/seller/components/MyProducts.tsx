@@ -23,7 +23,7 @@ interface Product {
 }
 
 const MyProducts: React.FC = () => {
-  const { user } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
   const shopId = user?.shops?.[0]?.id;
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -63,6 +63,10 @@ const MyProducts: React.FC = () => {
   });
 
   const handleAddProduct = () => {
+    if (!shopId) {
+      alert('Unable to add product: Shop ID is missing. Please refresh the page or contact support.');
+      return;
+    }
     setEditingProduct(null);
     setShowAddModal(true);
   };
@@ -89,14 +93,27 @@ const MyProducts: React.FC = () => {
   };
 
   const handleSubmitProduct = async (productData: Omit<Product, 'id'>) => {
+    // Check if shopId is available
     if (!shopId) {
-      throw new Error('Shop ID is required');
+      // Try to get shopId from user data again
+      const currentShopId = user?.shops?.[0]?.id;
+      if (!currentShopId) {
+        const errorMsg = 'Shop ID is required. Please ensure you have a shop associated with your account. If you just registered, please refresh the page.';
+        console.error('Shop ID missing:', { user, shops: user?.shops });
+        throw new Error(errorMsg);
+      }
     }
 
     setIsSubmitting(true);
     try {
+      // Use shopId from state or re-fetch from user
+      const currentShopId = shopId || user?.shops?.[0]?.id;
+      if (!currentShopId) {
+        throw new Error('Shop ID is required. Please refresh the page and try again.');
+      }
+
       const submitData = {
-        shopId,
+        shopId: currentShopId,
         ...productData,
       };
 
@@ -115,6 +132,7 @@ const MyProducts: React.FC = () => {
 
       await fetchProducts();
     } catch (err: any) {
+      console.error('Error submitting product:', err);
       throw new Error(err.message || 'Failed to save product');
     } finally {
       setIsSubmitting(false);
@@ -125,6 +143,43 @@ const MyProducts: React.FC = () => {
     product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     product.sku?.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  // Show loading state while auth is loading
+  if (authLoading) {
+    return (
+      <SellerLayout>
+        <Breadcrumb />
+        <div className="my-products-container">
+          <div className="loading-state">
+            <div className="spinner"></div>
+            <p>Loading...</p>
+          </div>
+        </div>
+      </SellerLayout>
+    );
+  }
+
+  // Show error if user doesn't have a shop
+  if (!authLoading && !shopId) {
+    return (
+      <SellerLayout>
+        <Breadcrumb />
+        <div className="my-products-container">
+          <div className="error-state">
+            <Package size={48} />
+            <h2>No Shop Found</h2>
+            <p>You need a shop to manage products. Sellers should have a shop created automatically during registration.</p>
+            <button 
+              onClick={() => window.location.reload()} 
+              className="btn-retry"
+            >
+              Refresh Page
+            </button>
+          </div>
+        </div>
+      </SellerLayout>
+    );
+  }
 
   return (
     <SellerLayout>
@@ -146,6 +201,8 @@ const MyProducts: React.FC = () => {
           <button
             onClick={handleAddProduct}
             className="btn-add-product"
+            disabled={!shopId}
+            title={!shopId ? 'Shop ID is required' : 'Add New Product'}
           >
             <Plus size={20} />
             Add New Product

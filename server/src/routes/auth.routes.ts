@@ -97,11 +97,11 @@ router.post("/supabase/verify", async (req: Request, res: Response) => {
     }
 
     console.log('✅ Token verified, syncing user to database...');
-    // Sync user to local database
+    // Sync user to local database (this will create shop if needed for SELLERs)
     const { user: localUser, created } = await supabaseAuthService.syncUser(supabaseUser);
     console.log(`✅ User ${created ? 'created' : 'updated'}:`, localUser.email);
 
-    // Get user's shops
+    // Get user's shops (should exist for SELLERs after sync)
     const shops = await prisma.shop.findMany({
       where: { ownerId: localUser.id },
       select: { id: true, name: true },
@@ -356,40 +356,54 @@ router.get("/google/callback", (req, res, next) => {
         return res.redirect(`${redirectUrl}${errorPath}?error=no_user`);
       }
 
-      // Update user role if state indicates different role and user was just created (no shops yet)
+      // Update user role if state indicates different role and create shop if needed
       // This handles the case where a new user signs up as SELLER via Google OAuth
-      const updateUserRole = async () => {
+      // Also handles existing users who are SELLERs but don't have a shop
+      const updateUserRoleAndCreateShop = async () => {
+        // Check if user has shops
+        const existingShops = await prisma.shop.findMany({
+          where: { ownerId: user.id },
+          select: { id: true, name: true },
+        });
+        
+        // If role should be SELLER but user is BUYER, update role
         if (role === 'SELLER' && user.role === 'BUYER') {
-          // Check if user has shops - if not, they're likely a new user
-          const existingShops = await prisma.shop.findMany({
-            where: { ownerId: user.id },
-            select: { id: true },
-          });
-          
-          // Only update role if user has no shops (newly created)
-          if (existingShops.length === 0) {
-            try {
-              user = await prisma.user.update({
-                where: { id: user.id },
-                data: { role: 'SELLER' },
-              });
-              console.log(`✅ Updated user role to SELLER for new Google OAuth user: ${user.email}`);
-            } catch (updateError) {
-              console.error("Error updating user role:", updateError);
-              // Continue with original role if update fails
-            }
+          try {
+            user = await prisma.user.update({
+              where: { id: user.id },
+              data: { role: 'SELLER' },
+            });
+            console.log(`✅ Updated user role to SELLER for Google OAuth user: ${user.email}`);
+          } catch (updateError) {
+            console.error("Error updating user role:", updateError);
+            // Continue with original role if update fails
           }
         }
+        
+        // If user is SELLER (either was already or just updated) and has no shop, create one
+        // This handles both new users and existing users who are SELLERs but don't have a shop
+        if (user.role === 'SELLER' && existingShops.length === 0) {
+          try {
+            const newShop = await prisma.shop.create({
+              data: {
+                name: `${user.name || user.firstName || user.email?.split("@")[0] || "My"}'s Shop`,
+                ownerId: user.id,
+              },
+            });
+            console.log(`✅ Created shop for SELLER user: ${user.email}, Shop ID: ${newShop.id}`);
+            return [{ id: newShop.id, name: newShop.name }];
+          } catch (shopError) {
+            console.error("Error creating shop for SELLER:", shopError);
+            // Continue even if shop creation fails
+            return [];
+          }
+        }
+        
+        return existingShops;
       };
 
-      // Update role if needed, then get shops
-      updateUserRole().then(() => {
-        // Get user's shops for the token
-        return prisma.shop.findMany({
-          where: { ownerId: user.id },
-          select: { id: true, name: true }
-        });
-      }).then(shops => {
+      // Update role and create shop if needed, then get shops
+      updateUserRoleAndCreateShop().then(shops => {
         const token = jwt.sign(
           { 
             userId: user.id, 

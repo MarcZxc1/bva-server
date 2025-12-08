@@ -68,11 +68,18 @@ export const getProductById = async (req: Request, res: Response) => {
 
 export const createProduct = async (req: Request, res: Response) => {
   try {
-    const shopId = await getShopIdFromRequest(req);
+    // Try to get shopId from request body first (if provided by frontend)
+    let shopId = req.body.shopId;
+    
+    // If not in body, try to get from request (token or user's shops)
+    if (!shopId) {
+      shopId = await getShopIdFromRequest(req);
+    }
+    
     if (!shopId) {
       return res.status(400).json({
         success: false,
-        error: "Shop ID is required",
+        error: "Shop ID is required. Please ensure you have a shop associated with your account.",
       });
     }
 

@@ -135,9 +135,13 @@ const AddProductModal: React.FC<AddProductModalProps> = ({
 
       await onSubmit(productData);
       onClose();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error submitting product:', error);
-      // Error handling is done in parent component
+      // Show user-friendly error message
+      const errorMessage = error?.message || 'Failed to save product. Please try again.';
+      alert(errorMessage);
+      // Don't close modal on error so user can fix and retry
+      throw error; // Re-throw so parent component can handle it
     }
   };
 
