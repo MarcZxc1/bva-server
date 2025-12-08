@@ -31,6 +31,11 @@ export interface RestockStrategyResponse {
   };
   insights: string[];
   warnings: string[];
+  salesForecast?: Array<{
+    date: string;
+    revenue: number;
+    quantity: number;
+  }>;
 }
 
 export const restockService = {

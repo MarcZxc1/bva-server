@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { AxiosError } from "axios";
 import { ArrowLeft, Mail, Lock, User } from "lucide-react";
+import { supabase } from "@/lib/supabase";
 
 // Google Icon SVG Component
 const GoogleIcon = () => (
@@ -92,7 +93,7 @@ export default function Login() {
           // Save token and fetch user data
           await setToken(token);
           console.log("✅ Token saved and user data loaded");
-          toast.success("Google login successful!");
+          toast.success("OAuth login successful!");
           
           // Navigate after a brief delay to ensure state is updated
           setTimeout(() => {
@@ -117,6 +118,7 @@ export default function Login() {
       
       const errorMessages: Record<string, string> = {
         google_auth_failed: "Google authentication failed. Please try again.",
+        facebook_auth_failed: "Facebook authentication failed. Please try again.",
         no_user: "Could not retrieve user information.",
         token_generation_failed: "Failed to generate authentication token.",
       };
@@ -196,6 +198,44 @@ export default function Login() {
     window.location.href = `${BACKEND_URL}/api/auth/google?state=${state}`;
   };
 
+  const handleFacebookLogin = async () => {
+    if (!supabase) {
+      const errorMsg = "Supabase not configured. Please add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to your .env file.";
+      console.error('❌', errorMsg);
+      toast.error(errorMsg);
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      console.log('🔵 Initiating Facebook OAuth via Supabase...');
+      
+      // Initiate Facebook OAuth via Supabase
+      // This will redirect the browser to Facebook, then back to our app
+      const { data, error: supabaseError } = await supabase.auth.signInWithOAuth({
+        provider: 'facebook',
+        options: {
+          redirectTo: `${window.location.origin}/login`,
+          scopes: 'email public_profile', // Request email and public_profile permissions
+        },
+      });
+
+      if (supabaseError) {
+        console.error('❌ Supabase OAuth error:', supabaseError);
+        throw supabaseError;
+      }
+
+      console.log('✅ OAuth initiated, redirecting to Facebook...');
+      // Note: The browser will be redirected, so this code may not execute
+      // The callback will be handled in AuthContext
+    } catch (error: any) {
+      console.error('❌ Facebook OAuth error:', error);
+      const errorMessage = error.message || 'Failed to initiate Facebook login. Please check your Supabase configuration.';
+      toast.error(errorMessage);
+      setIsSubmitting(false);
+    }
+  };
+
   return (
     <div className="min-h-screen w-full flex items-center justify-center p-4 relative" style={{ background: 'var(--background-gradient)' }}>
       {/* Back to Landing Page Button - Upper Left Corner (Subtle) */}
@@ -216,7 +256,7 @@ export default function Login() {
         <div className="text-center mb-8">
           <div className="flex justify-center mb-4">
             <div className="h-20 w-20 glass-card-sm flex items-center justify-center p-2">
-              <img src="/bva-logo.svg" alt="BVA Logo" className="h-full w-full object-contain" />
+              <img src="/logo.svg" alt="BVA Logo" className="h-full w-full object-contain" />
             </div>
           </div>
           <h1 className="text-4xl font-bold text-foreground mb-2">Business Virtual Assistant</h1>
@@ -377,17 +417,31 @@ export default function Login() {
               </div>
             </div>
 
-            {/* Google Sign-in Button */}
-            <Button
-              type="button"
-              variant="outline"
-              className="w-full h-11 glass-card-sm border-card-glass-border hover:bg-primary/5 transition-smooth"
-              onClick={handleGoogleLogin}
-              disabled={isSubmitting || isLoading}
-            >
-              <GoogleIcon />
-              Sign in with Google
-            </Button>
+            {/* Social Sign-in Buttons */}
+            <div className="space-y-3">
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full h-11 glass-card-sm border-card-glass-border hover:bg-primary/5 transition-smooth"
+                onClick={handleGoogleLogin}
+                disabled={isSubmitting || isLoading}
+              >
+                <GoogleIcon />
+                Sign in with Google
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full h-11 glass-card-sm border-card-glass-border hover:bg-primary/5 transition-smooth"
+                onClick={handleFacebookLogin}
+                disabled={isSubmitting || isLoading}
+              >
+                <svg className="w-5 h-5 mr-2" fill="#1877f2" viewBox="0 0 24 24">
+                  <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+                </svg>
+                Sign in with Facebook
+              </Button>
+            </div>
           </CardContent>
         </Card>
 

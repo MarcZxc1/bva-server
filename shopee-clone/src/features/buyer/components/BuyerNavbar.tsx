@@ -59,15 +59,11 @@ const BuyerNavbar: React.FC = () => {
               </div>
             </div>
             
-            {/* Right Side */}
+            {/* Right Side - Buyer Login */}
             <div className="flex items-center gap-3">
               <a href="#" className="hover:text-gray-200 flex items-center gap-1">
                 <Bell size={14} />
                 <span>Notifications</span>
-              </a>
-              <a href="#" className="hover:text-gray-200 flex items-center gap-1">
-                <HelpCircle size={14} />
-                <span>Help</span>
               </a>
               <a href="#" className="hover:text-gray-200 flex items-center gap-1">
                 <HelpCircle size={14} />

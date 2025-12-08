@@ -1,6 +1,7 @@
 import { LayoutDashboard, Package, TrendingUp, Megaphone, FileText, Settings, LogOut, ExternalLink, AlertCircle } from "lucide-react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { useState } from "react";
+import { useIntegration } from "@/hooks/useIntegration";
 import {
   Sidebar,
   SidebarContent,
@@ -27,8 +28,6 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useAuth } from "@/contexts/AuthContext";
-import { useQuery } from "@tanstack/react-query";
-import { integrationService } from "@/services/integration.service";
 
 const mainItems = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
@@ -57,11 +56,8 @@ export function AppSidebar() {
   const { logout } = useAuth();
   const [showLogoutDialog, setShowLogoutDialog] = useState(false);
 
-  // Fetch integrations to check connection status
-  const { data: integrations } = useQuery({
-    queryKey: ["integrations"],
-    queryFn: () => integrationService.getIntegrations(),
-  });
+  // Check integration status
+  const { hasActiveIntegration } = useIntegration();
 
   const getNavClass = ({ isActive }: { isActive: boolean }) =>
     isActive 
@@ -78,7 +74,7 @@ export function AppSidebar() {
         {!isCollapsed && (
           <div className="flex items-center gap-2">
             <img 
-              src="/bva-logo.svg" 
+              src="/logo.svg" 
               alt="BVA Logo" 
               className="h-8 w-8 object-contain"
             />
@@ -87,8 +83,8 @@ export function AppSidebar() {
         )}
         {isCollapsed && (
           <img 
-            src="/bva-logo.svg" 
-            alt="BVA Logo" 
+            src="/logo.svg" 
+              alt="BVA Logo" 
             className="h-8 w-8 object-contain mx-auto"
           />
         )}
@@ -123,10 +119,9 @@ export function AppSidebar() {
             {isCollapsed ? (
               <div className="flex flex-col gap-1.5">
                 {platformDefinitions.map((platformDef) => {
-                  const isConnected = integrations?.some(i => i.platform === platformDef.platform);
-                  const statusColor = platformDef.platform === "SHOPEE" 
-                    ? (isConnected ? "bg-green-500" : "bg-orange-500")
-                    : "bg-orange-500"; // Lazada and TikTok always orange
+                  // For Shopee, check if there's an active integration
+                  const isConnected = platformDef.platform === "SHOPEE" ? hasActiveIntegration : false;
+                  const statusColor = isConnected ? "bg-green-500" : "bg-orange-500";
                   return (
                     <div
                       key={platformDef.name}
@@ -146,10 +141,9 @@ export function AppSidebar() {
             ) : (
               <div className="space-y-1">
                 {platformDefinitions.map((platformDef) => {
-                  const isConnected = integrations?.some(i => i.platform === platformDef.platform);
-                  const statusColor = platformDef.platform === "SHOPEE" 
-                    ? (isConnected ? "bg-green-500" : "bg-orange-500")
-                    : "bg-orange-500"; // Lazada and TikTok always orange
+                  // For Shopee, check if there's an active integration
+                  const isConnected = platformDef.platform === "SHOPEE" ? hasActiveIntegration : false;
+                  const statusColor = isConnected ? "bg-green-500" : "bg-orange-500";
                   return (
                     <div
                       key={platformDef.name}

@@ -1,4 +1,5 @@
 import prisma from "../lib/prisma";
+import { hasActiveIntegration } from "../utils/integrationCheck";
 
 export async function getAllProducts() {
   const products = await prisma.product.findMany({
@@ -41,8 +42,31 @@ export async function getAllProducts() {
 }
 
 export async function getProductsByShop(shopId: string) {
-  const products = await prisma.product.findMany({
+  // Check if shop has active integration with terms accepted
+  const hasIntegration = await hasActiveIntegration(shopId);
+  
+  if (!hasIntegration) {
+    // Return empty array if no active integration
+    // This ensures data isolation - no data shown without integration
+    return [];
+  }
+
+  // Get shop integrations to determine platform
+  const integrations = await prisma.integration.findMany({
     where: { shopId },
+    select: { platform: true },
+  });
+
+  // Get platform values from integrations
+  const integrationPlatforms = integrations.map(integration => integration.platform);
+
+  // Get products (only synced products from integrations)
+  // Filter to only show products that came from integrations (have externalId)
+  const products = await prisma.product.findMany({
+    where: { 
+      shopId,
+      externalId: { not: null }, // Only show products synced from integrations
+    },
     include: {
       inventories: {
         take: 1,
@@ -56,21 +80,70 @@ export async function getProductsByShop(shopId: string) {
     },
   });
 
-  return products.map((product) => ({
-    id: product.id,
-    sku: product.sku,
-    name: product.name,
-    description: product.description,
-    price: product.price,
-    cost: product.cost,
-    stock: product.stock,
-    quantity: product.inventories[0]?.quantity || product.stock || 0,
-    expiryDate: product.expiryDate,
-    category: product.category,
-    imageUrl: product.imageUrl,
-    createdAt: product.createdAt,
-    updatedAt: product.updatedAt,
-  }));
+  // Get all sales for this shop to map products to platforms
+  const allSales = await prisma.sale.findMany({
+    where: { shopId },
+    select: {
+      platform: true,
+      items: true,
+    },
+  });
+
+  // Create a map of product IDs to platforms based on sales
+  const productPlatformMap = new Map<string, string>();
+  allSales.forEach((sale) => {
+    if (sale.items && typeof sale.items === 'object') {
+      const items = sale.items as any;
+      if (Array.isArray(items)) {
+        items.forEach((item: any) => {
+          if (item.productId) {
+            productPlatformMap.set(item.productId, sale.platform);
+          }
+        });
+      }
+    }
+  });
+
+  // Default platform (first integration or null)
+  const defaultPlatform = integrations.length > 0 && integrations[0] ? integrations[0].platform : null;
+
+  return products.map((product) => {
+    // Determine platform: from sales data, externalId pattern, or default
+    let platform: string | null = productPlatformMap.get(product.id) || null;
+    
+    // If no platform from sales, check externalId pattern
+    if (!platform && product.externalId) {
+      if (product.externalId.includes('SHOPEE') || product.externalId.startsWith('SHOPEE')) {
+        platform = 'SHOPEE';
+      } else if (product.externalId.includes('LAZADA') || product.externalId.startsWith('LAZADA')) {
+        platform = 'LAZADA';
+      } else if (product.externalId.includes('TIKTOK') || product.externalId.startsWith('TIKTOK')) {
+        platform = 'TIKTOK';
+      }
+    }
+
+    // Use default platform if still no platform found
+    if (!platform) {
+      platform = defaultPlatform;
+    }
+
+    return {
+      id: product.id,
+      sku: product.sku,
+      name: product.name,
+      description: product.description,
+      price: product.price,
+      cost: product.cost,
+      stock: product.stock,
+      quantity: product.inventories[0]?.quantity || product.stock || 0,
+      expiryDate: product.expiryDate ? product.expiryDate.toISOString() : null,
+      category: product.category,
+      imageUrl: product.imageUrl,
+      platform: platform,
+      createdAt: product.createdAt.toISOString(),
+      updatedAt: product.updatedAt.toISOString(),
+    };
+  });
 }
 
 export async function getProductById(productId: string) {

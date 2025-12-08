@@ -1,16 +1,22 @@
 // API Service Layer for Shopee-Clone
 // Use relative URLs in development (goes through Vite proxy) or absolute URL in production
 const getBaseURL = () => {
+  let url: string;
+  
   // If VITE_API_URL is explicitly set, use it (bypasses proxy)
   if (import.meta.env.VITE_API_URL) {
-    return import.meta.env.VITE_API_URL;
-  }
-  // In development, use relative URLs to leverage Vite proxy
-  if (import.meta.env.DEV) {
+    url = import.meta.env.VITE_API_URL;
+  } else if (import.meta.env.DEV) {
+    // In development, use relative URLs to leverage Vite proxy
     return ''; // Empty string means relative URLs - goes through Vite proxy
+  } else {
+    // In production, default to port 3000
+    url = 'http://localhost:3000';
   }
-  // In production, default to port 3000
-  return 'http://localhost:3000';
+  
+  // Remove trailing /api if present to avoid double /api/api in endpoints
+  // Endpoints already include /api prefix (e.g., /api/auth/me)
+  return url.replace(/\/api\/?$/, '');
 };
 
 class ApiClient {
@@ -46,10 +52,14 @@ class ApiClient {
         headers,
       });
 
-      // Handle 401 Unauthorized - clear token and redirect to login
+      // Handle 401 Unauthorized - clear token and redirect to appropriate login
       if (response.status === 401) {
         this.setToken(null);
-        window.location.href = '/login';
+        // Check current path to determine which login page to redirect to
+        const currentPath = window.location.pathname;
+        const isSellerPage = currentPath.includes('/dashboard') || currentPath.includes('/orders') || 
+                            currentPath.includes('/products') || currentPath.includes('/income');
+        window.location.href = isSellerPage ? '/login' : '/buyer-login';
         throw new Error('Unauthorized');
       }
 
@@ -153,6 +163,8 @@ class ApiClient {
       payload.name = data.username;
     }
     
+    // The request method already handles { success: true, data: { user, token } } structure
+    // and extracts the data, so we get { user, token } directly
     return this.request<{ user: any; token: string }>('/api/auth/register', {
       method: 'POST',
       body: JSON.stringify(payload),

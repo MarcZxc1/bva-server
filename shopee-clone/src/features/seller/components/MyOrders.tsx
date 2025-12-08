@@ -241,13 +241,23 @@ const MyOrders = () => {
     await new Promise(resolve => setTimeout(resolve, 3000));
     
     try {
+      // Update order status in shopee-clone
       await apiClient.updateOrderStatus(orderId, 'completed');
-      // Send webhook to BVA server
+      
+      // Send webhook to BVA server to update income
       const { webhookService } = await import('../../../services/webhook.service');
-      await webhookService.sendOrderStatusChanged(orderId, 'completed');
+      try {
+        await webhookService.sendOrderStatusChanged(orderId, 'completed');
+        console.log('✅ Webhook sent: Order status changed to completed');
+      } catch (webhookError) {
+        console.error('⚠️  Webhook failed, but order status updated locally:', webhookError);
+        // Don't fail the whole operation if webhook fails
+      }
+      
       fetchOrders(); // Refresh orders
-      alert('Delivery confirmed! Order marked as completed.');
+      alert('Delivery confirmed! Order marked as completed. Income has been updated.');
     } catch (err: any) {
+      console.error('Error confirming delivery:', err);
       alert(err.message || 'Failed to confirm delivery');
     } finally {
       setConfirmingDelivery(null);

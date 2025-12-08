@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -7,7 +7,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Download, TrendingUp, Calendar, Loader2, AlertCircle } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Download, TrendingUp, Calendar, Loader2, AlertCircle, FileText, DollarSign, Package, BarChart3 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { reportsService, DateRange } from "@/services/reports.service";
 import {
@@ -21,9 +22,17 @@ import {
   LineChart,
   Line,
 } from "recharts";
+import jsPDF from "jspdf";
+import html2canvas from "html2canvas";
+import { toast } from "sonner";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function Reports() {
+  const { user } = useAuth();
   const [dateRange, setDateRange] = useState<DateRange>("30d");
+  const [activeReport, setActiveReport] = useState<"sales" | "profit" | "stock" | "platform" | null>(null);
+  const reportContentRef = useRef<HTMLDivElement>(null);
+  const pdfContentRef = useRef<HTMLDivElement>(null);
 
   // Fetch dashboard metrics
   const { 
@@ -88,6 +97,118 @@ export default function Reports() {
   const handleDateRangeChange = (range: DateRange) => {
     setDateRange(range);
     // React Query will automatically refetch when queryKey changes
+  };
+
+  // Calculate date range for reports
+  const getDateRange = () => {
+    const endDate = new Date();
+    const startDate = new Date();
+    switch (dateRange) {
+      case "7d":
+        startDate.setDate(endDate.getDate() - 7);
+        break;
+      case "30d":
+        startDate.setDate(endDate.getDate() - 30);
+        break;
+      case "90d":
+        startDate.setDate(endDate.getDate() - 90);
+        break;
+      case "1y":
+        startDate.setFullYear(endDate.getFullYear() - 1);
+        break;
+      default:
+        startDate.setDate(endDate.getDate() - 30);
+    }
+    return {
+      start: startDate.toISOString().split("T")[0]!,
+      end: endDate.toISOString().split("T")[0]!,
+    };
+  };
+
+  // Fetch reports data
+  const { data: salesReportData, isLoading: salesReportLoading } = useQuery({
+    queryKey: ["salesReport", dateRange],
+    queryFn: () => {
+      const { start, end } = getDateRange();
+      return reportsService.getSalesChart(dateRange, start, end);
+    },
+    enabled: activeReport === "sales",
+  });
+
+  const { data: profitReportData, isLoading: profitReportLoading } = useQuery({
+    queryKey: ["profitReport", dateRange],
+    queryFn: () => {
+      const { start, end } = getDateRange();
+      return reportsService.getProfitAnalysis(start, end);
+    },
+    enabled: activeReport === "profit",
+  });
+
+  const { data: stockReportData, isLoading: stockReportLoading } = useQuery({
+    queryKey: ["stockReport", dateRange],
+    queryFn: () => {
+      const { start, end } = getDateRange();
+      return reportsService.getStockTurnoverReport(start, end);
+    },
+    enabled: activeReport === "stock",
+  });
+
+  const { data: platformReportData, isLoading: platformReportLoading } = useQuery({
+    queryKey: ["platformReport", dateRange],
+    queryFn: () => {
+      const { start, end } = getDateRange();
+      return reportsService.getPlatformStats(start, end);
+    },
+    enabled: activeReport === "platform",
+  });
+
+  const handleGenerateReport = (reportType: "sales" | "profit" | "stock" | "platform") => {
+    setActiveReport(reportType);
+  };
+
+  const handleExportReportPDF = async () => {
+    if (!pdfContentRef.current) {
+      toast.error("Unable to generate PDF");
+      return;
+    }
+
+    try {
+      toast.loading("Generating PDF...", { id: "report-pdf-export" });
+      
+      const canvas = await html2canvas(pdfContentRef.current, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        backgroundColor: "#ffffff",
+      });
+
+      const imgData = canvas.toDataURL("image/png");
+      const pdf = new jsPDF("p", "mm", "a4");
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = pdf.internal.pageSize.getHeight();
+      const imgWidth = canvas.width;
+      const imgHeight = canvas.height;
+      const ratio = Math.min(pdfWidth / imgWidth, pdfHeight / imgHeight);
+      const imgX = (pdfWidth - imgWidth * ratio) / 2;
+      const imgY = 0;
+
+      pdf.addImage(imgData, "PNG", imgX, imgY, imgWidth * ratio, imgHeight * ratio);
+      
+      const reportNames = {
+        sales: "Sales-Summary",
+        profit: "Profit-Analysis",
+        stock: "Stock-Turnover",
+        platform: "Platform-Comparison",
+      };
+      
+      const fileName = `${reportNames[activeReport!]}-${new Date().toISOString().split("T")[0]}.pdf`;
+      pdf.save(fileName);
+      
+      toast.success("PDF exported successfully!", { id: "report-pdf-export" });
+    } catch (error) {
+      console.error("Error generating PDF:", error);
+      toast.error("Failed to generate PDF", { id: "report-pdf-export" });
+    }
   };
 
   const handleExportPDF = () => {
@@ -371,13 +492,11 @@ export default function Reports() {
             <Button
               variant="outline"
               className="h-auto flex-col items-start p-4 glass-card-sm hover:shadow-glow"
-              onClick={() => {
-                // Could navigate to detailed sales report page
-                console.log("Sales Summary Report clicked");
-              }}
+              onClick={() => handleGenerateReport("sales")}
             >
-              <div className="font-semibold mb-1 text-foreground">
-                Sales Summary Report
+              <div className="flex items-center gap-2 mb-1">
+                <FileText className="h-4 w-4 text-primary" />
+                <span className="font-semibold text-foreground">Sales Summary Report</span>
               </div>
               <div className="text-xs text-muted-foreground text-left">
                 Comprehensive sales analysis across all platforms
@@ -386,13 +505,11 @@ export default function Reports() {
             <Button
               variant="outline"
               className="h-auto flex-col items-start p-4 glass-card-sm hover:shadow-glow"
-              onClick={() => {
-                // Could navigate to profit analysis page
-                console.log("Profit Analysis Report clicked");
-              }}
+              onClick={() => handleGenerateReport("profit")}
             >
-              <div className="font-semibold mb-1 text-foreground">
-                Profit Analysis Report
+              <div className="flex items-center gap-2 mb-1">
+                <DollarSign className="h-4 w-4 text-primary" />
+                <span className="font-semibold text-foreground">Profit Analysis Report</span>
               </div>
               <div className="text-xs text-muted-foreground text-left">
                 Detailed profit margins and cost analysis
@@ -401,13 +518,11 @@ export default function Reports() {
             <Button
               variant="outline"
               className="h-auto flex-col items-start p-4 glass-card-sm hover:shadow-glow"
-              onClick={() => {
-                // Could navigate to stock turnover report
-                console.log("Stock Turnover Report clicked");
-              }}
+              onClick={() => handleGenerateReport("stock")}
             >
-              <div className="font-semibold mb-1 text-foreground">
-                Stock Turnover Report
+              <div className="flex items-center gap-2 mb-1">
+                <Package className="h-4 w-4 text-primary" />
+                <span className="font-semibold text-foreground">Stock Turnover Report</span>
               </div>
               <div className="text-xs text-muted-foreground text-left">
                 Inventory movement and turnover metrics
@@ -416,13 +531,11 @@ export default function Reports() {
             <Button
               variant="outline"
               className="h-auto flex-col items-start p-4 glass-card-sm hover:shadow-glow"
-              onClick={() => {
-                // Could show platform comparison modal
-                console.log("Platform Comparison clicked");
-              }}
+              onClick={() => handleGenerateReport("platform")}
             >
-              <div className="font-semibold mb-1 text-foreground">
-                Platform Comparison
+              <div className="flex items-center gap-2 mb-1">
+                <BarChart3 className="h-4 w-4 text-primary" />
+                <span className="font-semibold text-foreground">Platform Comparison</span>
               </div>
               <div className="text-xs text-muted-foreground text-left">
                 Performance comparison across Shopee, Lazada, TikTok
@@ -431,6 +544,488 @@ export default function Reports() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Report Generation Modals */}
+      <Dialog open={activeReport !== null} onOpenChange={(open) => !open && setActiveReport(null)}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-muted-foreground/20 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:hover:bg-muted-foreground/30 [scrollbar-width:thin] [scrollbar-color:hsl(var(--muted-foreground)/20)_transparent]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {activeReport === "sales" && <FileText className="h-5 w-5 text-primary" />}
+              {activeReport === "profit" && <DollarSign className="h-5 w-5 text-primary" />}
+              {activeReport === "stock" && <Package className="h-5 w-5 text-primary" />}
+              {activeReport === "platform" && <BarChart3 className="h-5 w-5 text-primary" />}
+              {activeReport === "sales" && "Sales Summary Report"}
+              {activeReport === "profit" && "Profit Analysis Report"}
+              {activeReport === "stock" && "Stock Turnover Report"}
+              {activeReport === "platform" && "Platform Comparison Report"}
+            </DialogTitle>
+            <DialogDescription>
+              {activeReport === "sales" && "Comprehensive sales analysis across all platforms"}
+              {activeReport === "profit" && "Detailed profit margins and cost analysis"}
+              {activeReport === "stock" && "Inventory movement and turnover metrics"}
+              {activeReport === "platform" && "Performance comparison across Shopee, Lazada, TikTok"}
+            </DialogDescription>
+          </DialogHeader>
+          
+          {/* Visible modal content with glass-card styling */}
+          <div ref={reportContentRef} className="space-y-4 p-4 glass-card-sm rounded-lg">
+            {/* Sales Summary Report */}
+            {activeReport === "sales" && (
+              <>
+                {salesReportLoading ? (
+                  <div className="flex items-center justify-center py-12">
+                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                  </div>
+                ) : salesReportData && salesReportData.length > 0 ? (
+                  <>
+                    <div className="border-b-2 border-border pb-4 mb-6">
+                      <h2 className="text-2xl font-bold text-foreground mb-2">Sales Summary Report</h2>
+                      <div className="grid grid-cols-2 gap-4 text-sm text-muted-foreground">
+                        <div>
+                          <span className="font-semibold">Period:</span>{" "}
+                          <span>{getDateRange().start} to {getDateRange().end}</span>
+                        </div>
+                        <div>
+                          <span className="font-semibold">Total Revenue:</span>{" "}
+                          <span className="font-bold text-foreground">₱{salesReportData.reduce((sum, item) => sum + item.total, 0).toLocaleString()}</span>
+                        </div>
+                        <div>
+                          <span className="font-semibold">Total Orders:</span>{" "}
+                          <span>{salesReportData.reduce((sum, item) => sum + item.orders, 0)}</span>
+                        </div>
+                        <div>
+                          <span className="font-semibold">Total Profit:</span>{" "}
+                          <span className="font-bold text-foreground">₱{salesReportData.reduce((sum, item) => sum + (item.profit || 0), 0).toLocaleString()}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="mb-6">
+                      <h3 className="text-xl font-bold text-foreground mb-4">Sales by Period</h3>
+                      <table className="w-full border-collapse border border-border">
+                        <thead>
+                          <tr className="bg-muted/50">
+                            <th className="border border-border px-4 py-2 text-left font-semibold text-foreground">Period</th>
+                            <th className="border border-border px-4 py-2 text-left font-semibold text-foreground">Revenue</th>
+                            <th className="border border-border px-4 py-2 text-left font-semibold text-foreground">Orders</th>
+                            <th className="border border-border px-4 py-2 text-left font-semibold text-foreground">Profit</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {salesReportData.map((item, index) => (
+                            <tr key={index} className="hover:bg-muted/30">
+                              <td className="border border-border px-4 py-2 text-foreground">{item.name}</td>
+                              <td className="border border-border px-4 py-2 text-foreground">₱{item.total.toLocaleString()}</td>
+                              <td className="border border-border px-4 py-2 text-foreground">{item.orders}</td>
+                              <td className="border border-border px-4 py-2 text-foreground">₱{(item.profit || 0).toLocaleString()}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </>
+                ) : (
+                  <div className="text-center py-12">
+                    <AlertCircle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                    <p className="text-muted-foreground">No sales data available for this period</p>
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* Profit Analysis Report */}
+            {activeReport === "profit" && (
+              <>
+                {profitReportLoading ? (
+                  <div className="flex items-center justify-center py-12">
+                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                  </div>
+                ) : profitReportData ? (
+                  <>
+                    <div className="border-b-2 border-border pb-4 mb-6">
+                      <h2 className="text-2xl font-bold text-foreground mb-2">Profit Analysis Report</h2>
+                      <div className="grid grid-cols-2 gap-4 text-sm text-muted-foreground">
+                        <div>
+                          <span className="font-semibold">Period:</span>{" "}
+                          <span>{profitReportData.period.start} to {profitReportData.period.end}</span>
+                        </div>
+                        <div>
+                          <span className="font-semibold">Currency:</span>{" "}
+                          <span>PHP</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="mb-6">
+                      <h3 className="text-xl font-bold text-foreground mb-4">Financial Summary</h3>
+                      <table className="w-full border-collapse border border-border">
+                        <tbody>
+                          <tr className="hover:bg-muted/30">
+                            <td className="border border-border px-4 py-3 font-semibold text-foreground">Total Revenue</td>
+                            <td className="border border-border px-4 py-3 text-foreground font-bold">₱{profitReportData.totalRevenue.toLocaleString()}</td>
+                          </tr>
+                          <tr className="hover:bg-muted/30">
+                            <td className="border border-border px-4 py-3 font-semibold text-foreground">Total Cost (COGS)</td>
+                            <td className="border border-border px-4 py-3 text-foreground">₱{profitReportData.totalCost.toLocaleString()}</td>
+                          </tr>
+                          <tr className="hover:bg-muted/30">
+                            <td className="border border-border px-4 py-3 font-semibold text-foreground">Total Profit</td>
+                            <td className="border border-border px-4 py-3 text-foreground font-bold text-green-600">₱{profitReportData.totalProfit.toLocaleString()}</td>
+                          </tr>
+                          <tr className="hover:bg-muted/30 bg-muted/50">
+                            <td className="border border-border px-4 py-3 font-semibold text-foreground">Profit Margin</td>
+                            <td className="border border-border px-4 py-3 text-foreground font-bold">{profitReportData.profitMargin.toFixed(2)}%</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </>
+                ) : (
+                  <div className="text-center py-12">
+                    <AlertCircle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                    <p className="text-muted-foreground">No profit data available</p>
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* Stock Turnover Report */}
+            {activeReport === "stock" && (
+              <>
+                {stockReportLoading ? (
+                  <div className="flex items-center justify-center py-12">
+                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                  </div>
+                ) : stockReportData ? (
+                  <>
+                    <div className="border-b-2 border-border pb-4 mb-6">
+                      <h2 className="text-2xl font-bold text-foreground mb-2">Stock Turnover Report</h2>
+                      <div className="grid grid-cols-2 gap-4 text-sm text-muted-foreground">
+                        <div>
+                          <span className="font-semibold">Period:</span>{" "}
+                          <span>{stockReportData.period.start} to {stockReportData.period.end}</span>
+                        </div>
+                        <div>
+                          <span className="font-semibold">Overall Turnover:</span>{" "}
+                          <span className="font-bold text-foreground">{stockReportData.stockTurnover.toFixed(2)}x</span>
+                        </div>
+                        <div>
+                          <span className="font-semibold">Inventory Value:</span>{" "}
+                          <span className="font-bold text-foreground">₱{stockReportData.inventoryValue.toLocaleString()}</span>
+                        </div>
+                        <div>
+                          <span className="font-semibold">Cost of Goods Sold:</span>{" "}
+                          <span className="font-bold text-foreground">₱{stockReportData.cogs.toLocaleString()}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="mb-6">
+                      <h3 className="text-xl font-bold text-foreground mb-4">Product Turnover Details</h3>
+                      <table className="w-full border-collapse border border-border">
+                        <thead>
+                          <tr className="bg-muted/50">
+                            <th className="border border-border px-4 py-2 text-left font-semibold text-foreground">SKU</th>
+                            <th className="border border-border px-4 py-2 text-left font-semibold text-foreground">Product Name</th>
+                            <th className="border border-border px-4 py-2 text-left font-semibold text-foreground">Current Stock</th>
+                            <th className="border border-border px-4 py-2 text-left font-semibold text-foreground">Inventory Value</th>
+                            <th className="border border-border px-4 py-2 text-left font-semibold text-foreground">Turnover Rate</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {stockReportData.products.map((product, index) => (
+                            <tr key={index} className="hover:bg-muted/30">
+                              <td className="border border-border px-4 py-2 text-foreground">{product.sku}</td>
+                              <td className="border border-border px-4 py-2 text-foreground">{product.productName}</td>
+                              <td className="border border-border px-4 py-2 text-foreground">{product.currentStock}</td>
+                              <td className="border border-border px-4 py-2 text-foreground">₱{product.inventoryValue.toLocaleString()}</td>
+                              <td className="border border-border px-4 py-2 text-foreground">{product.turnoverRate.toFixed(2)}x</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </>
+                ) : (
+                  <div className="text-center py-12">
+                    <AlertCircle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                    <p className="text-muted-foreground">No stock turnover data available</p>
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* Platform Comparison Report */}
+            {activeReport === "platform" && (
+              <>
+                {platformReportLoading ? (
+                  <div className="flex items-center justify-center py-12">
+                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                  </div>
+                ) : platformReportData && platformReportData.length > 0 ? (
+                  <>
+                    <div className="border-b-2 border-border pb-4 mb-6">
+                      <h2 className="text-2xl font-bold text-foreground mb-2">Platform Comparison Report</h2>
+                      <div className="grid grid-cols-2 gap-4 text-sm text-muted-foreground">
+                        <div>
+                          <span className="font-semibold">Period:</span>{" "}
+                          <span>{getDateRange().start} to {getDateRange().end}</span>
+                        </div>
+                        <div>
+                          <span className="font-semibold">Total Platforms:</span>{" "}
+                          <span>{platformReportData.length}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="mb-6">
+                      <h3 className="text-xl font-bold text-foreground mb-4">Platform Performance</h3>
+                      <table className="w-full border-collapse border border-border">
+                        <thead>
+                          <tr className="bg-muted/50">
+                            <th className="border border-border px-4 py-2 text-left font-semibold text-foreground">Platform</th>
+                            <th className="border border-border px-4 py-2 text-left font-semibold text-foreground">Revenue</th>
+                            <th className="border border-border px-4 py-2 text-left font-semibold text-foreground">Orders</th>
+                            <th className="border border-border px-4 py-2 text-left font-semibold text-foreground">Profit</th>
+                            <th className="border border-border px-4 py-2 text-left font-semibold text-foreground">Profit Margin</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {platformReportData.map((platform, index) => (
+                            <tr key={index} className="hover:bg-muted/30">
+                              <td className="border border-border px-4 py-2 font-medium text-foreground">{platform.platform}</td>
+                              <td className="border border-border px-4 py-2 text-foreground">₱{platform.revenue.toLocaleString()}</td>
+                              <td className="border border-border px-4 py-2 text-foreground">{platform.orders}</td>
+                              <td className="border border-border px-4 py-2 text-foreground">₱{platform.profit.toLocaleString()}</td>
+                              <td className="border border-border px-4 py-2 text-foreground">{platform.profitMargin.toFixed(2)}%</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </>
+                ) : (
+                  <div className="text-center py-12">
+                    <AlertCircle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                    <p className="text-muted-foreground">No platform comparison data available</p>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+
+          {/* Hidden PDF content with white background - same structure as visible content */}
+          <div ref={pdfContentRef} className="fixed -left-[9999px] top-0 w-[800px]">
+            <div className="space-y-4 p-4 bg-white text-black">
+              {/* Sales Summary Report PDF */}
+              {activeReport === "sales" && salesReportData && salesReportData.length > 0 && (
+                <>
+                  <div className="border-b-2 border-gray-300 pb-4 mb-6">
+                    <h2 className="text-2xl font-bold text-black mb-2">Sales Summary Report</h2>
+                    <div className="grid grid-cols-2 gap-4 text-sm text-gray-700">
+                      <div>
+                        <span className="font-semibold">Period:</span>{" "}
+                        <span>{getDateRange().start} to {getDateRange().end}</span>
+                      </div>
+                      <div>
+                        <span className="font-semibold">Total Revenue:</span>{" "}
+                        <span className="font-bold text-black">₱{salesReportData.reduce((sum, item) => sum + item.total, 0).toLocaleString()}</span>
+                      </div>
+                      <div>
+                        <span className="font-semibold">Total Orders:</span>{" "}
+                        <span>{salesReportData.reduce((sum, item) => sum + item.orders, 0)}</span>
+                      </div>
+                      <div>
+                        <span className="font-semibold">Total Profit:</span>{" "}
+                        <span className="font-bold text-black">₱{salesReportData.reduce((sum, item) => sum + (item.profit || 0), 0).toLocaleString()}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mb-6">
+                    <h3 className="text-xl font-bold text-black mb-4">Sales by Period</h3>
+                    <table className="w-full border-collapse border border-gray-300">
+                      <thead>
+                        <tr className="bg-gray-100">
+                          <th className="border border-gray-300 px-4 py-2 text-left font-semibold text-black">Period</th>
+                          <th className="border border-gray-300 px-4 py-2 text-left font-semibold text-black">Revenue</th>
+                          <th className="border border-gray-300 px-4 py-2 text-left font-semibold text-black">Orders</th>
+                          <th className="border border-gray-300 px-4 py-2 text-left font-semibold text-black">Profit</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {salesReportData.map((item, index) => (
+                          <tr key={index} className="hover:bg-gray-50">
+                            <td className="border border-gray-300 px-4 py-2 text-black">{item.name}</td>
+                            <td className="border border-gray-300 px-4 py-2 text-black">₱{item.total.toLocaleString()}</td>
+                            <td className="border border-gray-300 px-4 py-2 text-black">{item.orders}</td>
+                            <td className="border border-gray-300 px-4 py-2 text-black">₱{(item.profit || 0).toLocaleString()}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              )}
+
+              {/* Profit Analysis Report PDF */}
+              {activeReport === "profit" && profitReportData && (
+                <>
+                  <div className="border-b-2 border-gray-300 pb-4 mb-6">
+                    <h2 className="text-2xl font-bold text-black mb-2">Profit Analysis Report</h2>
+                    <div className="grid grid-cols-2 gap-4 text-sm text-gray-700">
+                      <div>
+                        <span className="font-semibold">Period:</span>{" "}
+                        <span>{profitReportData.period.start} to {profitReportData.period.end}</span>
+                      </div>
+                      <div>
+                        <span className="font-semibold">Currency:</span>{" "}
+                        <span>PHP</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mb-6">
+                    <h3 className="text-xl font-bold text-black mb-4">Financial Summary</h3>
+                    <table className="w-full border-collapse border border-gray-300">
+                      <tbody>
+                        <tr className="hover:bg-gray-50">
+                          <td className="border border-gray-300 px-4 py-3 font-semibold text-black">Total Revenue</td>
+                          <td className="border border-gray-300 px-4 py-3 text-black font-bold">₱{profitReportData.totalRevenue.toLocaleString()}</td>
+                        </tr>
+                        <tr className="hover:bg-gray-50">
+                          <td className="border border-gray-300 px-4 py-3 font-semibold text-black">Total Cost (COGS)</td>
+                          <td className="border border-gray-300 px-4 py-3 text-black">₱{profitReportData.totalCost.toLocaleString()}</td>
+                        </tr>
+                        <tr className="hover:bg-gray-50">
+                          <td className="border border-gray-300 px-4 py-3 font-semibold text-black">Total Profit</td>
+                          <td className="border border-gray-300 px-4 py-3 text-black font-bold text-green-600">₱{profitReportData.totalProfit.toLocaleString()}</td>
+                        </tr>
+                        <tr className="hover:bg-gray-50 bg-gray-50">
+                          <td className="border border-gray-300 px-4 py-3 font-semibold text-black">Profit Margin</td>
+                          <td className="border border-gray-300 px-4 py-3 text-black font-bold">{profitReportData.profitMargin.toFixed(2)}%</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              )}
+
+              {/* Stock Turnover Report PDF */}
+              {activeReport === "stock" && stockReportData && (
+                <>
+                  <div className="border-b-2 border-gray-300 pb-4 mb-6">
+                    <h2 className="text-2xl font-bold text-black mb-2">Stock Turnover Report</h2>
+                    <div className="grid grid-cols-2 gap-4 text-sm text-gray-700">
+                      <div>
+                        <span className="font-semibold">Period:</span>{" "}
+                        <span>{stockReportData.period.start} to {stockReportData.period.end}</span>
+                      </div>
+                      <div>
+                        <span className="font-semibold">Overall Turnover:</span>{" "}
+                        <span className="font-bold text-black">{stockReportData.stockTurnover.toFixed(2)}x</span>
+                      </div>
+                      <div>
+                        <span className="font-semibold">Inventory Value:</span>{" "}
+                        <span className="font-bold text-black">₱{stockReportData.inventoryValue.toLocaleString()}</span>
+                      </div>
+                      <div>
+                        <span className="font-semibold">Cost of Goods Sold:</span>{" "}
+                        <span className="font-bold text-black">₱{stockReportData.cogs.toLocaleString()}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mb-6">
+                    <h3 className="text-xl font-bold text-black mb-4">Product Turnover Details</h3>
+                    <table className="w-full border-collapse border border-gray-300">
+                      <thead>
+                        <tr className="bg-gray-100">
+                          <th className="border border-gray-300 px-4 py-2 text-left font-semibold text-black">SKU</th>
+                          <th className="border border-gray-300 px-4 py-2 text-left font-semibold text-black">Product Name</th>
+                          <th className="border border-gray-300 px-4 py-2 text-left font-semibold text-black">Current Stock</th>
+                          <th className="border border-gray-300 px-4 py-2 text-left font-semibold text-black">Inventory Value</th>
+                          <th className="border border-gray-300 px-4 py-2 text-left font-semibold text-black">Turnover Rate</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {stockReportData.products.map((product, index) => (
+                          <tr key={index} className="hover:bg-gray-50">
+                            <td className="border border-gray-300 px-4 py-2 text-black">{product.sku}</td>
+                            <td className="border border-gray-300 px-4 py-2 text-black">{product.productName}</td>
+                            <td className="border border-gray-300 px-4 py-2 text-black">{product.currentStock}</td>
+                            <td className="border border-gray-300 px-4 py-2 text-black">₱{product.inventoryValue.toLocaleString()}</td>
+                            <td className="border border-gray-300 px-4 py-2 text-black">{product.turnoverRate.toFixed(2)}x</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              )}
+
+              {/* Platform Comparison Report PDF */}
+              {activeReport === "platform" && platformReportData && platformReportData.length > 0 && (
+                <>
+                  <div className="border-b-2 border-gray-300 pb-4 mb-6">
+                    <h2 className="text-2xl font-bold text-black mb-2">Platform Comparison Report</h2>
+                    <div className="grid grid-cols-2 gap-4 text-sm text-gray-700">
+                      <div>
+                        <span className="font-semibold">Period:</span>{" "}
+                        <span>{getDateRange().start} to {getDateRange().end}</span>
+                      </div>
+                      <div>
+                        <span className="font-semibold">Total Platforms:</span>{" "}
+                        <span>{platformReportData.length}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mb-6">
+                    <h3 className="text-xl font-bold text-black mb-4">Platform Performance</h3>
+                    <table className="w-full border-collapse border border-gray-300">
+                      <thead>
+                        <tr className="bg-gray-100">
+                          <th className="border border-gray-300 px-4 py-2 text-left font-semibold text-black">Platform</th>
+                          <th className="border border-gray-300 px-4 py-2 text-left font-semibold text-black">Revenue</th>
+                          <th className="border border-gray-300 px-4 py-2 text-left font-semibold text-black">Orders</th>
+                          <th className="border border-gray-300 px-4 py-2 text-left font-semibold text-black">Profit</th>
+                          <th className="border border-gray-300 px-4 py-2 text-left font-semibold text-black">Profit Margin</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {platformReportData.map((platform, index) => (
+                          <tr key={index} className="hover:bg-gray-50">
+                            <td className="border border-gray-300 px-4 py-2 font-medium text-black">{platform.platform}</td>
+                            <td className="border border-gray-300 px-4 py-2 text-black">₱{platform.revenue.toLocaleString()}</td>
+                            <td className="border border-gray-300 px-4 py-2 text-black">{platform.orders}</td>
+                            <td className="border border-gray-300 px-4 py-2 text-black">₱{platform.profit.toLocaleString()}</td>
+                            <td className="border border-gray-300 px-4 py-2 text-black">{platform.profitMargin.toFixed(2)}%</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+
+          <DialogFooter className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setActiveReport(null)}
+            >
+              Close
+            </Button>
+            <Button
+              onClick={handleExportReportPDF}
+              className="gap-2 bg-primary hover:bg-primary/90"
+              disabled={
+                (activeReport === "sales" && (!salesReportData || salesReportData.length === 0)) ||
+                (activeReport === "profit" && !profitReportData) ||
+                (activeReport === "stock" && !stockReportData) ||
+                (activeReport === "platform" && (!platformReportData || platformReportData.length === 0))
+              }
+            >
+              <Download className="h-4 w-4" />
+              Export PDF
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

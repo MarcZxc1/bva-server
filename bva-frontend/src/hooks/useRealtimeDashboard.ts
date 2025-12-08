@@ -6,7 +6,7 @@ import { toast } from "sonner";
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
 
 interface DashboardUpdate {
-  type: "new_order" | "low_stock" | "inventory_update";
+  type: "new_order" | "low_stock" | "inventory_update" | "restock_plan_generated";
   data: any;
 }
 
@@ -57,6 +57,9 @@ export function useRealtimeDashboard({
           break;
         case "inventory_update":
           handleInventoryUpdate(update.data);
+          break;
+        case "restock_plan_generated":
+          handleRestockPlanGenerated(update.data);
           break;
       }
     });
@@ -143,6 +146,29 @@ export function useRealtimeDashboard({
     // Silently update inventory cache
     queryClient.invalidateQueries({ queryKey: ["at-risk-inventory"] });
     queryClient.invalidateQueries({ queryKey: ["products"] });
+  };
+
+  const handleRestockPlanGenerated = (data: {
+    shopId: string;
+    budget: number;
+    goal: string;
+    itemsCount: number;
+    totalCost: number;
+    timestamp: string;
+  }) => {
+    // Show toast notification
+    toast.success("Restock Plan Generated! 📦", {
+      description: `${data.itemsCount} items recommended for ₱${data.totalCost.toLocaleString()}`,
+      duration: 5000,
+    });
+
+    // Invalidate restock queries to refresh the data
+    queryClient.invalidateQueries({ queryKey: ["restock"] });
+    queryClient.invalidateQueries({ queryKey: ["restock-strategy"] });
+    
+    // Also invalidate inventory since restock affects inventory planning
+    queryClient.invalidateQueries({ queryKey: ["inventory"] });
+    queryClient.invalidateQueries({ queryKey: ["at-risk-inventory"] });
   };
 
   return {

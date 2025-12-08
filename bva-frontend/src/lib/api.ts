@@ -196,3 +196,38 @@ export const reportsApi = {
   },
 };
 
+// Social Media API
+export interface FacebookAccount {
+  id: string;
+  platform: string;
+  pageId?: string;
+  accountId?: string;
+  expiresAt?: string;
+  isConnected: boolean;
+}
+
+export interface FacebookAccountResponse {
+  success: boolean;
+  data: FacebookAccount;
+  message?: string;
+}
+
+export const socialMediaApi = {
+  getFacebookAccount: async (): Promise<FacebookAccountResponse> => {
+    return apiClient.get<FacebookAccountResponse>("/api/auth/social-media/facebook");
+  },
+  
+  connectFacebook: async (data: {
+    accessToken: string;
+    pageId?: string;
+    accountId?: string;
+    expiresAt?: string;
+  }): Promise<FacebookAccountResponse> => {
+    return apiClient.post<FacebookAccountResponse>("/api/auth/social-media/facebook", data);
+  },
+  
+  disconnectFacebook: async (): Promise<{ success: boolean; message: string }> => {
+    return apiClient.delete<{ success: boolean; message: string }>("/api/auth/social-media/facebook");
+  },
+};
+

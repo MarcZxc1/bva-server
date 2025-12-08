@@ -12,6 +12,140 @@ import {
 } from "../types/ml.types";
 
 /**
+ * Basic rule-based at-risk detection fallback when ML service is unavailable
+ * Returns data in the same format as ML service for frontend compatibility
+ */
+function detectAtRiskBasic(
+  products: any[],
+  sales: any[],
+  thresholds: { low_stock: number; expiry_days: number }
+): any[] {
+  const atRiskItems: any[] = [];
+  const now = new Date();
+  
+  // Calculate average daily sales for each product (last 30 days)
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+  
+  const productSalesMap = new Map<string, { totalQty: number; days: Set<string> }>();
+  
+  sales.forEach((sale) => {
+    if (new Date(sale.createdAt) >= thirtyDaysAgo) {
+      const items = typeof sale.items === "string" ? JSON.parse(sale.items) : sale.items;
+      if (Array.isArray(items)) {
+        items.forEach((item: any) => {
+          if (item.productId) {
+            const isoString = new Date(sale.createdAt).toISOString();
+            const saleDate = isoString.split('T')[0] || isoString.substring(0, 10);
+            if (!productSalesMap.has(item.productId)) {
+              productSalesMap.set(item.productId, { totalQty: 0, days: new Set() });
+            }
+            const salesData = productSalesMap.get(item.productId)!;
+            salesData.totalQty += item.quantity || 0;
+            salesData.days.add(saleDate);
+          }
+        });
+      }
+    }
+  });
+  
+  products.forEach((product) => {
+    const quantity = Math.max(0, product.inventories[0]?.quantity ?? product.stock ?? 0);
+    const reasons: string[] = [];
+    let score = 0;
+    let daysToExpiry: number | undefined;
+    let avgDailySales: number | undefined;
+    
+    // Calculate days to expiry
+    if (product.expiryDate) {
+      const expiryDate = new Date(product.expiryDate);
+      daysToExpiry = Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+      
+      if (daysToExpiry > 0 && daysToExpiry <= thresholds.expiry_days) {
+        reasons.push("near_expiry");
+        score += 30;
+        // More urgent if very close to expiry
+        if (daysToExpiry <= 3) {
+          score += 20;
+        }
+      } else if (daysToExpiry <= 0) {
+        reasons.push("expired");
+        score += 100; // Critical: expired items
+        daysToExpiry = 0;
+      }
+    }
+    
+    // Check low stock
+    if (quantity <= thresholds.low_stock) {
+      reasons.push("low_stock");
+      score += 50; // Base score for low stock
+    }
+    
+    // Calculate average daily sales
+    const salesData = productSalesMap.get(product.id);
+    if (salesData && salesData.days.size > 0) {
+      avgDailySales = salesData.totalQty / salesData.days.size;
+    } else if (quantity > 0) {
+      // No sales in last 30 days but has stock = slow moving
+      reasons.push("slow_moving");
+      score += 20;
+      avgDailySales = 0;
+    }
+    
+    // Only include items with at least one issue
+    if (reasons.length > 0) {
+      // Determine recommended action based on issues
+      let actionType = "review";
+      let reasoning = "";
+      let restockQty: number | undefined;
+      let discountRange: [number, number] | undefined;
+      
+      if (reasons.includes("expired")) {
+        actionType = "clearance";
+        reasoning = "Item has expired and should be removed immediately to maintain inventory quality.";
+        discountRange = [50, 70]; // High discount for expired items
+      } else if (reasons.includes("near_expiry") && daysToExpiry !== undefined) {
+        actionType = "promotion";
+        reasoning = `Item expires in ${daysToExpiry} days. Create a promotion to sell before expiry.`;
+        discountRange = daysToExpiry <= 3 ? [30, 50] : [15, 30];
+      } else if (reasons.includes("low_stock") && !reasons.includes("slow_moving")) {
+        actionType = "restock";
+        // Suggest restocking to 3x the low_stock threshold
+        restockQty = Math.max(thresholds.low_stock * 3, 20);
+        reasoning = `Stock is critically low (${quantity} units). Restock to avoid stockouts.`;
+      } else if (reasons.includes("slow_moving")) {
+        actionType = "promotion";
+        reasoning = "Item has no sales in the last 30 days. Consider discounting or bundling to increase sales.";
+        discountRange = [20, 40];
+      } else {
+        reasoning = "Item requires attention. Review inventory status and sales patterns.";
+      }
+      
+      atRiskItems.push({
+        product_id: product.id,
+        sku: product.sku || `SKU-${product.id}`,
+        name: product.name,
+        current_quantity: quantity,
+        price: Math.max(0, product.price),
+        reasons, // Frontend expects 'reasons' not 'issues'
+        score: Math.min(100, score), // Cap at 100, convert to 0-100 scale
+        days_to_expiry: daysToExpiry,
+        avg_daily_sales: avgDailySales,
+        recommended_action: {
+          action_type: actionType,
+          reasoning,
+          restock_qty: restockQty,
+          discount_range: discountRange
+        }
+      });
+    }
+  });
+  
+  // Sort by score (highest first)
+  return atRiskItems.sort((a, b) => b.score - a.score);
+}
+
+/**
  * GET /api/smart-shelf/dashboard/:shopId
  * Get comprehensive dashboard analytics merging local stats and AI metrics
  */
@@ -122,27 +256,59 @@ export const getAtRiskInventory = async (req: Request, res: Response) => {
       }
     });
 
-    // 3. Call ML Service
+    // 3. Try ML Service first, fallback to basic detection if unavailable
+    const thresholds = {
+      low_stock: 5,  // Match seed script critical items (≤5 units)
+      expiry_days: 7,  // Match seed script near expiry items (3-7 days)
+      slow_moving_window: 30
+    };
+    
+    let atRiskItems: any[] = [];
+    let mlAnalysisAvailable = false;
+    
+    // Check if ML service is available
+    const mlServiceAvailable = await mlClient.healthCheck();
+    
+    if (mlServiceAvailable) {
     try {
       const atRiskResult = await mlClient.post<MLAtRiskResponse>("/api/v1/smart-shelf/at-risk", {
         shop_id: shopId,
         inventory: inventoryItems,
         sales: salesRecords,
         thresholds: {
-          low_stock: 5,  // Match seed script critical items (≤5 units)
-          expiry_days: 7,  // Match seed script near expiry items (3-7 days)
-          slow_moving_window: 30
-          // slow_moving_threshold defaults to 0.5 in ML service
+            ...thresholds,
+            slow_moving_threshold: 0.5  // Default from ML service
         }
       } as MLAtRiskRequest);
 
-      // 4. Convert scores from 0-1 to 0-100 for frontend display
-      const atRiskItems = (atRiskResult.at_risk || []).map(item => ({
+        // Convert scores from 0-1 to 0-100 for frontend display
+        // Also ensure reasons is always an array of strings
+        atRiskItems = (atRiskResult.at_risk || []).map(item => ({
         ...item,
-        score: Math.round(item.score * 100) // Convert 0-1 to 0-100
-      }));
+          score: Math.round(item.score * 100), // Convert 0-1 to 0-100
+          reasons: Array.isArray(item.reasons) 
+            ? item.reasons.map((r: any) => typeof r === 'string' ? r : String(r))
+            : item.reasons ? [String(item.reasons)] : []
+        }));
+        
+        mlAnalysisAvailable = true;
+      } catch (error: any) {
+        console.warn("ML service call failed, falling back to basic detection:", error.message);
+        // Fall through to basic detection
+      }
+    } else {
+      console.warn("ML service unavailable, using basic rule-based detection");
+    }
+    
+    // Fallback to basic detection if ML service unavailable or failed
+    if (!mlAnalysisAvailable) {
+      atRiskItems = detectAtRiskBasic(products, sales, {
+        low_stock: thresholds.low_stock,
+        expiry_days: thresholds.expiry_days
+      });
+    }
 
-      // 5. Return at-risk items with meta
+    // 4. Return at-risk items with meta
       return res.json({
         success: true,
         data: {
@@ -152,22 +318,16 @@ export const getAtRiskInventory = async (req: Request, res: Response) => {
             total_products: products.length,
             flagged_count: atRiskItems.length,
             analysis_date: new Date().toISOString(),
+          ml_analysis_available: mlAnalysisAvailable,
             thresholds_used: {
-              low_stock: 5,
-              expiry_days: 7,
-              slow_moving_window: 30,
-              slow_moving_threshold: 0.5  // Default from ML service
-            }
+            low_stock: thresholds.low_stock,
+            expiry_days: thresholds.expiry_days,
+            slow_moving_window: thresholds.slow_moving_window,
+            ...(mlAnalysisAvailable ? { slow_moving_threshold: 0.5 } : {})
           }
         }
-      });
-    } catch (error: any) {
-      console.error("Error in getAtRiskInventory:", error);
-      return res.status(500).json({
-        success: false,
-        error: error.message || "Failed to analyze at-risk inventory",
-      });
-    }
+      }
+    });
   } catch (error: any) {
     console.error("Error in getAtRiskInventory:", error);
     res.status(500).json({

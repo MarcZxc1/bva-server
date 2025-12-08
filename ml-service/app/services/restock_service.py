@@ -52,22 +52,59 @@ def compute_restock_strategy(request: RestockRequest) -> RestockResponse:
         products_count=len(request.products)
     )
     
-    # Route to appropriate strategy
+    # Filter out products where cost >= price (negative profit margin)
+    # These products would result in negative expected_profit
+    valid_products = [
+        p for p in request.products 
+        if p.price > p.cost and p.price > 0 and p.cost > 0
+    ]
+    
+    if len(valid_products) == 0:
+        logger.warning(
+            "restock_no_valid_products",
+            shop_id=request.shop_id,
+            original_count=len(request.products)
+        )
+        return RestockResponse(
+            strategy=request.goal,
+            shop_id=request.shop_id,
+            budget=request.budget,
+            items=[],
+            totals=RestockTotals(
+                total_items=0,
+                total_qty=0,
+                total_cost=0.0,
+                budget_used_pct=0.0,
+                expected_revenue=0.0,
+                expected_profit=0.0,
+                expected_roi=0.0,
+                avg_days_of_stock=0.0
+            ),
+            reasoning=["No valid products found. All products have cost >= price, which would result in losses."],
+            warnings=["No products can be recommended. Please check product pricing."],
+            meta={
+                "products_analyzed": len(request.products),
+                "products_selected": 0,
+                "restock_days": request.restock_days
+            }
+        )
+    
+    # Route to appropriate strategy (use filtered valid products)
     if request.goal == RestockGoal.PROFIT:
         items, reasoning = profit_maximization(
-            products=request.products,
+            products=valid_products,
             budget=request.budget,
             restock_days=request.restock_days
         )
     elif request.goal == RestockGoal.VOLUME:
         items, reasoning = volume_maximization(
-            products=request.products,
+            products=valid_products,
             budget=request.budget,
             restock_days=request.restock_days
         )
     else:  # BALANCED
         items, reasoning = balanced_strategy(
-            products=request.products,
+            products=valid_products,
             budget=request.budget,
             restock_days=request.restock_days
         )
@@ -75,8 +112,13 @@ def compute_restock_strategy(request: RestockRequest) -> RestockResponse:
     # Compute totals
     totals = compute_totals(items, request.budget)
     
-    # Generate warnings
+    # Generate warnings (use original products list for context)
     warnings = generate_warnings(items, request.products, request.budget, totals)
+    
+    # Add warning if products were filtered
+    if len(valid_products) < len(request.products):
+        filtered_count = len(request.products) - len(valid_products)
+        warnings.append(f"{filtered_count} product(s) were excluded due to cost >= price (would result in losses)")
     
     # Build response
     response = RestockResponse(
@@ -153,8 +195,8 @@ def profit_maximization(
         else:
             urgency = 1.0  # Normal
         
-        # Profit per unit
-        unit_profit = p.price - p.cost
+        # Profit per unit (ensure non-negative)
+        unit_profit = max(0.0, p.price - p.cost)
         
         # Profit score = profit × demand × urgency
         profit_score = unit_profit * daily_demand * urgency
@@ -205,7 +247,8 @@ def profit_maximization(
         
         if qty > 0 and total_cost <= remaining_budget:
             expected_revenue = qty * p.price
-            expected_profit = qty * item['unit_profit']
+            # Ensure expected_profit is never negative (clamp to 0)
+            expected_profit = max(0.0, qty * item['unit_profit'])
             days_of_stock = qty / p.avg_daily_sales if p.avg_daily_sales > 0 else 999
             
             selected_items.append(RestockItem(
@@ -314,7 +357,8 @@ def volume_maximization(
         
         if qty > 0 and total_cost <= remaining_budget:
             expected_revenue = qty * p.price
-            expected_profit = qty * (p.price - p.cost)
+            # Ensure expected_profit is never negative (clamp to 0)
+            expected_profit = max(0.0, qty * (p.price - p.cost))
             days_of_stock = qty / p.avg_daily_sales if p.avg_daily_sales > 0 else 999
             
             selected_items.append(RestockItem(
@@ -394,8 +438,8 @@ def balanced_strategy(
         else:
             urgency = 1.0
         
-        # Profit score
-        unit_profit = p.price - p.cost
+        # Profit score (ensure unit_profit is non-negative)
+        unit_profit = max(0.0, p.price - p.cost)
         profit_score = unit_profit * daily_demand * urgency
         profit_scores.append(profit_score)
         
@@ -451,7 +495,9 @@ def balanced_strategy(
         
         if qty > 0 and total_cost <= remaining_budget:
             expected_revenue = qty * p.price
-            expected_profit = qty * item['unit_profit']
+            # Ensure expected_profit is never negative (clamp to 0)
+            # This handles edge cases where cost might exceed price
+            expected_profit = max(0.0, qty * item['unit_profit'])
             days_of_stock = qty / p.avg_daily_sales if p.avg_daily_sales > 0 else 999
             
             selected_items.append(RestockItem(
@@ -495,7 +541,8 @@ def compute_totals(items: List[RestockItem], budget: float) -> RestockTotals:
     total_qty = sum(item.qty for item in items)
     total_cost = sum(item.total_cost for item in items)
     expected_revenue = sum(item.expected_revenue for item in items)
-    expected_profit = sum(item.expected_profit for item in items)
+    # Ensure expected_profit is never negative (sum of already-clamped values)
+    expected_profit = max(0.0, sum(item.expected_profit for item in items))
     
     budget_used_pct = (total_cost / budget * 100) if budget > 0 else 0
     expected_roi = (expected_profit / total_cost * 100) if total_cost > 0 else 0

@@ -35,12 +35,16 @@ class IntegrationService {
     }
 
     // Create integration (no API key needed - uses JWT token)
+    // Set isActive to true in settings when integration is created (user has accepted terms)
     const integration = await prisma.integration.create({
       data: {
         shopId: data.shopId,
         platform: data.platform,
         settings: {
           connectedAt: new Date().toISOString(),
+          termsAccepted: true,
+          termsAcceptedAt: new Date().toISOString(),
+          isActive: true, // Active by default when created (user accepted terms)
           ...data.settings,
         },
       },
@@ -161,12 +165,22 @@ class IntegrationService {
   /**
    * Sync data from integration
    * Uses JWT token for authentication
+   * Only syncs if integration is active and terms are accepted
    */
   async syncIntegration(integrationId: string, token: string) {
     const integration = await this.getIntegrationById(integrationId);
     
     if (!integration) {
       throw new Error("Integration not found");
+    }
+
+    // Check if integration is active and terms are accepted
+    const settings = integration.settings as any;
+    const termsAccepted = settings?.termsAccepted === true;
+    const isActive = settings?.isActive !== false;
+
+    if (!termsAccepted || !isActive) {
+      throw new Error("Integration is not active or terms have not been accepted. Please accept the terms and conditions first.");
     }
 
     const userId = integration.shop.owner.id;

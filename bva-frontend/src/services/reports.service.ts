@@ -185,6 +185,43 @@ class ReportsService {
       return json.data || json;
     }
   }
+
+  /**
+   * Get stock turnover report
+   * @param startDate - Optional start date (ISO string)
+   * @param endDate - Optional end date (ISO string)
+   */
+  async getStockTurnoverReport(
+    startDate?: string,
+    endDate?: string
+  ): Promise<{
+    stockTurnover: number;
+    inventoryValue: number;
+    cogs: number;
+    products: Array<{
+      productId: string;
+      productName: string;
+      sku: string;
+      currentStock: number;
+      inventoryValue: number;
+      turnoverRate: number;
+    }>;
+    period: {
+      start: string;
+      end: string;
+    };
+  }> {
+    const params = new URLSearchParams();
+    if (startDate) params.append("start", startDate);
+    if (endDate) params.append("end", endDate);
+
+    const queryString = params.toString();
+    const url = queryString
+      ? `/api/reports/stock-turnover?${queryString}`
+      : "/api/reports/stock-turnover";
+
+    return apiClient.get(url);
+  }
 }
 
 export const reportsService = new ReportsService();

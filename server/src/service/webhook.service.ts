@@ -232,26 +232,62 @@ class WebhookService {
    * Handle order status changed webhook
    */
   async handleOrderStatusChanged(shopId: string, data: any) {
-    const sale = await prisma.sale.findFirst({
+    const orderId = data.orderId || data.id;
+    const newStatus = data.status;
+
+    if (!orderId || !newStatus) {
+      throw new Error("Order ID and status are required");
+    }
+
+    // Try to find the sale by multiple possible identifiers
+    let sale = await prisma.sale.findFirst({
       where: {
         shopId,
         OR: [
-          { externalId: data.orderId || data.id },
-          { platformOrderId: data.orderId || data.id },
+          { externalId: orderId },
+          { platformOrderId: orderId },
+          { id: orderId },
         ],
       },
     });
 
-    if (sale) {
-      return await prisma.sale.update({
-        where: { id: sale.id },
-        data: {
-          status: data.status,
-        },
+    // If sale not found, it might be an order that was created in shopee-clone but not synced yet
+    // In this case, we should try to fetch it from shopee-clone or create a placeholder
+    if (!sale) {
+      console.warn(`⚠️  Sale not found for order ${orderId} in shop ${shopId}. This might be an unsynced order.`);
+      
+      // Try to find by searching all sales for this shop and matching by any identifier
+      const allSales = await prisma.sale.findMany({
+        where: { shopId },
       });
+      
+      // Check if any sale has this orderId in its items or metadata
+      sale = allSales.find(s => {
+        const items = typeof s.items === 'string' ? JSON.parse(s.items) : s.items;
+        if (Array.isArray(items)) {
+          return items.some((item: any) => item.orderId === orderId || item.id === orderId);
+        }
+        return false;
+      }) || null;
     }
 
-    throw new Error("Sale not found");
+    if (sale) {
+      const updatedSale = await prisma.sale.update({
+        where: { id: sale.id },
+        data: {
+          status: newStatus,
+          // If status is completed, ensure revenue is set
+          ...(newStatus === "completed" && !sale.revenue ? { revenue: sale.total } : {}),
+        },
+      });
+
+      console.log(`✅ Updated sale ${sale.id} status to ${newStatus}`);
+      return updatedSale;
+    }
+
+    // If still not found, log error but don't throw - allow the process to continue
+    console.error(`❌ Sale not found for order ${orderId} in shop ${shopId}. Order status update skipped.`);
+    throw new Error(`Sale not found for order ${orderId}`);
   }
 
   /**

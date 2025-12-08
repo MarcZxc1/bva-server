@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { authApi, AuthResponse } from "@/lib/api";
+import { supabase } from "@/lib/supabase";
 
 interface Shop {
   id: string;
@@ -32,21 +33,171 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Check for stored auth data on mount
-    const storedToken = localStorage.getItem("auth_token");
-    const storedUser = localStorage.getItem("user");
+    const initializeAuth = async () => {
+      if (supabase) {
+        // Check for Supabase OAuth callback in URL hash
+        const hashParams = new URLSearchParams(window.location.hash.substring(1));
+        const accessToken = hashParams.get('access_token');
+        const errorDescription = hashParams.get('error_description');
+        const errorCode = hashParams.get('error');
 
-    if (storedToken && storedUser) {
-      setToken(storedToken);
-      const parsedUser = JSON.parse(storedUser);
-      setUser(parsedUser);
-      
-      // Refresh user data from backend to get latest shops
-      // Set setLoading=true so it sets isLoading to false when done
-      refreshUserData(storedToken, true);
-    } else {
+        if (errorDescription || errorCode) {
+          console.error('❌ OAuth error in callback:', errorDescription || errorCode);
+          setIsLoading(false);
+          window.history.replaceState({}, '', location.pathname);
+          return;
+        }
+
+        // Check for Supabase session (either from hash or existing session)
+        let session = null;
+        
+        if (accessToken) {
+          console.log('🔵 OAuth callback detected, setting session...');
+          // New OAuth callback - set the session
+          const { data: { session: newSession }, error: setSessionError } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: hashParams.get('refresh_token') || '',
+          });
+          
+          if (setSessionError) {
+            console.error('❌ Error setting session:', setSessionError);
+            setIsLoading(false);
+            window.history.replaceState({}, '', location.pathname);
+            return;
+          }
+          
+          session = newSession;
+          console.log('✅ Session set successfully');
+          // Clean up URL hash
+          window.history.replaceState({}, '', location.pathname);
+        } else {
+          // Check for existing session
+          const { data: { session: existingSession }, error: sessionError } = await supabase.auth.getSession();
+          
+          if (sessionError) {
+            console.error('⚠️ Session error:', sessionError);
+          }
+          
+          session = existingSession;
+        }
+
+        if (session?.access_token) {
+          try {
+            console.log('🔐 Verifying token with backend...');
+            // Verify token with backend and get local JWT
+            const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
+            const response = await fetch(`${API_BASE_URL}/api/auth/supabase/verify`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({ accessToken: session.access_token }),
+            });
+
+            if (!response.ok) {
+              const errorData = await response.json().catch(() => ({ message: 'Network error' }));
+              throw new Error(errorData.message || `HTTP ${response.status}`);
+            }
+
+            const result = await response.json();
+
+            if (result.success && result.token) {
+              console.log('✅ Token verified, user logged in:', result.user.email);
+              // Store local JWT token
+              setToken(result.token);
+              localStorage.setItem("auth_token", result.token);
+
+              // Set user data
+              const userData: User = {
+                id: result.user.id,
+                email: result.user.email,
+                name: result.user.name,
+                shops: result.user.shops || [],
+              };
+              setUser(userData);
+              localStorage.setItem("user", JSON.stringify(userData));
+
+              // Refresh user data in background
+              refreshUserData(result.token, true).catch((error) => {
+                console.error("Failed to refresh user data:", error);
+              });
+              return;
+            } else {
+              throw new Error(result.message || 'Failed to verify token');
+            }
+          } catch (err: any) {
+            console.error('❌ Failed to verify Supabase token:', err);
+            // Sign out from Supabase on error
+            try {
+              await supabase.auth.signOut();
+            } catch (signOutError) {
+              console.error('Error signing out:', signOutError);
+            }
+          }
+        }
+
+        // Listen for auth state changes
+        const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+          if (event === 'SIGNED_IN' && session?.access_token) {
+            try {
+              const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
+              const response = await fetch(`${API_BASE_URL}/api/auth/supabase/verify`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ accessToken: session.access_token }),
+              });
+
+              const result = await response.json();
+
+              if (result.success && result.token) {
+                setToken(result.token);
+                localStorage.setItem("auth_token", result.token);
+
+                const userData: User = {
+                  id: result.user.id,
+                  email: result.user.email,
+                  name: result.user.name,
+                  shops: result.user.shops || [],
+                };
+                setUser(userData);
+                localStorage.setItem("user", JSON.stringify(userData));
+                refreshUserData(result.token, false).catch(console.error);
+              }
+            } catch (err) {
+              console.error('Failed to verify Supabase token:', err);
+            }
+          } else if (event === 'SIGNED_OUT') {
+            setToken(null);
+            setUser(null);
+            localStorage.removeItem("auth_token");
+            localStorage.removeItem("user");
+          }
+        });
+
+        return () => {
+          subscription.unsubscribe();
+        };
+      } else {
+        // Fallback to old token-based flow
+        const storedToken = localStorage.getItem("auth_token");
+        const storedUser = localStorage.getItem("user");
+
+        if (storedToken && storedUser) {
+          setToken(storedToken);
+          const parsedUser = JSON.parse(storedUser);
+          setUser(parsedUser);
+          refreshUserData(storedToken, true);
+        } else {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    initializeAuth().finally(() => {
       setIsLoading(false);
-    }
+    });
   }, []);
 
   // Function to refresh user data from backend
@@ -154,7 +305,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const logout = () => {
+  const logout = async () => {
+    // Sign out from Supabase if configured
+    if (supabase) {
+      await supabase.auth.signOut();
+    }
+    
     setToken(null);
     setUser(null);
     localStorage.removeItem("auth_token");

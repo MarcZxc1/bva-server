@@ -277,6 +277,62 @@
   color: #999;
 }
 
+.income-table-body {
+  background-color: #ffffff;
+  border: 1px solid #e8e8e8;
+  border-top: none;
+  border-radius: 0 0 4px 4px;
+}
+
+.income-table-row {
+  display: grid;
+  grid-template-columns: 1.5fr 1.5fr 1fr 1.5fr 1fr;
+  gap: 16px;
+  padding: 16px;
+  border-bottom: 1px solid #f0f0f0;
+  transition: background-color 0.2s;
+}
+
+.income-table-row:last-child {
+  border-bottom: none;
+}
+
+.income-table-row:hover {
+  background-color: #fafafa;
+}
+
+.table-cell {
+  display: flex;
+  align-items: center;
+  font-size: 13px;
+  color: #333;
+}
+
+.amount-cell {
+  font-weight: 500;
+  color: #ee4d2d;
+}
+
+.status-badge {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.status-badge.completed {
+  background-color: #f6ffed;
+  color: #52c41a;
+  border: 1px solid #b7eb8f;
+}
+
+.status-badge.pending {
+  background-color: #fff7e6;
+  color: #fa8c16;
+  border: 1px solid #ffd591;
+}
+
 /* Side Panels */
 .income-side-panels {
   display: flex;

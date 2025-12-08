@@ -1,24 +1,20 @@
 # BVA Server - Complete Setup Guide
 
-A comprehensive guide to set up and run the Business Virtual Assistant (BVA) platform, including all services, databases, and integrations.
+A comprehensive guide to set up and run the Business Virtual Assistant (BVA) platform on **Windows** and **Linux**.
 
 ## 📋 Table of Contents
 
 - [Prerequisites](#prerequisites)
-- [Quick Start](#quick-start)
-- [Detailed Setup](#detailed-setup)
+- [Windows Setup](#windows-setup)
+- [Linux Setup](#linux-setup)
 - [Environment Variables](#environment-variables)
 - [Database Setup](#database-setup)
 - [Running Services](#running-services)
-- [Port Configuration](#port-configuration)
 - [Troubleshooting](#troubleshooting)
-- [Development Workflow](#development-workflow)
 
 ---
 
 ## Prerequisites
-
-Before starting, ensure you have the following installed:
 
 ### Required Software
 
@@ -28,33 +24,28 @@ Before starting, ensure you have the following installed:
 | **npm** | >= 9.0.0 | Package manager |
 | **Python** | >= 3.9 | ML Service (FastAPI) |
 | **PostgreSQL** | >= 14.0 | Database |
-| **Redis** | >= 6.0 | Caching (optional but recommended) |
 | **Git** | Latest | Version control |
 
 ### Optional but Recommended
 
-- **Docker** & **Docker Compose** - For running PostgreSQL and Redis easily
-- **VS Code** or **WebStorm** - For development
-- **Postman** or **Insomnia** - For API testing
+- **Docker** & **Docker Compose** - For running PostgreSQL easily
+- **Redis** | >= 6.0 | Caching (optional)
 
 ---
 
-## Windows Setup Guide
+## Windows Setup
 
-### Step 1: Install Required Software
+### Step 1: Install Node.js
 
-#### Install Node.js
-
-1. Download Node.js from [nodejs.org](https://nodejs.org/)
-2. Choose the **LTS version** (recommended)
-3. Run the installer and follow the setup wizard
-4. Verify installation:
+1. Download Node.js LTS from [nodejs.org](https://nodejs.org/)
+2. Run the installer and follow the setup wizard
+3. Verify installation:
    ```powershell
    node --version
    npm --version
    ```
 
-#### Install Python
+### Step 2: Install Python
 
 1. Download Python from [python.org](https://www.python.org/downloads/)
 2. **Important:** Check "Add Python to PATH" during installation
@@ -65,9 +56,9 @@ Before starting, ensure you have the following installed:
    pip --version
    ```
 
-#### Install PostgreSQL
+### Step 3: Install PostgreSQL
 
-**Option A: Using Installer (Recommended for Windows)**
+**Option A: Using Installer**
 
 1. Download PostgreSQL from [postgresql.org/download/windows/](https://www.postgresql.org/download/windows/)
 2. Run the installer
@@ -82,9 +73,12 @@ Before starting, ensure you have the following installed:
 
 1. Install [Docker Desktop for Windows](https://www.docker.com/products/docker-desktop/)
 2. Start Docker Desktop
-3. Use the `docker-compose.yml` file (see below)
+3. Navigate to project root and run:
+   ```powershell
+   docker-compose up -d postgres
+   ```
 
-#### Install Git
+### Step 4: Install Git
 
 1. Download Git from [git-scm.com/download/win](https://git-scm.com/download/win)
 2. Run the installer with default settings
@@ -93,180 +87,61 @@ Before starting, ensure you have the following installed:
    git --version
    ```
 
-#### Install Redis (Optional but Recommended)
-
-**Option A: Using Docker Desktop**
-
-1. Use Docker Compose (see below)
-
-**Option B: Using WSL2 (Windows Subsystem for Linux)**
-
-1. Install WSL2: `wsl --install`
-2. Install Redis in WSL: `sudo apt-get install redis-server`
-
-**Option C: Using Memurai (Windows-native Redis)**
-
-1. Download from [memurai.com](https://www.memurai.com/)
-2. Install and start the service
-
-### Step 2: Install Docker Desktop (Recommended)
-
-1. Download [Docker Desktop for Windows](https://www.docker.com/products/docker-desktop/)
-2. Install and restart your computer if prompted
-3. Start Docker Desktop
-4. Verify installation:
-   ```powershell
-   docker --version
-   docker-compose --version
-   ```
-
-### Step 3: Clone Repository
-
-Open **PowerShell** or **Command Prompt**:
+### Step 5: Clone and Setup Project
 
 ```powershell
-# Navigate to your desired directory
-cd C:\Users\YourName\Documents
-
 # Clone the repository
 git clone <repository-url>
 cd bva-server
-```
 
-### Step 4: Install Dependencies
-
-#### Install Root Dependencies
-
-```powershell
-npm install
-```
-
-#### Install All Workspace Dependencies
-
-```powershell
+# Install all dependencies
 npm run install:all
+
+# Navigate to server directory and setup environment
+cd server
+copy .env.example .env
+# Edit .env file with your database credentials
 ```
 
-### Step 5: Database Setup (Windows)
+### Step 6: Configure Environment Variables
 
-#### Using Docker Desktop (Recommended)
-
-```powershell
-# Start PostgreSQL and Redis
-docker-compose up -d postgres redis
-
-# Verify they're running
-docker ps
-```
-
-#### Manual PostgreSQL Setup
-
-1. **Start PostgreSQL Service:**
-   ```powershell
-   # Open Services (Win + R, type: services.msc)
-   # Find "postgresql-x64-XX" and start it
-   # Or use PowerShell:
-   Start-Service postgresql-x64-14
-   ```
-
-2. **Create Database:**
-   ```powershell
-   # Connect to PostgreSQL (use the password you set during installation)
-   psql -U postgres
-   
-   # In PostgreSQL prompt:
-   CREATE DATABASE virtual_business_assistant;
-   \q
-   ```
-
-   **Alternative using pgAdmin:**
-   - Open pgAdmin (installed with PostgreSQL)
-   - Right-click "Databases" → Create → Database
-   - Name: `virtual_business_assistant`
-   - Click Save
-
-### Step 6: Environment Variables (Windows)
-
-Create `.env` files in each service directory. You can use **Notepad** or **VS Code**:
-
-#### Backend Server (`server\.env`)
+Edit `server/.env` file:
 
 ```env
-# Database (adjust password if different)
-DATABASE_URL="postgresql://postgres:YOUR_PASSWORD@localhost:5432/virtual_business_assistant"
+# Database
+DATABASE_URL="postgresql://postgres:your_password@localhost:5432/bva_db?schema=public"
 
-# JWT Authentication
-JWT_SECRET="your-super-secret-jwt-key-change-this-in-production"
-JWT_EXPIRATION="24h"
-
-# Server Configuration
+# Server
 PORT=3000
 NODE_ENV=development
-BASE_URL="http://localhost:3000"
-BACKEND_URL="http://localhost:3000"
 
-# Frontend URLs
-FRONTEND_URL="http://localhost:8080"
-VITE_API_URL="http://localhost:3000/api"
+# Frontend URL
+FRONTEND_URL=http://localhost:8080
 
-# Google OAuth 2.0
-GOOGLE_CLIENT_ID="your-google-client-id"
-GOOGLE_CLIENT_SECRET="your-google-client-secret"
+# JWT Secret (generate a random string)
+JWT_SECRET=your_jwt_secret_here
+
+# Google OAuth (if using)
+GOOGLE_CLIENT_ID=your_google_client_id
+GOOGLE_CLIENT_SECRET=your_google_client_secret
 
 # ML Service
-ML_SERVICE_URL="http://localhost:8001"
-
-# Redis
-REDIS_URL="redis://localhost:6379"
+ML_SERVICE_URL=http://localhost:8001
 ```
 
-#### ML Service (`ml-service\.env`)
-
-```env
-# Google Gemini API
-GEMINI_API_KEY="your-google-gemini-api-key"
-
-# ML Service Configuration
-ML_SERVICE_PORT=8001
-ML_SERVICE_HOST="0.0.0.0"
-
-# Model Configuration
-GEMINI_MODEL="gemini-2.0-flash-exp"
-IMAGEN_MODEL="gemini-2.5-flash-image"
-
-# Redis
-REDIS_URL="redis://localhost:6379"
-```
-
-#### Frontend (`bva-frontend\.env`)
-
-```env
-VITE_API_URL=http://localhost:3000/api
-VITE_GOOGLE_CLIENT_ID=your-google-client-id
-```
-
-#### Shopee Clone (`shopee-clone\.env`)
-
-```env
-VITE_API_URL=http://localhost:3000/api
-```
-
-### Step 7: Database Migration (Windows)
+### Step 7: Setup Database
 
 ```powershell
 cd server
 
-# Generate Prisma Client
-npx prisma generate
-
-# Run migrations
+# Run database migrations
 npx prisma migrate dev
 
-# (Optional) View database in Prisma Studio
-npx prisma studio
+# (Optional) Seed database
+npx prisma db seed
 ```
 
-### Step 8: ML Service Setup (Windows)
+### Step 8: Setup ML Service
 
 ```powershell
 cd ml-service
@@ -281,187 +156,122 @@ python -m venv venv
 pip install -r requirements.txt
 ```
 
-**Note:** If you get an error about execution policy, run:
-```powershell
-Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
-```
+### Step 9: Start All Services
 
-### Step 9: Start Services (Windows)
-
-#### Option A: Start All at Once
-
-**Using PowerShell:**
+**Option A: Using npm script (Recommended)**
 
 ```powershell
-# From root directory
+# From project root
 npm start
 ```
 
-**Using Git Bash or WSL:**
+**Option B: Start services individually**
 
-```bash
-./start-all.sh
-```
-
-#### Option B: Start Individually (Multiple PowerShell Windows)
-
-**PowerShell Window 1 - ML Service:**
 ```powershell
+# Terminal 1: Start ML Service
 cd ml-service
 .\venv\Scripts\activate
 uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload
-```
 
-**PowerShell Window 2 - Backend Server:**
-```powershell
+# Terminal 2: Start Backend Server
 cd server
 npm run dev
-```
 
-**PowerShell Window 3 - BVA Frontend:**
-```powershell
+# Terminal 3: Start BVA Frontend
 cd bva-frontend
 npm run dev
-```
 
-**PowerShell Window 4 - Shopee Clone:**
-```powershell
+# Terminal 4: Start Shopee Clone (optional)
 cd shopee-clone
 npm run dev
 ```
 
-### Windows-Specific Troubleshooting
+### Step 10: Access Services
 
-#### Issue: PowerShell Execution Policy
+Once all services are running:
 
-**Error:** `cannot be loaded because running scripts is disabled on this system`
+- **BVA Frontend:** http://localhost:8080
+- **Backend API:** http://localhost:3000/api
+- **Shopee Clone:** http://localhost:5174
+- **ML Service Docs:** http://localhost:8001/docs
 
-**Solution:**
-```powershell
-# Run PowerShell as Administrator
-Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+---
+
+## Linux Setup
+
+### Step 1: Install Node.js
+
+**Using NodeSource (Recommended)**
+
+```bash
+# Install Node.js 18.x
+curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
+sudo apt-get install -y nodejs
+
+# Verify installation
+node --version
+npm --version
 ```
 
-#### Issue: Port Already in Use
+**Or using nvm (Alternative)**
 
-**Error:** `EADDRINUSE: address already in use :::3000`
-
-**Solution:**
-```powershell
-# Find process using port
-netstat -ano | findstr :3000
-
-# Kill process (replace <PID> with actual process ID)
-taskkill /PID <PID> /F
+```bash
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh | bash
+source ~/.bashrc
+nvm install 18
+nvm use 18
 ```
 
-#### Issue: Python Virtual Environment Not Activating
+### Step 2: Install Python
 
-**Error:** `venv\Scripts\activate : The term 'venv\Scripts\activate' is not recognized`
+```bash
+# Ubuntu/Debian
+sudo apt-get update
+sudo apt-get install python3 python3-pip python3-venv
 
-**Solution:**
-```powershell
-# Use full path or relative path with .\
-.\venv\Scripts\Activate.ps1
-
-# Or use Command Prompt instead of PowerShell
-cmd
-venv\Scripts\activate.bat
+# Verify installation
+python3 --version
+pip3 --version
 ```
 
-#### Issue: Docker Not Starting
+### Step 3: Install PostgreSQL
 
-**Error:** `Docker daemon is not running`
+**Using apt (Ubuntu/Debian)**
 
-**Solution:**
-1. Start Docker Desktop application
-2. Wait for it to fully start (whale icon in system tray)
-3. Verify: `docker ps`
-
-#### Issue: PostgreSQL Connection Failed
-
-**Error:** `Can't reach database server`
-
-**Solution:**
-```powershell
-# Check if PostgreSQL service is running
-Get-Service postgresql*
+```bash
+sudo apt-get update
+sudo apt-get install postgresql postgresql-contrib
 
 # Start PostgreSQL service
-Start-Service postgresql-x64-14
+sudo systemctl start postgresql
+sudo systemctl enable postgresql
 
-# Or use Services GUI (Win + R, type: services.msc)
+# Create database user
+sudo -u postgres psql
 ```
 
-#### Issue: Long Path Names
-
-**Error:** `Filename too long` or path issues
-
-**Solution:**
-1. Enable long paths in Windows:
-   ```powershell
-   # Run as Administrator
-   New-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem" -Name "LongPathsEnabled" -Value 1 -PropertyType DWORD -Force
-   ```
-2. Or clone repository to a shorter path (e.g., `C:\dev\bva-server`)
-
-#### Issue: Git Bash vs PowerShell
-
-**Recommendation:** Use **PowerShell** for most commands, but you can use **Git Bash** if you prefer Linux-style commands.
-
-**PowerShell Commands:**
-```powershell
-# Navigate
-cd server
-
-# Run npm scripts
-npm run dev
-
-# Activate Python venv
-.\venv\Scripts\activate
+In PostgreSQL prompt:
+```sql
+CREATE DATABASE bva_db;
+CREATE USER bva_user WITH PASSWORD 'your_password';
+GRANT ALL PRIVILEGES ON DATABASE bva_db TO bva_user;
+\q
 ```
 
-**Git Bash Commands:**
+**Or using Docker**
+
 ```bash
-# Navigate
-cd server
-
-# Run npm scripts
-npm run dev
-
-# Activate Python venv
-source venv/Scripts/activate
+docker-compose up -d postgres
 ```
 
-### Windows Development Tips
+### Step 4: Install Git
 
-1. **Use VS Code:**
-   - Install [VS Code](https://code.visualstudio.com/)
-   - Install extensions: ESLint, Prettier, Python, Prisma
-   - Open integrated terminal (Ctrl + `)
+```bash
+sudo apt-get install git
+git --version
+```
 
-2. **Terminal Options:**
-   - **PowerShell** (recommended) - Native Windows terminal
-   - **Git Bash** - Linux-like commands
-   - **Windows Terminal** - Modern terminal with tabs
-
-3. **File Paths:**
-   - Use backslashes `\` in PowerShell: `.\venv\Scripts\activate`
-   - Use forward slashes `/` in Git Bash: `./venv/Scripts/activate`
-   - Both work in most cases
-
-4. **Environment Variables:**
-   - Create `.env` files in each service directory
-   - Use Notepad, VS Code, or any text editor
-   - Save as `.env` (not `.env.txt`)
-
----
-
----
-
-## Quick Start
-
-### Option 1: One-Command Start (Recommended)
+### Step 5: Clone and Setup Project
 
 ```bash
 # Clone the repository
@@ -471,182 +281,52 @@ cd bva-server
 # Install all dependencies
 npm run install:all
 
-# Start all services (Database, ML Service, Server, Frontends)
-npm start
-# or
-./start-all.sh
+# Navigate to server directory and setup environment
+cd server
+cp .env.example .env
+# Edit .env file with your database credentials
+nano .env  # or use your preferred editor
 ```
 
-This will start:
-- ✅ PostgreSQL (via Docker or local)
-- ✅ Redis (via Docker or local)
-- ✅ ML Service on `http://localhost:8001`
-- ✅ Backend Server on `http://localhost:3000`
-- ✅ BVA Frontend on `http://localhost:8080`
-- ✅ Shopee Clone on `http://localhost:5173`
+### Step 6: Configure Environment Variables
 
-### Option 2: Manual Setup
-
-Follow the [Detailed Setup](#detailed-setup) section below.
-
----
-
-## Detailed Setup
-
-### Step 1: Clone Repository
-
-```bash
-git clone <repository-url>
-cd bva-server
-```
-
-### Step 2: Install Dependencies
-
-#### Root Dependencies
-
-```bash
-npm install
-```
-
-#### Install All Workspace Dependencies
-
-```bash
-npm run install:all
-```
-
-This installs dependencies for:
-- `server/` - Backend API
-- `bva-frontend/` - BVA Dashboard
-- `shopee-clone/` - Shopee Clone Frontend
-
-### Step 3: Database Setup
-
-#### Using Docker (Recommended)
-
-```bash
-# Start PostgreSQL and Redis
-docker-compose up -d postgres redis
-
-# Verify they're running
-docker ps
-```
-
-#### Manual PostgreSQL Setup
-
-**Linux (Ubuntu/Debian):**
-```bash
-sudo apt-get install postgresql postgresql-contrib
-```
-
-**macOS:**
-```bash
-brew install postgresql
-brew services start postgresql
-```
-
-**Windows:**
-See [Windows Setup Guide](#windows-setup-guide) section above for detailed instructions.
-
-**Create Database (All Platforms):**
-```bash
-# Connect to PostgreSQL
-psql -U postgres
-
-# Create database
-CREATE DATABASE virtual_business_assistant;
-
-# Exit
-\q
-```
-
-### Step 4: Environment Variables
-
-#### Backend Server (`server/.env`)
-
-Create `server/.env` file:
+Edit `server/.env` file:
 
 ```env
 # Database
-DATABASE_URL="postgresql://postgres:postgres@localhost:5432/virtual_business_assistant"
+DATABASE_URL="postgresql://bva_user:your_password@localhost:5432/bva_db?schema=public"
 
-# JWT Authentication
-JWT_SECRET="your-super-secret-jwt-key-change-this-in-production"
-JWT_EXPIRATION="24h"
-
-# Server Configuration
+# Server
 PORT=3000
 NODE_ENV=development
-BASE_URL="http://localhost:3000"
-BACKEND_URL="http://localhost:3000"
 
-# Frontend URLs (for CORS and OAuth redirects)
-FRONTEND_URL="http://localhost:8080"
-VITE_API_URL="http://localhost:3000/api"
+# Frontend URL
+FRONTEND_URL=http://localhost:8080
 
-# Google OAuth 2.0
-GOOGLE_CLIENT_ID="your-google-client-id"
-GOOGLE_CLIENT_SECRET="your-google-client-secret"
+# JWT Secret (generate a random string)
+JWT_SECRET=your_jwt_secret_here
+
+# Google OAuth (if using)
+GOOGLE_CLIENT_ID=your_google_client_id
+GOOGLE_CLIENT_SECRET=your_google_client_secret
 
 # ML Service
-ML_SERVICE_URL="http://localhost:8001"
-
-# Redis (optional, for caching)
-REDIS_URL="redis://localhost:6379"
+ML_SERVICE_URL=http://localhost:8001
 ```
 
-#### ML Service (`ml-service/.env`)
-
-Create `ml-service/.env` file:
-
-```env
-# Google Gemini API
-GEMINI_API_KEY="your-google-gemini-api-key"
-
-# ML Service Configuration
-ML_SERVICE_PORT=8001
-ML_SERVICE_HOST="0.0.0.0"
-
-# Model Configuration
-GEMINI_MODEL="gemini-2.0-flash-exp"
-IMAGEN_MODEL="gemini-2.5-flash-image"
-
-# Redis (optional)
-REDIS_URL="redis://localhost:6379"
-```
-
-#### Frontend (`bva-frontend/.env`)
-
-Create `bva-frontend/.env` file:
-
-```env
-VITE_API_URL=http://localhost:3000/api
-VITE_GOOGLE_CLIENT_ID=your-google-client-id
-```
-
-#### Shopee Clone (`shopee-clone/.env`)
-
-Create `shopee-clone/.env` file (optional):
-
-```env
-VITE_API_URL=http://localhost:3000/api
-```
-
-### Step 5: Database Migration
+### Step 7: Setup Database
 
 ```bash
 cd server
 
-# Generate Prisma Client
-npx prisma generate
-
-# Run migrations
+# Run database migrations
 npx prisma migrate dev
 
-# (Optional) View database in Prisma Studio
-npx prisma studio
+# (Optional) Seed database
+npx prisma db seed
 ```
 
-### Step 6: ML Service Setup
+### Step 8: Setup ML Service
 
 ```bash
 cd ml-service
@@ -655,233 +335,216 @@ cd ml-service
 python3 -m venv venv
 
 # Activate virtual environment
-# Linux/macOS:
 source venv/bin/activate
-# Windows:
-venv\Scripts\activate
 
 # Install dependencies
 pip install -r requirements.txt
 ```
 
-### Step 7: Start Services
+### Step 9: Start All Services
 
-#### Option A: Start All at Once
+**Option A: Using npm script (Recommended)**
 
 ```bash
-# From root directory
+# Make start script executable
+chmod +x start-all.sh
+
+# From project root
 npm start
-# or
-./start-all.sh
 ```
 
-#### Option B: Start Individually
+**Option B: Start services individually**
 
-**Terminal 1 - ML Service:**
 ```bash
-# Linux/macOS:
+# Terminal 1: Start ML Service
 cd ml-service
 source venv/bin/activate
 uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload
 
-# Windows (PowerShell):
-cd ml-service
-.\venv\Scripts\activate
-uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload
-```
-
-**Terminal 2 - Backend Server:**
-```bash
+# Terminal 2: Start Backend Server
 cd server
 npm run dev
-```
 
-**Terminal 3 - BVA Frontend:**
-```bash
+# Terminal 3: Start BVA Frontend
 cd bva-frontend
 npm run dev
-```
 
-**Terminal 4 - Shopee Clone:**
-```bash
+# Terminal 4: Start Shopee Clone (optional)
 cd shopee-clone
 npm run dev
 ```
+
+### Step 10: Access Services
+
+Once all services are running:
+
+- **BVA Frontend:** http://localhost:8080
+- **Backend API:** http://localhost:3000/api
+- **Shopee Clone:** http://localhost:5174
+- **ML Service Docs:** http://localhost:8001/docs
 
 ---
 
 ## Environment Variables
 
-### Required Environment Variables
+### Server Environment Variables (`server/.env`)
 
-#### Backend Server (`server/.env`)
+```env
+# Database Configuration
+DATABASE_URL="postgresql://user:password@localhost:5432/bva_db?schema=public"
 
-| Variable | Description | Example |
-|----------|-------------|---------|
-| `DATABASE_URL` | PostgreSQL connection string | `postgresql://user:pass@localhost:5432/dbname` |
-| `JWT_SECRET` | Secret key for JWT tokens | `your-secret-key` |
-| `JWT_EXPIRATION` | JWT token expiration time | `24h` |
-| `PORT` | Server port | `3000` |
-| `GOOGLE_CLIENT_ID` | Google OAuth Client ID | From Google Cloud Console |
-| `GOOGLE_CLIENT_SECRET` | Google OAuth Client Secret | From Google Cloud Console |
-| `ML_SERVICE_URL` | ML Service API URL | `http://localhost:8001` |
+# Server Configuration
+PORT=3000
+NODE_ENV=development
 
-#### ML Service (`ml-service/.env`)
+# Frontend Configuration
+FRONTEND_URL=http://localhost:8080
 
-| Variable | Description | Example |
-|----------|-------------|---------|
-| `GEMINI_API_KEY` | Google Gemini API key | From Google AI Studio |
-| `ML_SERVICE_PORT` | ML Service port | `8001` |
+# Authentication
+JWT_SECRET=your_jwt_secret_here
+JWT_EXPIRES_IN=7d
 
-### Optional Environment Variables
+# Google OAuth (Optional)
+GOOGLE_CLIENT_ID=your_google_client_id
+GOOGLE_CLIENT_SECRET=your_google_client_secret
 
-- `REDIS_URL` - Redis connection string (for caching)
-- `NODE_ENV` - Environment mode (`development` or `production`)
-- `FRONTEND_URL` - Frontend URL for CORS and OAuth redirects
+# ML Service
+ML_SERVICE_URL=http://localhost:8001
+
+# Redis (Optional)
+REDIS_URL=redis://localhost:6379
+```
+
+### ML Service Environment Variables (`ml-service/.env`)
+
+```env
+# ML Service Configuration
+ML_SERVICE_PORT=8001
+
+# Database (if ML service needs direct access)
+DATABASE_URL=postgresql://user:password@localhost:5432/bva_db
+
+# Redis (Optional)
+REDIS_URL=redis://localhost:6379
+```
 
 ---
 
 ## Database Setup
 
-### Initial Setup
+### Using Docker Compose (Recommended)
+
+```bash
+# Start PostgreSQL
+docker-compose up -d postgres
+
+# Check if running
+docker-compose ps
+```
+
+### Manual PostgreSQL Setup
+
+**Windows:**
+```powershell
+# Start PostgreSQL service
+net start postgresql-x64-14  # Version may vary
+
+# Connect to PostgreSQL
+psql -U postgres
+```
+
+**Linux:**
+```bash
+# Start PostgreSQL service
+sudo systemctl start postgresql
+sudo systemctl enable postgresql
+
+# Connect to PostgreSQL
+sudo -u postgres psql
+```
+
+### Run Migrations
 
 ```bash
 cd server
-
-# Generate Prisma Client
+npx prisma migrate dev
 npx prisma generate
-
-# Create database schema
-npx prisma migrate dev --name init
-
-# (Optional) Seed database (if seed script exists)
-# npm run seed
 ```
 
-### View Database
+### View Database (Prisma Studio)
 
 ```bash
-# Open Prisma Studio (GUI)
-npx prisma studio
-
-# Or use PostgreSQL CLI
-psql -U postgres -d virtual_business_assistant
-```
-
-### Clear Database
-
-```bash
-# Clear all data
-npm run db:clear
-
-# Or manually via Prisma Studio
+cd server
 npx prisma studio
 ```
 
-### Database Schema
-
-The database includes the following main models:
-- `User` - User accounts (buyers, sellers, admins)
-- `Shop` - Seller shops
-- `Product` - Products listed by sellers
-- `Sale` - Sales/orders
-- `Inventory` - Inventory tracking
-- `Campaign` - Marketing campaigns
-- `Integration` - Platform integrations
-- `Notification` - User notifications
+Access at: http://localhost:5555
 
 ---
 
 ## Running Services
 
-### Available Commands
+### Start All Services
 
-| Command | Description |
-|---------|-------------|
-| `npm start` | Start all services using `start-all.sh` |
-| `npm run dev` | Start all Node.js services (Server, Frontends) |
-| `npm run dev:server` | Start only backend server |
-| `npm run dev:frontend` | Start only BVA frontend |
-| `npm run dev:shopee` | Start only Shopee Clone |
-| `npm run build` | Build all services for production |
-| `npm run install:all` | Install dependencies for all workspaces |
-
-### Service URLs
-
-Once all services are running:
-
-| Service | URL | Description |
-|---------|-----|-------------|
-| **Backend API** | http://localhost:3000 | REST API |
-| **API Docs** | http://localhost:3000/api | API endpoints |
-| **BVA Frontend** | http://localhost:8080 | Business dashboard |
-| **Shopee Clone** | http://localhost:5173 | E-commerce frontend |
-| **ML Service** | http://localhost:8001 | ML/AI service |
-| **ML Docs** | http://localhost:8001/docs | FastAPI Swagger UI |
-| **Prisma Studio** | http://localhost:5555 | Database GUI (run `npx prisma studio`) |
-
----
-
-## Port Configuration
-
-### Default Ports
-
-| Service | Port | Config File |
-|---------|------|-------------|
-| Backend Server | 3000 | `server/.env` |
-| BVA Frontend | 8080 | `bva-frontend/vite.config.ts` |
-| Shopee Clone | 5173 | `shopee-clone/vite.config.ts` |
-| ML Service | 8001 | `ml-service/app/config.py` |
-| PostgreSQL | 5432 | `docker-compose.yml` |
-| Redis | 6379 | `docker-compose.yml` |
-
-### Changing Ports
-
-**Backend Server:**
-```env
-# server/.env
-PORT=3000
+```bash
+# From project root
+npm start
 ```
 
-**BVA Frontend:**
-```typescript
-// bva-frontend/vite.config.ts
-export default {
-  server: {
-    port: 8080
-  }
-}
+This will start:
+- ML Service on port 8001
+- Backend Server on port 3000
+- BVA Frontend on port 8080
+- Shopee Clone on port 5174
+
+### Start Services Individually
+
+```bash
+# Backend Server
+cd server && npm run dev
+
+# BVA Frontend
+cd bva-frontend && npm run dev
+
+# Shopee Clone
+cd shopee-clone && npm run dev
+
+# ML Service
+cd ml-service
+source venv/bin/activate  # Linux
+# or
+.\venv\Scripts\activate    # Windows
+uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload
 ```
 
-**Shopee Clone:**
-```typescript
-// shopee-clone/vite.config.ts
-export default {
-  server: {
-    port: 5173
-  }
-}
-```
+### Build for Production
 
-**ML Service:**
-```python
-# ml-service/app/config.py
-ML_SERVICE_PORT = 8001
+```bash
+# Build all services
+npm run build
+
+# Build individual services
+npm run build:server
+npm run build:frontend
+npm run build:shopee
 ```
 
 ---
 
 ## Troubleshooting
 
-### Common Issues
+### Port Already in Use
 
-#### 1. Port Already in Use
+**Windows:**
+```powershell
+# Find process using port
+netstat -ano | findstr :3000
 
-**Error:** `EADDRINUSE: address already in use :::3000`
+# Kill process
+taskkill /PID <process_id> /F
+```
 
-**Solution:**
-
-**Linux/macOS:**
+**Linux:**
 ```bash
 # Find process using port
 lsof -i :3000
@@ -890,292 +553,81 @@ lsof -i :3000
 kill -9 <PID>
 ```
 
-**Windows:**
-```powershell
-# Find process using port
-netstat -ano | findstr :3000
+### Database Connection Issues
 
-# Kill process (replace <PID> with actual process ID)
-taskkill /PID <PID> /F
-```
-
-**Or change port in config:**
-See [Port Configuration](#port-configuration) section.
-
-#### 2. Database Connection Failed
-
-**Error:** `Can't reach database server`
-
-**Solution:**
-```bash
-# Check PostgreSQL is running
-docker ps | grep postgres
-# or
-ps aux | grep postgres
-
-# Verify DATABASE_URL in server/.env
-DATABASE_URL="postgresql://postgres:postgres@localhost:5432/virtual_business_assistant"
-
-# Test connection
-psql -U postgres -d virtual_business_assistant
-```
-
-#### 3. ML Service Not Starting
-
-**Error:** `ModuleNotFoundError` or Python errors
-
-**Solution:**
-
-**Linux/macOS:**
-```bash
-cd ml-service
-source venv/bin/activate
-pip install -r requirements.txt
-python --version  # Should be >= 3.9
-```
-
-**Windows:**
-```powershell
-cd ml-service
-.\venv\Scripts\activate
-pip install -r requirements.txt
-python --version  # Should be >= 3.9
-```
-
-**If activation fails on Windows:**
-```powershell
-# Run PowerShell as Administrator
-Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
-# Then try activating again
-.\venv\Scripts\activate
-```
-
-#### 4. Prisma Client Not Generated
-
-**Error:** `@prisma/client did not initialize yet`
-
-**Solution:**
-```bash
-cd server
-npx prisma generate
-```
-
-#### 5. CORS Errors
-
-**Error:** `Access to fetch at 'http://localhost:3000' from origin 'http://localhost:8080' has been blocked by CORS policy`
-
-**Solution:**
-- Verify `FRONTEND_URL` in `server/.env` matches your frontend URL
-- Check CORS configuration in `server/src/app.ts`
-
-#### 6. Google OAuth Not Working
-
-**Error:** `redirect_uri_mismatch`
-
-**Solution:**
-1. Go to [Google Cloud Console](https://console.cloud.google.com/)
-2. Navigate to APIs & Services > Credentials
-3. Edit your OAuth 2.0 Client ID
-4. Add authorized redirect URIs:
-   - `http://localhost:3000/api/auth/google/callback`
-   - `http://localhost:8080/login`
-   - `http://localhost:5173/login`
-
-#### 7. Missing Environment Variables
-
-**Error:** `process.env.GEMINI_API_KEY is undefined`
-
-**Solution:**
-- Create `.env` files in each service directory
-- Copy `.env.example` if available
-- Verify variable names match exactly
-
-### Getting Help
-
-1. **Check Logs:**
+1. Verify PostgreSQL is running:
    ```bash
-   # Server logs
-   tail -f server.log
+   # Windows
+   net start postgresql-x64-14
    
-   # ML Service logs
-   tail -f ml-service.log
+   # Linux
+   sudo systemctl status postgresql
    ```
 
-2. **Verify Services:**
+2. Check `DATABASE_URL` in `server/.env`
+3. Verify database exists:
    ```bash
-   # Check all services are running
-   curl http://localhost:3000/health
-   curl http://localhost:8001/health
+   psql -U postgres -l
    ```
 
-3. **Database Issues:**
+### ML Service Not Starting
+
+1. Verify Python virtual environment is activated
+2. Check all dependencies are installed:
    ```bash
-   # Reset database
-   cd server
-   npx prisma migrate reset
-   npx prisma migrate dev
+   pip install -r requirements.txt
    ```
+3. Verify port 8001 is available
 
----
+### CORS Issues
 
-## Development Workflow
+1. Verify `FRONTEND_URL` in `server/.env` matches your frontend URL
+2. Check backend CORS configuration
 
-### Daily Development
+### Module Not Found Errors
 
-1. **Start Services:**
-   ```bash
-   npm start
-   ```
+```bash
+# Reinstall all dependencies
+npm run install:all
 
-2. **Make Changes:**
-   - All services support hot-reload
-   - Changes auto-refresh in browser
+# Clear node_modules and reinstall
+rm -rf node_modules package-lock.json
+npm install
+```
 
-3. **Test Changes:**
-   - Frontend: http://localhost:8080 (BVA) or http://localhost:5173 (Shopee)
-   - API: http://localhost:3000/api
-   - ML Service: http://localhost:8001/docs
-
-### Database Changes
+### Prisma Issues
 
 ```bash
 cd server
 
-# Create migration
-npx prisma migrate dev --name your-migration-name
+# Reset database (WARNING: Deletes all data)
+npx prisma migrate reset
 
-# Apply migration
-npx prisma migrate deploy
+# Generate Prisma Client
+npx prisma generate
 
-# View database
-npx prisma studio
+# Run migrations
+npx prisma migrate dev
 ```
-
-### Adding Dependencies
-
-```bash
-# Backend
-cd server
-npm install <package>
-
-# Frontend
-cd bva-frontend
-npm install <package>
-
-# Shopee Clone
-cd shopee-clone
-npm install <package>
-
-# ML Service
-cd ml-service
-source venv/bin/activate
-pip install <package>
-pip freeze > requirements.txt
-```
-
-### Code Quality
-
-```bash
-# Lint code (if configured)
-npm run lint
-
-# Format code (if configured)
-npm run format
-
-# Type check
-npm run type-check
-```
-
----
-
-## Project Structure
-
-```
-bva-server/
-├── server/                 # Backend API (Node.js/Express/TypeScript)
-│   ├── src/
-│   │   ├── controllers/   # Route controllers
-│   │   ├── services/      # Business logic
-│   │   ├── routes/        # API routes
-│   │   ├── middlewares/   # Express middlewares
-│   │   └── lib/           # Utilities
-│   ├── prisma/            # Database schema and migrations
-│   └── .env               # Environment variables
-│
-├── bva-frontend/          # BVA Dashboard (React/Vite)
-│   ├── src/
-│   │   ├── pages/         # Page components
-│   │   ├── components/    # Reusable components
-│   │   ├── services/      # API clients
-│   │   └── hooks/         # React hooks
-│   └── .env               # Environment variables
-│
-├── shopee-clone/          # Shopee Clone Frontend (React/Vite)
-│   ├── src/
-│   │   ├── features/      # Feature modules
-│   │   ├── components/    # Reusable components
-│   │   └── services/      # API clients
-│   └── .env               # Environment variables
-│
-├── ml-service/            # ML/AI Service (Python/FastAPI)
-│   ├── app/
-│   │   ├── routes/        # API routes
-│   │   ├── services/      # ML services
-│   │   └── models/        # ML models
-│   ├── venv/              # Python virtual environment
-│   └── .env               # Environment variables
-│
-├── docker-compose.yml     # Docker services (PostgreSQL, Redis)
-├── start-all.sh           # Start all services script
-└── package.json           # Root package.json with workspaces
-```
-
----
-
-## Next Steps
-
-After setup:
-
-1. **Configure Google OAuth:**
-   - Get credentials from [Google Cloud Console](https://console.cloud.google.com/)
-   - Add to `server/.env` and `bva-frontend/.env`
-
-2. **Get Gemini API Key:**
-   - Visit [Google AI Studio](https://makersuite.google.com/app/apikey)
-   - Add to `ml-service/.env`
-
-3. **Create First User:**
-   - Sign up at http://localhost:8080 or http://localhost:5173
-   - Or use Google OAuth
-
-4. **Explore Features:**
-   - BVA Dashboard: http://localhost:8080
-   - Shopee Clone: http://localhost:5173
-   - API Documentation: http://localhost:3000/api
-   - ML Service Docs: http://localhost:8001/docs
 
 ---
 
 ## Additional Resources
 
-- [Prisma Documentation](https://www.prisma.io/docs)
-- [FastAPI Documentation](https://fastapi.tiangolo.com/)
-- [React Documentation](https://react.dev/)
-- [Vite Documentation](https://vitejs.dev/)
-- [Google Gemini API](https://ai.google.dev/docs)
+- **Backend API Docs:** http://localhost:3000/api/docs
+- **ML Service Docs:** http://localhost:8001/docs
+- **Prisma Studio:** Run `npx prisma studio` in `server/` directory
 
 ---
 
 ## Support
 
 For issues or questions:
-1. Check [Troubleshooting](#troubleshooting) section
+1. Check the troubleshooting section above
 2. Review service logs
-3. Check GitHub Issues
+3. Check GitHub issues
 4. Contact the development team
 
 ---
 
-**Last Updated:** 2025-01-XX
-**Version:** 1.0.0
-
+**Last Updated:** 2024

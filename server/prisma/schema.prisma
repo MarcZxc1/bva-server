@@ -52,6 +52,7 @@ model User {
   email     String   @unique
   password  String?
   googleId  String?  @unique
+  facebookId String? @unique
   shopeeId  String?  @unique
   name      String?
   firstName String?
@@ -62,6 +63,7 @@ model User {
 
   shops     Shop[]
   notifications Notification[]
+  socialMediaAccounts SocialMediaAccount[]
 }
 
 model Notification {
@@ -186,4 +188,20 @@ model Integration {
   createdAt DateTime  @default(now())
 
   @@unique([shopId, platform])
+}
+
+model SocialMediaAccount {
+  id                String   @id @default(uuid())
+  user              User     @relation(fields: [userId], references: [id])
+  userId            String
+  platform          String   // 'facebook', 'instagram', etc.
+  accessToken       String   @db.Text
+  refreshToken      String?  @db.Text
+  pageId            String?  // Facebook Page ID
+  accountId         String?  // Instagram Business Account ID
+  expiresAt         DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@unique([userId, platform])
 }

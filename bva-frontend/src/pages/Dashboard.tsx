@@ -5,6 +5,7 @@ import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, R
 import { useAtRiskInventory, useDashboardAnalytics } from "@/hooks/useSmartShelf";
 import { useRealtimeDashboard } from "@/hooks/useRealtimeDashboard";
 import { useAuth } from "@/contexts/AuthContext";
+import { useIntegration } from "@/hooks/useIntegration";
 import { useState } from "react";
 import { apiClient } from "@/lib/api-client";
 
@@ -14,16 +15,17 @@ export default function Dashboard() {
   const hasShop = !!shopId;
   const [isSyncing, setIsSyncing] = useState(false);
   
-  const { data: atRiskData, isLoading: atRiskLoading, refetch: refetchAtRisk } = useAtRiskInventory(shopId || "", hasShop);
-  const { data: analyticsData, isLoading: analyticsLoading, refetch: refetchAnalytics } = useDashboardAnalytics(shopId || "", hasShop);
+  const { hasActiveIntegration, isLoading: isLoadingIntegration } = useIntegration();
+  const { data: atRiskData, isLoading: atRiskLoading, refetch: refetchAtRisk } = useAtRiskInventory(shopId || "", hasShop && hasActiveIntegration);
+  const { data: analyticsData, isLoading: analyticsLoading, refetch: refetchAnalytics } = useDashboardAnalytics(shopId || "", hasShop && hasActiveIntegration);
   
   // Enable real-time updates
   const { isConnected } = useRealtimeDashboard({ 
     shopId: shopId || undefined, 
-    enabled: hasShop 
+    enabled: hasShop && hasActiveIntegration
   });
 
-  const isLoading = (analyticsLoading || atRiskLoading) && hasShop;
+  const isLoading = (analyticsLoading || atRiskLoading || isLoadingIntegration) && hasShop;
 
   // Handle data sync from Shopee-Clone
   const handleSyncData = async () => {
@@ -63,6 +65,7 @@ export default function Dashboard() {
 
   // Check for empty states
   const hasNoShop = !hasShop;
+  const hasNoIntegration = !hasActiveIntegration;
   const hasNoSalesData = !salesData || salesData.length === 0;
   const hasNoInventory = !atRiskData?.at_risk || atRiskData.at_risk.length === 0;
 
@@ -134,89 +137,124 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Key Metrics */}
-      {isLoading ? (
-        <Card className="glass-card">
-          <CardContent className="py-12 flex items-center justify-center">
-            <div className="text-center space-y-2">
-              <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto" />
-              <p className="text-sm text-muted-foreground">Loading dashboard data...</p>
+      {/* Integration Required Message - Show first if no integration */}
+      {!isLoadingIntegration && hasNoIntegration && (
+        <Card className="glass-card border-primary/20">
+          <CardHeader>
+            <CardTitle className="text-foreground flex items-center gap-2">
+              <AlertCircle className="h-5 w-5 text-warning" />
+              Integration Required
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                To see your dashboard metrics and analytics, you need to integrate with Shopee-Clone and accept the terms and conditions.
+              </p>
+              <ul className="text-sm text-muted-foreground space-y-2 ml-4">
+                <li>• Go to Settings → Integrations</li>
+                <li>• Connect your Shopee-Clone account</li>
+                <li>• Accept the terms and conditions</li>
+                <li>• Sync your data to see dashboard metrics</li>
+              </ul>
+              <div className="pt-2">
+                <Button
+                  onClick={() => window.location.href = '/settings'}
+                  className="gap-2 bg-primary hover:bg-primary/90"
+                >
+                  Go to Settings
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>
-      ) : (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <Card className="glass-card">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-foreground">Total Sales</CardTitle>
-              <DollarSign className="h-4 w-4 text-primary" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-foreground">
-                ₱{(analyticsData?.metrics?.totalRevenue || 0).toLocaleString()}
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                Lifetime revenue
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card className="glass-card">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-foreground">Total Orders</CardTitle>
-              <ShoppingCart className="h-4 w-4 text-primary" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-foreground">
-                {analyticsData?.metrics?.totalSales || 0}
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                Completed transactions
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card className="glass-card">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-foreground">Active Products</CardTitle>
-              <Package className="h-4 w-4 text-primary" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-foreground">
-                {analyticsData?.metrics?.totalProducts || 0}
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                In your inventory
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card className="glass-card">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-foreground">Stock Alerts</CardTitle>
-              <AlertCircle className="h-4 w-4 text-warning" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-warning">
-                {atRiskData?.meta?.flagged_count || 0}
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                Items need attention
-              </p>
-            </CardContent>
-          </Card>
-        </div>
       )}
 
-      {/* Sales Forecast Chart */}
-      <Card className="glass-card">
-        <CardHeader>
-          <CardTitle className="text-foreground flex items-center gap-2">
-            <BarChart3 className="h-5 w-5 text-primary" />
-            Sales Forecast
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
+      {/* Key Metrics - Only show if integration is active */}
+      {!isLoadingIntegration && hasActiveIntegration && (
+        <>
+          {isLoading ? (
+            <Card className="glass-card">
+              <CardContent className="py-12 flex items-center justify-center">
+                <div className="text-center space-y-2">
+                  <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto" />
+                  <p className="text-sm text-muted-foreground">Loading dashboard data...</p>
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+              <Card className="glass-card">
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                  <CardTitle className="text-sm font-medium text-foreground">Total Sales</CardTitle>
+                  <DollarSign className="h-4 w-4 text-primary" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-3xl font-bold text-foreground">
+                    ₱{(analyticsData?.metrics?.totalRevenue || 0).toLocaleString()}
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Lifetime revenue
+                  </p>
+                </CardContent>
+              </Card>
+
+              <Card className="glass-card">
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                  <CardTitle className="text-sm font-medium text-foreground">Total Orders</CardTitle>
+                  <ShoppingCart className="h-4 w-4 text-primary" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-3xl font-bold text-foreground">
+                    {analyticsData?.metrics?.totalSales || 0}
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Completed transactions
+                  </p>
+                </CardContent>
+              </Card>
+
+              <Card className="glass-card">
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                  <CardTitle className="text-sm font-medium text-foreground">Active Products</CardTitle>
+                  <Package className="h-4 w-4 text-primary" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-3xl font-bold text-foreground">
+                    {analyticsData?.metrics?.totalProducts || 0}
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    In your inventory
+                  </p>
+                </CardContent>
+              </Card>
+
+              <Card className="glass-card">
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                  <CardTitle className="text-sm font-medium text-foreground">Stock Alerts</CardTitle>
+                  <AlertCircle className="h-4 w-4 text-warning" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-3xl font-bold text-warning">
+                    {atRiskData?.meta?.flagged_count || 0}
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Items need attention
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          {/* Sales Forecast Chart */}
+          <Card className="glass-card">
+            <CardHeader>
+              <CardTitle className="text-foreground flex items-center gap-2">
+                <BarChart3 className="h-5 w-5 text-primary" />
+                Sales Forecast
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
           {isLoading ? (
             <div className="h-[300px] flex items-center justify-center">
               <Loader2 className="h-6 w-6 animate-spin text-primary" />
@@ -266,12 +304,12 @@ export default function Dashboard() {
                 />
               </LineChart>
             </ResponsiveContainer>
-          )}
-        </CardContent>
-      </Card>
+            )}
+          </CardContent>
+        </Card>
 
-      {/* Inventory Status */}
-      <Card className="glass-card">
+        {/* Inventory Status */}
+        <Card className="glass-card">
         <CardHeader>
           <CardTitle className="text-foreground flex items-center gap-2">
             <AlertCircle className="h-5 w-5 text-warning" />
@@ -319,12 +357,12 @@ export default function Dashboard() {
                 </div>
               ))}
             </div>
-          )}
-        </CardContent>
-      </Card>
+            )}
+          </CardContent>
+        </Card>
 
-      {/* Quick Actions - Show when no data */}
-      {(hasNoSalesData || hasNoInventory) && (
+        {/* Quick Actions - Show when no data but integration exists */}
+        {(hasNoSalesData || hasNoInventory) && (
         <Card className="glass-card border-primary/20">
           <CardHeader>
             <CardTitle className="text-foreground">🚀 Get Started</CardTitle>
@@ -341,7 +379,7 @@ export default function Dashboard() {
               <ul className="text-sm text-muted-foreground space-y-2 ml-4">
                 {hasNoSalesData && (
                   <>
-                    <li>• Connect your Shopee-Clone account via SSO to sync sales</li>
+                    <li>• Sync your sales data from Shopee-Clone</li>
                     <li>• Or manually add sales records through the API</li>
                   </>
                 )}
@@ -360,15 +398,14 @@ export default function Dashboard() {
                   className="gap-2 bg-primary hover:bg-primary/90"
                 >
                   <RefreshCw className={`h-4 w-4 ${isSyncing ? 'animate-spin' : ''}`} />
-                  {isSyncing ? "Refreshing..." : "Refresh Data"}
+                  {isSyncing ? "Refreshing..." : "Sync Data from Shopee-Clone"}
                 </Button>
-                <p className="text-xs text-muted-foreground mt-2">
-                  Note: For full sync from Shopee-Clone, use SSO login which automatically syncs your data.
-                </p>
               </div>
-            </div>
-          </CardContent>
-        </Card>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+        </>
       )}
     </div>
   );

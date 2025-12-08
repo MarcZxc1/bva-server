@@ -15,6 +15,7 @@
 
 import prisma from "../lib/prisma";
 import { mlClient } from "../utils/mlClient";
+import { hasActiveIntegration } from "../utils/integrationCheck";
 import {
   RestockRequestDTO,
   RestockResponseDTO,
@@ -29,10 +30,19 @@ import {
 async function fetchProductsForRestock(
   shopId: string
 ): Promise<ProductInput[]> {
+  // Check if shop has active integration
+  const isActive = await hasActiveIntegration(shopId);
+  if (!isActive) {
+    // Return empty array if no active integration
+    return [];
+  }
+
   // Fetch products with related inventory and sales data using Prisma ORM
+  // Only products synced from integrations
   const productsData = await prisma.product.findMany({
     where: {
       shopId: shopId,
+      externalId: { not: null }, // Only products synced from integrations
     },
     include: {
       inventories: {
@@ -48,9 +58,17 @@ async function fetchProductsForRestock(
       const sixtyDaysAgo = new Date();
       sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
 
+      // Get active integrations to filter by platform
+      const integrations = await prisma.integration.findMany({
+        where: { shopId },
+        select: { platform: true },
+      });
+      const integrationPlatforms = integrations.map(i => i.platform);
+
       const sales = await prisma.sale.findMany({
         where: {
           shopId: shopId,
+          ...(integrationPlatforms.length > 0 && { platform: { in: integrationPlatforms } }), // Only sales from integrated platforms
           createdAt: {
             gte: sixtyDaysAgo,
           },

@@ -15,11 +15,15 @@ export async function createOrder(data: {
   paymentMethod?: string;
 }) {
   // Get shop IDs from products
+  // Product IDs from shopee-clone might be external IDs, so we need to search by both id and externalId
   const productIds = data.items.map(item => item.productId);
-  const products = await prisma.product.findMany({
+  
+  // First, try to find products by internal ID
+  let products = await prisma.product.findMany({
     where: { id: { in: productIds } },
     select: { 
-      id: true, 
+      id: true,
+      externalId: true,
       name: true,
       shopId: true, 
       stock: true,
@@ -28,20 +32,69 @@ export async function createOrder(data: {
     },
   });
 
-  if (products.length !== productIds.length) {
-    throw new Error("Some products not found");
+  // Find which product IDs weren't found by internal ID
+  const foundIds = new Set(products.map(p => p.id));
+  const missingIds = productIds.filter(id => !foundIds.has(id));
+
+  // If some products weren't found, try to find them by externalId
+  if (missingIds.length > 0) {
+    const productsByExternalId = await prisma.product.findMany({
+      where: { externalId: { in: missingIds } },
+      select: { 
+        id: true,
+        externalId: true,
+        name: true,
+        shopId: true, 
+        stock: true,
+        cost: true,
+        shop: { select: { name: true } } 
+      },
+    });
+    
+    // Add products found by externalId to the products array
+    products = [...products, ...productsByExternalId];
   }
 
-  // Group items by shop
-  const ordersByShop = new Map<string, typeof data.items>();
+  // Create a map to quickly look up products by either id or externalId
+  const productMap = new Map<string, typeof products[0]>();
+  for (const product of products) {
+    productMap.set(product.id, product);
+    if (product.externalId) {
+      productMap.set(product.externalId, product);
+    }
+  }
+
+  // Verify all products were found
+  const notFoundIds = productIds.filter(id => !productMap.has(id));
+  if (notFoundIds.length > 0) {
+    console.error('Products not found:', notFoundIds);
+    throw new Error(`Some products not found: ${notFoundIds.join(', ')}`);
+  }
+
+  // Group items by shop, using the correct internal product ID
+  const ordersByShop = new Map<string, Array<{
+    productId: string; // Use internal ID
+    quantity: number;
+    price: number;
+  }>>();
+  
   for (const item of data.items) {
-    const product = products.find(p => p.id === item.productId);
-    if (!product) continue;
+    const product = productMap.get(item.productId);
+    if (!product) {
+      console.error(`Product not found for ID: ${item.productId}`);
+      continue;
+    }
 
     if (!ordersByShop.has(product.shopId)) {
       ordersByShop.set(product.shopId, []);
     }
-    ordersByShop.get(product.shopId)!.push(item);
+    
+    // Use the internal product ID for the order
+    ordersByShop.get(product.shopId)!.push({
+      productId: product.id, // Use internal ID, not external ID
+      quantity: item.quantity,
+      price: item.price,
+    });
   }
 
   // Create orders for each shop using transactions

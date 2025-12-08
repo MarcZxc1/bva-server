@@ -252,3 +252,41 @@ export const getPlatformComparison = async (req: Request, res: Response) => {
     });
   }
 };
+
+/**
+ * Get stock turnover report
+ * GET /api/reports/stock-turnover?start=2023-01-01&end=2023-12-31
+ */
+export const getStockTurnoverReport = async (req: Request, res: Response) => {
+  try {
+    const shopId = await getShopIdFromRequest(req);
+
+    if (!shopId) {
+      return res.status(400).json({
+        success: false,
+        error: "Shop ID not found.",
+      });
+    }
+
+    const { start, end } = req.query;
+    const startDate = start ? new Date(start as string) : undefined;
+    const endDate = end ? new Date(end as string) : undefined;
+
+    const report = await reportsService.getStockTurnoverReport(
+      shopId,
+      startDate,
+      endDate
+    );
+
+    res.json({
+      success: true,
+      data: report,
+    });
+  } catch (error) {
+    console.error("Error fetching stock turnover report:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch stock turnover report",
+    });
+  }
+};

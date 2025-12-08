@@ -1,0 +1,12 @@
+# Supabase Configuration File
+# This file configures Edge Functions for public access
+
+[functions.privacy-policy]
+verify_jwt = false
+
+[functions.terms-of-service]
+verify_jwt = false
+
+[functions.meta-data-deletion]
+verify_jwt = false
+

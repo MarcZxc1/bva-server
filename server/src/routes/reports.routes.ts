@@ -36,6 +36,13 @@ router.get("/", (req: Request, res: Response) => {
         description: "Get platform comparison statistics",
         auth: true,
         queryParams: ["start", "end"]
+      },
+      stockTurnover: {
+        path: "/api/reports/stock-turnover",
+        method: "GET",
+        description: "Get stock turnover report with inventory movement metrics",
+        auth: true,
+        queryParams: ["start", "end"]
       }
     }
   });
@@ -45,5 +52,6 @@ router.get("/metrics", authMiddleware, reportsController.getDashboardMetrics);
 router.get("/sales-summary", authMiddleware, reportsController.getSalesSummary);
 router.get("/profit-analysis", authMiddleware, reportsController.getProfitAnalysis);
 router.get("/platform-comparison", authMiddleware, reportsController.getPlatformComparison);
+router.get("/stock-turnover", authMiddleware, reportsController.getStockTurnoverReport);
 
 export default router;

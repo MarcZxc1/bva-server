@@ -9,6 +9,7 @@
 import prisma from "../lib/prisma";
 import { CacheService } from "../lib/redis";
 import type { Prisma } from "../generated/prisma";
+import { hasActiveIntegration } from "../utils/integrationCheck";
 
 export interface SalesOverTimeData {
   date: string;
@@ -48,16 +49,31 @@ export class ReportsService {
     endDate: Date,
     interval: "day" | "month" = "day"
   ): Promise<SalesOverTimeData[]> {
+    // Check if shop has active integration
+    const isActive = await hasActiveIntegration(shopId);
+    if (!isActive) {
+      // Return empty array if no active integration
+      return [];
+    }
+
     const cacheKey = `sales:${shopId}:${startDate.toISOString()}:${endDate.toISOString()}:${interval}`;
     
     // Try cache first (15 min TTL for sales data)
     return CacheService.getOrSet(
       cacheKey,
       async () => {
-        // Fetch sales in the date range - ALWAYS filtered by shopId
+        // Get active integrations to filter by platform
+        const integrations = await prisma.integration.findMany({
+          where: { shopId },
+          select: { platform: true },
+        });
+        const integrationPlatforms = integrations.map(i => i.platform);
+
+        // Fetch sales in the date range - ALWAYS filtered by shopId and platform
         const sales = await prisma.sale.findMany({
       where: {
         shopId, // Critical: ensures user-specific data only
+        ...(integrationPlatforms.length > 0 && { platform: { in: integrationPlatforms } }), // Only sales from integrated platforms
         createdAt: {
           gte: startDate,
           lte: endDate,
@@ -241,14 +257,39 @@ export class ReportsService {
     startDate?: Date,
     endDate?: Date
   ): Promise<ProfitAnalysisData> {
+    // Check if shop has active integration
+    const isActive = await hasActiveIntegration(shopId);
+    if (!isActive) {
+      // Return empty/default data if no active integration
+      const now = new Date();
+      return {
+        totalRevenue: 0,
+        totalCost: 0,
+        totalProfit: 0,
+        profitMargin: 0,
+        period: {
+          start: startDate || now,
+          end: endDate || now,
+        },
+      };
+    }
+
     const cacheKey = `profit:${shopId}:${startDate?.toISOString() || 'all'}:${endDate?.toISOString() || 'all'}`;
     
     // Try cache first (15 min TTL)
     return CacheService.getOrSet(
       cacheKey,
       async () => {
+        // Get active integrations to filter by platform
+        const integrations = await prisma.integration.findMany({
+          where: { shopId },
+          select: { platform: true },
+        });
+        const integrationPlatforms = integrations.map(i => i.platform);
+
         const whereClause: Prisma.SaleWhereInput = {
       shopId, // Always filter by shopId - ensures user-specific data
+      ...(integrationPlatforms.length > 0 && { platform: { in: integrationPlatforms } }), // Only sales from integrated platforms
       status: "completed",
     };
 
@@ -358,6 +399,12 @@ export class ReportsService {
     startDate?: Date,
     endDate?: Date
   ): Promise<PlatformComparisonData[]> {
+    // Check if shop has active integration
+    const isActive = await hasActiveIntegration(shopId);
+    if (!isActive) {
+      // Return empty array if no active integration
+      return [];
+    }
     const cacheKey = `platform:${shopId}:${startDate?.toISOString() || 'all'}:${endDate?.toISOString() || 'all'}`;
     
     // Try cache first (15 min TTL)
@@ -484,10 +531,12 @@ export class ReportsService {
 
     // Calculate stock turnover
     // Stock Turnover = COGS / Average Inventory Value
+    // Only include products synced from integrations
     const inventory = await prisma.inventory.findMany({
       where: {
         product: {
           shopId,
+          externalId: { not: null }, // Only products synced from integrations
         },
       },
       include: {
@@ -518,6 +567,110 @@ export class ReportsService {
       },
       600 // 10 minutes cache TTL
     );
+  }
+
+  /**
+   * Get stock turnover report with detailed inventory movement
+   */
+  async getStockTurnoverReport(
+    shopId: string,
+    startDate?: Date,
+    endDate?: Date
+  ): Promise<{
+    stockTurnover: number;
+    inventoryValue: number;
+    cogs: number;
+    products: Array<{
+      productId: string;
+      productName: string;
+      sku: string;
+      currentStock: number;
+      inventoryValue: number;
+      turnoverRate: number;
+    }>;
+    period: {
+      start: string;
+      end: string;
+    };
+  }> {
+    // Check if shop has active integration
+    const isActive = await hasActiveIntegration(shopId);
+    if (!isActive) {
+      // Return empty/default data if no active integration
+      const end = endDate || new Date();
+      const start = startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+      return {
+        stockTurnover: 0,
+        inventoryValue: 0,
+        cogs: 0,
+        products: [],
+        period: {
+          start: start.toISOString().split("T")[0]!,
+          end: end.toISOString().split("T")[0]!,
+        },
+      };
+    }
+
+    const end = endDate || new Date();
+    const start = startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000); // Default to 30 days
+
+    // Get profit analysis for the period to get COGS
+    const profitAnalysis = await this.getProfitAnalysis(shopId, start, end);
+
+    // Get all products with inventory (only synced products from integrations)
+    const products = await prisma.product.findMany({
+      where: { 
+        shopId,
+        externalId: { not: null }, // Only products synced from integrations
+      },
+      include: {
+        inventories: {
+          take: 1,
+          orderBy: { updatedAt: "desc" },
+        },
+      },
+    });
+
+    // Calculate inventory value and turnover per product
+    const productReports = products.map((product) => {
+      const quantity = product.inventories[0]?.quantity || product.stock || 0;
+      const cost = product.cost || 0;
+      const inventoryValue = cost * quantity;
+      
+      // Calculate turnover rate for this product (simplified: based on sales)
+      const turnoverRate = inventoryValue > 0 
+        ? (profitAnalysis.totalCost / products.length) / inventoryValue 
+        : 0;
+
+      return {
+        productId: product.id,
+        productName: product.name,
+        sku: product.sku,
+        currentStock: quantity,
+        inventoryValue,
+        turnoverRate: Math.round(turnoverRate * 100) / 100,
+      };
+    });
+
+    const totalInventoryValue = productReports.reduce(
+      (sum, p) => sum + p.inventoryValue,
+      0
+    );
+
+    const overallTurnover = totalInventoryValue > 0
+      ? profitAnalysis.totalCost / totalInventoryValue
+      : 0;
+
+    return {
+      stockTurnover: Math.round(overallTurnover * 100) / 100,
+      inventoryValue: totalInventoryValue,
+      cogs: profitAnalysis.totalCost,
+      products: productReports.sort((a, b) => b.turnoverRate - a.turnoverRate),
+      period: {
+        start: start.toISOString().split("T")[0]!,
+        end: end.toISOString().split("T")[0]!,
+      },
+    };
   }
 }
 

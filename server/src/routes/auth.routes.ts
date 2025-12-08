@@ -50,6 +50,99 @@ const authMiddleware = async (req: Request, res: Response, next: Function) => {
 };
 
 // ==========================================
+// Supabase Auth Routes (Facebook OAuth handled by Supabase)
+// ==========================================
+
+/**
+ * @route   POST /api/auth/supabase/verify
+ * @desc    Verify Supabase access token and sync user to local database
+ * @access  Public
+ * 
+ * This endpoint is called by the frontend after Supabase OAuth completes.
+ * It verifies the Supabase token, syncs the user to the local database,
+ * and returns a JWT token for the local API.
+ */
+router.post("/supabase/verify", async (req: Request, res: Response) => {
+  try {
+    const { accessToken } = req.body;
+
+    if (!accessToken) {
+      return res.status(400).json({
+        success: false,
+        message: "Access token is required",
+      });
+    }
+
+    // Import here to avoid circular dependencies
+    const { supabaseAuthService } = await import("../service/supabaseAuth.service");
+    const { supabase } = await import("../lib/supabase");
+
+    if (!supabase) {
+      return res.status(500).json({
+        success: false,
+        message: "Supabase not configured",
+      });
+    }
+
+    // Verify token with Supabase
+    console.log('🔐 Verifying Supabase token...');
+    const supabaseUser = await supabaseAuthService.verifyToken(accessToken);
+
+    if (!supabaseUser) {
+      console.error('❌ Token verification failed');
+      return res.status(401).json({
+        success: false,
+        message: "Invalid or expired token",
+      });
+    }
+
+    console.log('✅ Token verified, syncing user to database...');
+    // Sync user to local database
+    const { user: localUser, created } = await supabaseAuthService.syncUser(supabaseUser);
+    console.log(`✅ User ${created ? 'created' : 'updated'}:`, localUser.email);
+
+    // Get user's shops
+    const shops = await prisma.shop.findMany({
+      where: { ownerId: localUser.id },
+      select: { id: true, name: true },
+    });
+
+    // Generate JWT token for local API
+    const token = jwt.sign(
+      {
+        userId: localUser.id,
+        role: localUser.role,
+        email: localUser.email,
+        name: localUser.name || localUser.firstName || 'User',
+        shops: shops.map(s => ({ id: s.id, name: s.name })),
+      },
+      JWT_SECRET,
+      { expiresIn: JWT_EXPIRATION } as jwt.SignOptions
+    );
+
+    return res.status(200).json({
+      success: true,
+      token,
+      user: {
+        id: localUser.id,
+        email: localUser.email,
+        name: localUser.name || localUser.firstName || 'User',
+        role: localUser.role,
+        shops: shops.map(s => ({ id: s.id, name: s.name })),
+      },
+      created,
+    });
+  } catch (error: any) {
+    console.error("Supabase verify error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to verify token",
+      error: error.message,
+    });
+  }
+});
+
+// ==========================================
 // Google OAuth Routes
 // ==========================================
 
@@ -57,21 +150,87 @@ const authMiddleware = async (req: Request, res: Response, next: Function) => {
  * @route   GET /api/auth/google
  * @desc    Initiate Google OAuth authentication
  * @access  Public
+ * @query   state - JSON string with redirectUrl and role
+ * @query   role - Optional role (BUYER or SELLER), defaults to BUYER
  */
 router.get("/google", (req: Request, res: Response, next) => {
-  const { state } = req.query;
-
-  if (!state || typeof state !== "string") {
-    return res.status(400).send("A 'state' query parameter is required for login.");
+  // Check if Google OAuth is configured
+  if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
+    console.error("❌ Google OAuth not configured: Missing GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET");
+    const { state, role } = req.query;
+    let redirectUrl = FRONTEND_URL;
+    
+    // Try to extract redirect URL from state
+    try {
+      if (state && typeof state === "string") {
+        const decoded = JSON.parse(decodeURIComponent(state));
+        if (decoded.redirectUrl) {
+          redirectUrl = decoded.redirectUrl;
+        }
+      }
+    } catch (e) {
+      // Use default
+    }
+    
+    const isShopeeClone = redirectUrl.includes('5173') || redirectUrl.includes('shopee') || redirectUrl.includes('localhost:5173');
+    const errorPath = (role === 'SELLER' ? (isShopeeClone ? '/login' : '/login') : (isShopeeClone ? '/buyer-login' : '/login'));
+    return res.redirect(`${redirectUrl}${errorPath}?error=google_auth_failed&details=${encodeURIComponent('Google OAuth is not configured on the server')}`);
+  }
+  
+  const { state, role } = req.query;
+  
+  let stateData: { redirectUrl: string; role?: string } = { redirectUrl: FRONTEND_URL };
+  
+  // Parse state if provided
+  if (state && typeof state === "string") {
+    try {
+      const decoded = JSON.parse(decodeURIComponent(state));
+      stateData.redirectUrl = decoded.redirectUrl || FRONTEND_URL;
+      stateData.role = decoded.role || role as string || 'BUYER';
+    } catch (e) {
+      // If state is not JSON, treat it as redirectUrl
+      stateData.redirectUrl = state;
+      stateData.role = (role as string) || 'BUYER';
+    }
+  } else {
+    // Use role from query if state not provided
+    stateData.role = (role as string) || 'BUYER';
+  }
+  
+  // Validate role
+  if (stateData.role && !['BUYER', 'SELLER'].includes(stateData.role)) {
+    stateData.role = 'BUYER';
   }
   
   // Encode the state to ensure it's safely passed through the OAuth flow
-  const encodedState = Buffer.from(JSON.stringify({ redirectUrl: state })).toString('base64');
+  const encodedState = Buffer.from(JSON.stringify(stateData)).toString('base64');
 
+  console.log(`🔵 Google OAuth initiated - Role: ${stateData.role}, Redirect: ${stateData.redirectUrl}`);
+
+  // Check if Google strategy is registered
+  const googleStrategy = (passport as any)._strategies?.google;
+  if (!googleStrategy) {
+    console.error("❌ Google OAuth strategy not found. Make sure GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET are set.");
+    const isShopeeClone = stateData.redirectUrl.includes('5173') || stateData.redirectUrl.includes('shopee') || stateData.redirectUrl.includes('localhost:5173');
+    const errorPath = stateData.role === 'SELLER' 
+      ? (isShopeeClone ? '/login' : '/login')
+      : (isShopeeClone ? '/buyer-login' : '/login');
+    return res.redirect(`${stateData.redirectUrl}${errorPath}?error=google_auth_failed&details=${encodeURIComponent('Google OAuth strategy not configured')}`);
+  }
+
+  // Clear any existing session/cookie state to prevent token reuse issues
+  // This ensures a fresh OAuth flow each time
+  // Note: session is not used in this app, but we check for compatibility
+  if ((req as any).session) {
+    (req as any).session = undefined;
+  }
+  
   const authenticator = passport.authenticate("google", {
     scope: ["profile", "email"],
     session: false,
     state: encodedState,
+    accessType: 'offline', // Request refresh token if possible
+    prompt: 'select_account', // Force account selection to get fresh token
   });
 
   authenticator(req, res, next);
@@ -86,50 +245,150 @@ router.get("/google", (req: Request, res: Response, next) => {
 router.get("/google/callback", (req, res, next) => {
   // Extract state and validate it
   const state = req.query.state as string;
-  let redirectUrl = FRONTEND_URL; // Default to environment or localhost:5173
-  let decodedState: { redirectUrl: string } | null = null;
+  let redirectUrl = FRONTEND_URL;
+  let role: string = 'BUYER';
+  let decodedState: { redirectUrl: string; role?: string } | null = null;
 
   try {
     if (state) {
       decodedState = JSON.parse(Buffer.from(state, 'base64').toString('utf-8'));
-      if (decodedState && decodedState.redirectUrl) {
-        // Validate redirect URL is in allowed list
-        if (ALLOWED_FRONTENDS.includes(decodedState.redirectUrl)) {
-          redirectUrl = decodedState.redirectUrl;
-        } else {
-          console.warn(`⚠️  Redirect URL not in allowed list: ${decodedState.redirectUrl}, using default: ${redirectUrl}`);
+      if (decodedState) {
+        if (decodedState.redirectUrl) {
+          // Validate redirect URL is in allowed list
+          // IMPORTANT: Ensure shopee-clone users stay in shopee-clone, never redirect to bva-frontend
+          const requestedUrl = decodedState.redirectUrl;
+          const isShopeeCloneRequest = requestedUrl.includes('5173') || requestedUrl.includes('shopee') || requestedUrl.includes('localhost:5173');
+          
+          // Extract base URL (without path) for validation
+          let baseUrl: string;
+          try {
+            const urlObj = new URL(requestedUrl);
+            baseUrl = `${urlObj.protocol}//${urlObj.host}`;
+          } catch (e) {
+            baseUrl = requestedUrl.split('/').slice(0, 3).join('/');
+          }
+          
+          // Check if base URL is in allowed list
+          if (ALLOWED_FRONTENDS.includes(baseUrl) || ALLOWED_FRONTENDS.some(allowed => baseUrl.startsWith(allowed))) {
+            // If request came from shopee-clone, ensure we redirect back to shopee-clone
+            if (isShopeeCloneRequest) {
+              // Use the base URL from allowed list, but preserve the path if it's a shopee-clone path
+              redirectUrl = baseUrl.includes('5173') ? baseUrl : 'http://localhost:5173';
+            } else {
+              redirectUrl = baseUrl;
+            }
+          } else {
+            console.warn(`⚠️  Redirect URL base not in allowed list: ${baseUrl}, requested: ${requestedUrl}, using default: ${redirectUrl}`);
+            // If request came from shopee-clone but URL not in allowed list, default to shopee-clone
+            if (isShopeeCloneRequest) {
+              redirectUrl = 'http://localhost:5173';
+            }
+          }
+        }
+        if (decodedState.role) {
+          role = decodedState.role;
         }
       }
     }
   } catch (e) {
     console.error("Invalid state parameter:", e);
-    // Use default redirect URL on error
-    redirectUrl = FRONTEND_URL;
+    // On error, check if the request might be from shopee-clone by checking referer or default to shopee-clone
+    // IMPORTANT: Default to shopee-clone to prevent accidental redirects to bva-frontend
+    const referer = req.get('referer') || '';
+    if (referer.includes('5173') || referer.includes('shopee')) {
+      redirectUrl = 'http://localhost:5173';
+    } else {
+      // Default to shopee-clone (port 5173) instead of bva-frontend
+      redirectUrl = FRONTEND_URL.includes('5173') ? FRONTEND_URL : 'http://localhost:5173';
+    }
   }
   
-  const failureRedirect = `${redirectUrl}/login?error=google_auth_failed`;
+  // Determine failure redirect based on role and frontend
+  // IMPORTANT: Shopee-clone users should NEVER redirect to bva-frontend
+  const isShopeeClone = redirectUrl.includes('5173') || redirectUrl.includes('shopee') || redirectUrl.includes('localhost:5173');
+  const failurePath = role === 'SELLER' 
+    ? (isShopeeClone ? '/login' : '/login?error=google_auth_failed')
+    : (isShopeeClone ? '/buyer-login' : '/login?error=google_auth_failed');
+  const failureRedirect = `${redirectUrl}${failurePath}`;
 
   passport.authenticate("google", {
     session: false,
     failureRedirect: failureRedirect,
   }) (req, res, (err: any) => {
     if (err) {
-      console.error("Google OAuth authentication error:", err);
-      return res.redirect(`${redirectUrl}/login?error=google_auth_failed&details=${encodeURIComponent(err.message || 'Authentication failed')}`);
+      console.error("❌ Google OAuth authentication error:", err);
+      console.error("Error details:", {
+        message: err.message,
+        stack: err.stack,
+        name: err.name,
+        code: err.code
+      });
+      // IMPORTANT: Shopee-clone users should NEVER redirect to bva-frontend
+      const isShopeeClone = redirectUrl.includes('5173') || redirectUrl.includes('shopee') || redirectUrl.includes('localhost:5173');
+      const errorPath = role === 'SELLER' 
+        ? (isShopeeClone ? '/login' : '/login')
+        : (isShopeeClone ? '/buyer-login' : '/login');
+      const errorMessage = err.message || err.toString() || 'Authentication failed';
+      console.error(`Redirecting to error page: ${redirectUrl}${errorPath}?error=google_auth_failed&details=${encodeURIComponent(errorMessage)}`);
+      return res.redirect(`${redirectUrl}${errorPath}?error=google_auth_failed&details=${encodeURIComponent(errorMessage)}`);
+    }
+    
+    // Check if authentication failed (no user in request)
+    if (!req.user) {
+      console.error("❌ Google OAuth: No user in request after authentication");
+      const isShopeeClone = redirectUrl.includes('5173') || redirectUrl.includes('shopee') || redirectUrl.includes('localhost:5173');
+      const errorPath = role === 'SELLER' 
+        ? (isShopeeClone ? '/login' : '/login')
+        : (isShopeeClone ? '/buyer-login' : '/login');
+      return res.redirect(`${redirectUrl}${errorPath}?error=google_auth_failed&details=${encodeURIComponent('No user returned from Google OAuth')}`);
     }
     
     try {
-      const user = req.user as any;
+      let user = req.user as any;
 
       if (!user) {
         console.error("No user returned from Google OAuth");
-        return res.redirect(`${redirectUrl}/login?error=no_user`);
+        // IMPORTANT: Shopee-clone users should NEVER redirect to bva-frontend
+        const isShopeeClone = redirectUrl.includes('5173') || redirectUrl.includes('shopee') || redirectUrl.includes('localhost:5173');
+        const errorPath = role === 'SELLER' 
+          ? (isShopeeClone ? '/login' : '/login')
+          : (isShopeeClone ? '/buyer-login' : '/login');
+        return res.redirect(`${redirectUrl}${errorPath}?error=no_user`);
       }
 
-      // Get user's shops for the token
-      prisma.shop.findMany({
-        where: { ownerId: user.id },
-        select: { id: true, name: true }
+      // Update user role if state indicates different role and user was just created (no shops yet)
+      // This handles the case where a new user signs up as SELLER via Google OAuth
+      const updateUserRole = async () => {
+        if (role === 'SELLER' && user.role === 'BUYER') {
+          // Check if user has shops - if not, they're likely a new user
+          const existingShops = await prisma.shop.findMany({
+            where: { ownerId: user.id },
+            select: { id: true },
+          });
+          
+          // Only update role if user has no shops (newly created)
+          if (existingShops.length === 0) {
+            try {
+              user = await prisma.user.update({
+                where: { id: user.id },
+                data: { role: 'SELLER' },
+              });
+              console.log(`✅ Updated user role to SELLER for new Google OAuth user: ${user.email}`);
+            } catch (updateError) {
+              console.error("Error updating user role:", updateError);
+              // Continue with original role if update fails
+            }
+          }
+        }
+      };
+
+      // Update role if needed, then get shops
+      updateUserRole().then(() => {
+        // Get user's shops for the token
+        return prisma.shop.findMany({
+          where: { ownerId: user.id },
+          select: { id: true, name: true }
+        });
       }).then(shops => {
         const token = jwt.sign(
           { 
@@ -143,10 +402,27 @@ router.get("/google/callback", (req, res, next) => {
           { expiresIn: JWT_EXPIRATION } as jwt.SignOptions
         );
         
-        // Determine destination based on frontend
-        // BVA frontend handles token in /login page
-        const destination = redirectUrl.includes('8080') || redirectUrl.includes('5173') ? '/login' : '/';
-        res.redirect(`${redirectUrl}${destination}?token=${token}`);
+        // Determine destination based on role and frontend
+        // IMPORTANT: Shopee-clone users should NEVER redirect to bva-frontend
+        const isShopeeClone = redirectUrl.includes('5173') || redirectUrl.includes('shopee') || redirectUrl.includes('localhost:5173');
+        let destination = '/';
+        
+        if (isShopeeClone) {
+          // Shopee clone: redirect based on role - ALWAYS stay in shopee-clone
+          if (user.role === 'SELLER') {
+            destination = '/login?token=' + token;
+          } else {
+            // For buyers, redirect to landing page with token - frontend will handle it
+            destination = '/?token=' + token;
+          }
+          console.log(`✅ Google OAuth success (Shopee-Clone) - Redirecting ${user.role} to: ${redirectUrl}${destination}`);
+        } else {
+          // BVA frontend: always use /login
+          destination = '/login?token=' + token;
+          console.log(`✅ Google OAuth success (BVA Frontend) - Redirecting to: ${redirectUrl}${destination}`);
+        }
+        
+        res.redirect(`${redirectUrl}${destination}`);
       }).catch(shopError => {
         console.error("Error fetching user shops:", shopError);
         // Still generate token even if shops fetch fails
@@ -160,14 +436,36 @@ router.get("/google/callback", (req, res, next) => {
           JWT_SECRET,
           { expiresIn: JWT_EXPIRATION } as jwt.SignOptions
         );
-        const destination = redirectUrl.includes('8080') || redirectUrl.includes('5173') ? '/login' : '/';
-        res.redirect(`${redirectUrl}${destination}?token=${token}`);
+        
+        // IMPORTANT: Shopee-clone users should NEVER redirect to bva-frontend
+        const isShopeeClone = redirectUrl.includes('5173') || redirectUrl.includes('shopee') || redirectUrl.includes('localhost:5173');
+        let destination = '/';
+        
+        if (isShopeeClone) {
+          // Shopee clone: redirect based on role - ALWAYS stay in shopee-clone
+          if (user.role === 'SELLER') {
+            destination = '/login?token=' + token;
+          } else {
+            // For buyers, redirect to landing page with token - frontend will handle it
+            destination = '/?token=' + token;
+          }
+        } else {
+          // BVA frontend: always use /login
+          destination = '/login?token=' + token;
+        }
+        
+        res.redirect(`${redirectUrl}${destination}`);
       });
 
     } catch (error: any) {
       console.error("Google callback error:", error);
       const errorMessage = error?.message || 'Token generation failed';
-      res.redirect(`${redirectUrl}/login?error=token_generation_failed&details=${encodeURIComponent(errorMessage)}`);
+      // IMPORTANT: Shopee-clone users should NEVER redirect to bva-frontend
+      const isShopeeClone = redirectUrl.includes('5173') || redirectUrl.includes('shopee') || redirectUrl.includes('localhost:5173');
+      const errorPath = role === 'SELLER' 
+        ? (isShopeeClone ? '/login' : '/login')
+        : (isShopeeClone ? '/buyer-login' : '/login');
+      res.redirect(`${redirectUrl}${errorPath}?error=token_generation_failed&details=${encodeURIComponent(errorMessage)}`);
     }
   });
 });
@@ -299,5 +597,228 @@ router.post("/shopee-sso", (req: Request, res: Response) =>
 router.post("/shopee-sync", authMiddleware, (req: Request, res: Response) =>
   authController.triggerShopeeSync(req, res)
 );
+
+// ==========================================
+// Social Media Account Management Routes
+// ==========================================
+
+/**
+ * @route   POST /api/auth/social-media/facebook
+ * @desc    Store Facebook OAuth tokens for ad publishing
+ * @access  Private
+ * 
+ * Request body:
+ * {
+ *   "accessToken": "string (required)",
+ *   "pageId": "string (optional)",
+ *   "accountId": "string (optional - for Instagram)",
+ *   "expiresAt": "string (optional - ISO date)"
+ * }
+ */
+router.post("/social-media/facebook", authMiddleware, async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).userId;
+    const { accessToken, pageId, accountId, expiresAt } = req.body;
+
+    if (!accessToken) {
+      return res.status(400).json({
+        success: false,
+        message: "Access token is required",
+      });
+    }
+
+    // Upsert Facebook account
+    const socialAccount = await prisma.socialMediaAccount.upsert({
+      where: {
+        userId_platform: {
+          userId,
+          platform: "facebook",
+        },
+      },
+      update: {
+        accessToken,
+        pageId: pageId || null,
+        accountId: accountId || null,
+        expiresAt: expiresAt ? new Date(expiresAt) : null,
+        updatedAt: new Date(),
+      },
+      create: {
+        userId,
+        platform: "facebook",
+        accessToken,
+        pageId: pageId || null,
+        accountId: accountId || null,
+        expiresAt: expiresAt ? new Date(expiresAt) : null,
+      },
+    });
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        id: socialAccount.id,
+        platform: socialAccount.platform,
+        pageId: socialAccount.pageId,
+        accountId: socialAccount.accountId,
+        expiresAt: socialAccount.expiresAt,
+      },
+    });
+  } catch (error: any) {
+    console.error("Error storing Facebook tokens:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to store Facebook tokens",
+      error: error.message,
+    });
+  }
+});
+
+/**
+ * @route   GET /api/auth/social-media/facebook
+ * @desc    Get Facebook OAuth tokens for the authenticated user
+ * @access  Private
+ */
+router.get("/social-media/facebook", authMiddleware, async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).userId;
+
+    const socialAccount = await prisma.socialMediaAccount.findUnique({
+      where: {
+        userId_platform: {
+          userId,
+          platform: "facebook",
+        },
+      },
+    });
+
+    if (!socialAccount) {
+      return res.status(404).json({
+        success: false,
+        message: "Facebook account not connected",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        id: socialAccount.id,
+        platform: socialAccount.platform,
+        pageId: socialAccount.pageId,
+        accountId: socialAccount.accountId,
+        expiresAt: socialAccount.expiresAt,
+        isConnected: true,
+      },
+    });
+  } catch (error: any) {
+    console.error("Error fetching Facebook tokens:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch Facebook tokens",
+      error: error.message,
+    });
+  }
+});
+
+/**
+ * @route   DELETE /api/auth/social-media/facebook
+ * @desc    Disconnect Facebook account
+ * @access  Private
+ */
+// ==========================================
+// Meta (Facebook) Data Deletion Endpoint
+// Called by Supabase Edge Function
+// ==========================================
+router.delete("/facebook/delete-user", async (req: Request, res: Response) => {
+  try {
+    const { facebookUserId } = req.body;
+
+    if (!facebookUserId) {
+      return res.status(400).json({
+        success: false,
+        message: "Facebook user ID is required",
+      });
+    }
+
+    console.log(`🗑️  Processing deletion request for Facebook user: ${facebookUserId}`);
+
+    // Find user by Facebook ID
+    const user = await prisma.user.findUnique({
+      where: { facebookId: facebookUserId },
+      include: {
+        shops: true,
+        socialMediaAccounts: true,
+      },
+    });
+
+    if (!user) {
+      console.log(`No user found for Facebook ID: ${facebookUserId}`);
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    // Delete related data (cascade deletes should handle most, but we'll be explicit)
+    // Delete social media accounts
+    await prisma.socialMediaAccount.deleteMany({
+      where: { userId: user.id },
+    });
+
+    // Delete all shops and related data (if exists)
+    // A user can have multiple shops, so we delete all of them
+    if (user.shops && user.shops.length > 0) {
+      for (const shop of user.shops) {
+        // Delete shop products, orders, etc. (cascade should handle this)
+        await prisma.shop.delete({
+          where: { id: shop.id },
+        });
+      }
+    }
+
+    // Delete user (this should cascade to other related data)
+    await prisma.user.delete({
+      where: { id: user.id },
+    });
+
+    console.log(`✅ Successfully deleted user data for Facebook ID: ${facebookUserId}`);
+
+    return res.status(200).json({
+      success: true,
+      message: "User data deleted successfully",
+      deletedUserId: user.id,
+    });
+  } catch (error: any) {
+    console.error("Error deleting user data:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to delete user data",
+      error: error.message,
+    });
+  }
+});
+
+router.delete("/social-media/facebook", authMiddleware, async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).userId;
+
+    await prisma.socialMediaAccount.deleteMany({
+      where: {
+        userId,
+        platform: "facebook",
+      },
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Facebook account disconnected successfully",
+    });
+  } catch (error: any) {
+    console.error("Error disconnecting Facebook account:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to disconnect Facebook account",
+      error: error.message,
+    });
+  }
+});
 
 export default router;

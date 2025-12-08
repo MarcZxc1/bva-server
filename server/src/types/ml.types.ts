@@ -1,22 +1,30 @@
+/**
+ * Product input matching Python ProductInput schema exactly
+ * All numeric fields must be proper numbers (not strings)
+ * profit_margin must be between 0.0 and 1.0
+ */
 export interface MLProductInput {
   product_id: string | number;
   name: string;
-  price: number;
-  cost: number;
-  stock: number;
-  category?: string;
-  avg_daily_sales: number;
-  profit_margin: number;
-  min_order_qty?: number;
-  max_order_qty?: number;
+  price: number; // float, must be > 0
+  cost: number; // float, must be > 0
+  stock: number; // int, must be >= 0
+  category?: string | null;
+  avg_daily_sales: number; // float, must be >= 0
+  profit_margin: number; // float, must be >= 0.0 and <= 1.0
+  min_order_qty: number; // int, must be >= 1, default: 1
+  max_order_qty?: number | null; // int, must be >= 1, optional
 }
 
+/**
+ * Restock request matching Python RestockRequest schema exactly
+ */
 export interface MLRestockRequest {
   shop_id: string;
-  budget: number;
-  goal: 'profit' | 'volume' | 'balanced';
-  products: MLProductInput[];
-  restock_days: number;
+  budget: number; // float, must be > 0
+  goal: 'profit' | 'volume' | 'balanced'; // Must match RestockGoal enum exactly
+  products: MLProductInput[]; // Array with min_length=1
+  restock_days: number; // int, must be >= 1 and <= 90, default: 14
 }
 
 export interface MLRestockItem {

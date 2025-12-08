@@ -12,18 +12,41 @@ import {
  * Fetch inventory and sales data, then call ML service to detect at-risk items.
  * Uses Redis cache for optimization (5 min TTL for real-time inventory data)
  */
+import { hasActiveIntegration } from "../utils/integrationCheck";
+
 export async function getAtRiskInventory(
   shopId: string
 ): Promise<AtRiskResponse> {
+  // Check if shop has active integration with terms accepted
+  const isActive = await hasActiveIntegration(shopId);
+
+  // If no active integration, return empty at-risk data
+  if (!isActive) {
+    console.log(`⚠️  No active Shopee integration for shop ${shopId}, returning empty at-risk data`);
+    return {
+      at_risk: [],
+      meta: {
+        shop_id: shopId,
+        total_products: 0,
+        flagged_count: 0,
+        analysis_date: new Date().toISOString(),
+        thresholds_used: {},
+      },
+    };
+  }
+
   const cacheKey = `at-risk:${shopId}`;
   
   // Try cache first (5 min TTL for inventory data)
   return CacheService.getOrSet(
     cacheKey,
     async () => {
-      // 1. Fetch products with inventory
+      // 1. Fetch products with inventory (only synced products from integrations)
       const products = await prisma.product.findMany({
-    where: { shopId },
+    where: { 
+      shopId,
+      externalId: { not: null }, // Only products synced from integrations
+    },
     include: {
       inventories: {
         take: 1,
@@ -116,8 +139,37 @@ export async function getAtRiskInventory(
  * Get comprehensive dashboard analytics
  * Combines database metrics with ML forecasts
  * Uses Redis cache for optimization (10 min TTL)
+ * Returns empty data if no Shopee integration is active
  */
 export async function getDashboardAnalytics(shopId: string) {
+  // Check if user has an active Shopee integration
+  const integration = await prisma.integration.findFirst({
+    where: {
+      shopId,
+      platform: 'SHOPEE',
+    },
+  });
+
+  // Check if integration is active via settings JSON
+  const settings = integration?.settings as any;
+  const isActive = integration && (settings?.isActive !== false && (settings?.termsAccepted === true || settings?.connectedAt));
+
+  // If no active integration, return empty/default data
+  if (!isActive) {
+    console.log(`⚠️  No active Shopee integration for shop ${shopId}, returning empty dashboard data`);
+    return {
+      totalRevenue: 0,
+      totalProfit: 0,
+      totalSales: 0,
+      totalProducts: 0,
+      recentSales: [],
+      topProducts: [],
+      salesForecast: [],
+      insights: ["Please integrate with Shopee-Clone to see your analytics data."],
+      hasIntegration: false,
+    };
+  }
+
   const cacheKey = `dashboard-analytics:${shopId}`;
   
   // Try cache first (10 min TTL)

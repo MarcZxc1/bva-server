@@ -1,4 +1,4 @@
-                                                                                                                                              import './SellerDashboard.css';
+import './SellerDashboard.css';
 
 const WarningBanner = () => {
   return (

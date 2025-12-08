@@ -48,8 +48,8 @@ class AuthService {
     // Hash password
     const hashedPassword = await bcrypt.hash(data.password, this.SALT_ROUNDS);
 
-    // Determine role (default to SELLER)
-    const role = data.role || "SELLER";
+    // Determine role (default to BUYER for shopee-clone compatibility)
+    const role = data.role || "BUYER";
 
     // Create user with transaction to ensure shop creation for sellers
     const result = await prisma.$transaction(async (tx) => {

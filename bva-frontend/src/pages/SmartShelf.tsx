@@ -4,10 +4,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { AlertTriangle, Package, TrendingDown, Calendar, Loader2, Sparkles, PackageOpen } from "lucide-react";
+import { AlertTriangle, Package, TrendingDown, Calendar, Loader2, PackageOpen, Pencil } from "lucide-react";
 import { useAtRiskInventory } from "@/hooks/useSmartShelf";
 import { useAuth } from "@/contexts/AuthContext";
-import { AdGeneratorDialog } from "@/components/AdGeneratorDialog";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { useProducts } from "@/hooks/useProducts";
+import { useIntegration } from "@/hooks/useIntegration";
+import { AlertCircle } from "lucide-react";
 
 const getRiskColor = (score: number): "destructive" | "secondary" | "outline" => {
   if (score >= 80) return "destructive";
@@ -25,13 +28,53 @@ const getActionIcon = (actionType: string) => {
   switch (actionType) {
     case "restock":
       return <Package className="h-4 w-4" />;
-    case "promotion":
-      return <Sparkles className="h-4 w-4" />;
     case "clearance":
       return <AlertTriangle className="h-4 w-4" />;
     default:
       return <TrendingDown className="h-4 w-4" />;
   }
+};
+
+const getInventoryStatus = (product: any, quantity: number, expiryDate?: string | null) => {
+  const isLowStock = quantity <= 10;
+  const isExpiringSoon = expiryDate ? (() => {
+    const expiry = new Date(expiryDate);
+    const today = new Date();
+    const daysUntilExpiry = Math.ceil((expiry.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+    return daysUntilExpiry > 0 && daysUntilExpiry <= 30;
+  })() : false;
+
+  // Expiring Soon takes priority
+  if (isExpiringSoon) {
+    return { label: "Expiring Soon", variant: "outline" as const };
+  }
+  if (isLowStock) {
+    return { label: "Low Stock", variant: "destructive" as const };
+  }
+  return { label: "Healthy", variant: "secondary" as const };
+};
+
+const getPlatformName = (platform?: string | null) => {
+  if (!platform) return "—";
+  switch (platform.toUpperCase()) {
+    case "SHOPEE":
+      return "Shopee";
+    case "LAZADA":
+      return "Lazada";
+    case "TIKTOK":
+      return "TikTok";
+    default:
+      return platform;
+  }
+};
+
+const formatDate = (date?: string | null) => {
+  if (!date) return "—";
+  const d = new Date(date);
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 };
 
 export default function SmartShelf() {
@@ -40,26 +83,17 @@ export default function SmartShelf() {
   const shopId = user?.shops?.[0]?.id;
   const hasShop = !!shopId;
   
+  const { hasActiveIntegration, isLoading: isLoadingIntegration } = useIntegration();
   const { data: atRiskData, isLoading, refetch } = useAtRiskInventory(shopId || "", hasShop);
+  const { data: products, isLoading: isLoadingProducts, error: productsError } = useProducts(shopId || "");
   
   const [selectedItem, setSelectedItem] = useState<any>(null);
-  const [isAdDialogOpen, setIsAdDialogOpen] = useState(false);
-  const [adDialogProps, setAdDialogProps] = useState<{
-    productName: string;
-    playbook: "Flash Sale" | "New Arrival" | "Best Seller Spotlight" | "Bundle Up!";
-  }>({ productName: "", playbook: "Flash Sale" });
 
   const handleTakeAction = (item: any) => {
     const actionType = item.recommended_action.action_type.toLowerCase();
     
     if (actionType.includes("restock")) {
       navigate("/restock");
-    } else if (actionType.includes("promotion") || actionType.includes("clearance")) {
-      setAdDialogProps({
-        productName: item.name,
-        playbook: actionType.includes("clearance") ? "Flash Sale" : "Best Seller Spotlight"
-      });
-      setIsAdDialogOpen(true);
     }
   };
 
@@ -82,6 +116,49 @@ export default function SmartShelf() {
                 <p className="text-muted-foreground max-w-md">
                   You need a shop to use SmartShelf Analytics. Sellers automatically get a shop created during registration.
                 </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Show integration required message if no active integration
+  if (!isLoadingIntegration && !hasActiveIntegration) {
+    return (
+      <div className="space-y-6">
+        <div className="glass-card p-8">
+          <div className="space-y-2">
+            <h1 className="text-4xl font-bold text-foreground">📊 SmartShelf Analytics</h1>
+            <p className="text-muted-foreground">AI-powered inventory risk detection and optimization</p>
+          </div>
+        </div>
+        <Card className="glass-card border-primary/20">
+          <CardHeader>
+            <CardTitle className="text-foreground flex items-center gap-2">
+              <AlertCircle className="h-5 w-5 text-warning" />
+              Integration Required
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                To see your inventory data and analytics, you need to integrate with Shopee-Clone and accept the terms and conditions.
+              </p>
+              <ul className="text-sm text-muted-foreground space-y-2 ml-4">
+                <li>• Go to Settings → Integrations</li>
+                <li>• Connect your Shopee-Clone account</li>
+                <li>• Accept the terms and conditions</li>
+                <li>• Sync your data to see inventory analytics</li>
+              </ul>
+              <div className="pt-2">
+                <Button
+                  onClick={() => window.location.href = '/settings'}
+                  className="gap-2 bg-primary hover:bg-primary/90"
+                >
+                  Go to Settings
+                </Button>
               </div>
             </div>
           </CardContent>
@@ -222,7 +299,7 @@ export default function SmartShelf() {
                     </div>
 
                     <div className="flex flex-wrap gap-1 mb-2">
-                      {item.reasons.map((reason, idx) => (
+                      {(item.reasons || []).map((reason, idx) => (
                         <Badge key={idx} variant="outline" className="text-xs">
                           {reason.replace(/_/g, ' ')}
                         </Badge>
@@ -283,6 +360,89 @@ export default function SmartShelf() {
         </CardContent>
       </Card>
 
+      {/* Product Inventory Table */}
+      <Card className="glass-card">
+        <CardHeader>
+          <CardTitle className="text-foreground">Product Inventory</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {isLoadingProducts ? (
+            <div className="py-12 flex items-center justify-center">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+          ) : productsError ? (
+            <div className="py-12 text-center">
+              <AlertTriangle className="h-12 w-12 text-destructive mx-auto mb-4" />
+              <p className="text-destructive">Error loading products</p>
+              <p className="text-sm text-muted-foreground mt-2">
+                {productsError instanceof Error ? productsError.message : "Unknown error"}
+              </p>
+            </div>
+          ) : products && products.length > 0 ? (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Product Name</TableHead>
+                  <TableHead>SKU</TableHead>
+                  <TableHead>Platform</TableHead>
+                  <TableHead>Quantity</TableHead>
+                  <TableHead>Expiry</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {products.map((product) => {
+                  const quantity = product.quantity || product.stock || 0;
+                  const status = getInventoryStatus(product, quantity, product.expiryDate);
+                  const isLowStock = quantity <= 10;
+
+                  return (
+                    <TableRow
+                      key={product.id}
+                    >
+                      <TableCell className="font-medium">{product.name}</TableCell>
+                      <TableCell className="text-muted-foreground">{product.sku}</TableCell>
+                      <TableCell>{getPlatformName(product.platform)}</TableCell>
+                      <TableCell>
+                        <span className={isLowStock ? "text-destructive font-semibold" : "font-semibold"}>
+                          {quantity}
+                        </span>
+                      </TableCell>
+                      <TableCell>{formatDate(product.expiryDate)}</TableCell>
+                      <TableCell>
+                        <Badge 
+                          variant={status.variant}
+                          className={
+                            status.label === "Healthy" 
+                              ? "bg-green-500 text-white border-transparent hover:bg-green-600" 
+                              : status.label === "Expiring Soon"
+                              ? "bg-orange-500 text-white border-transparent hover:bg-orange-600"
+                              : ""
+                          }
+                        >
+                          {status.label}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                          <Pencil className="h-4 w-4 text-muted-foreground" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          ) : (
+            <div className="py-12 text-center">
+              <Package className="h-12 w-12 text-muted mx-auto mb-4" />
+              <p className="text-muted-foreground">No products found</p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       {/* View Details Dialog */}
       <Dialog open={!!selectedItem} onOpenChange={(open) => !open && setSelectedItem(null)}>
         <DialogContent className="max-w-2xl">
@@ -331,7 +491,7 @@ export default function SmartShelf() {
                   Risk Factors
                 </h4>
                 <div className="flex flex-wrap gap-2">
-                  {selectedItem.reasons.map((reason: string, idx: number) => (
+                  {(selectedItem.reasons || []).map((reason: string, idx: number) => (
                     <Badge key={idx} variant="outline">
                       {reason.replace(/_/g, ' ')}
                     </Badge>
@@ -371,14 +531,6 @@ export default function SmartShelf() {
           )}
         </DialogContent>
       </Dialog>
-
-      {/* Ad Generator Dialog */}
-      <AdGeneratorDialog 
-        open={isAdDialogOpen} 
-        onOpenChange={setIsAdDialogOpen}
-        initialProductName={adDialogProps.productName}
-        initialPlaybook={adDialogProps.playbook}
-      />
     </div>
   );
 }
