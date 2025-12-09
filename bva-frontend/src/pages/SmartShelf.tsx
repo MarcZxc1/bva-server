@@ -699,6 +699,142 @@ export default function SmartShelf() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Promotions Modal */}
+      <Dialog open={showPromotionsModal} onOpenChange={setShowPromotionsModal}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-primary" />
+              AI-Generated Promotions for {actionItem?.name}
+            </DialogTitle>
+            <DialogDescription>
+              Smart promotions paired with calendar events to maximize sales and clear inventory
+            </DialogDescription>
+          </DialogHeader>
+          
+          {isGeneratingPromotions ? (
+            <div className="py-12 flex flex-col items-center justify-center">
+              <Loader2 className="h-8 w-8 animate-spin text-primary mb-4" />
+              <p className="text-muted-foreground">Generating smart promotions...</p>
+            </div>
+          ) : promotionsData && promotionsData.promotions.length > 0 ? (
+            <div className="space-y-4 py-4">
+              {/* Analytics Summary */}
+              <Card className="glass-card-sm">
+                <CardHeader>
+                  <CardTitle className="text-sm">Promotion Analytics</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-primary">{promotionsData.promotions.length}</div>
+                      <div className="text-xs text-muted-foreground">Promotions Generated</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-success">
+                        {promotionsData.promotions.reduce((sum, p) => sum + p.projected_sales_lift, 0).toFixed(0)}%
+                      </div>
+                      <div className="text-xs text-muted-foreground">Total Sales Lift</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-warning">
+                        {promotionsData.promotions.filter(p => p.confidence === "high").length}
+                      </div>
+                      <div className="text-xs text-muted-foreground">High Confidence</div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Promotions List */}
+              <div className="space-y-3">
+                {promotionsData.promotions.map((promo, index) => (
+                  <Card key={index} className="glass-card-sm border-l-4" style={{
+                    borderLeftColor: promo.confidence === "high" ? "hsl(var(--success))" : 
+                                     promo.confidence === "medium" ? "hsl(var(--warning))" : 
+                                     "hsl(var(--muted))"
+                  }}>
+                    <CardContent className="p-4">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1 space-y-2">
+                          <div className="flex items-center gap-2">
+                            <Badge variant={promo.confidence === "high" ? "default" : "outline"}>
+                              {promo.confidence.toUpperCase()} Confidence
+                            </Badge>
+                            <Badge variant="outline" className="flex items-center gap-1">
+                              <Calendar className="h-3 w-3" />
+                              {promo.event_title}
+                            </Badge>
+                          </div>
+                          
+                          <div>
+                            <h4 className="font-semibold text-foreground">{promo.product_name}</h4>
+                            <p className="text-sm text-muted-foreground mt-1">{promo.promo_copy}</p>
+                          </div>
+
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3">
+                            <div className="flex items-center gap-2">
+                              <TrendingDown className="h-4 w-4 text-destructive" />
+                              <div>
+                                <div className="text-xs text-muted-foreground">Discount</div>
+                                <div className="font-semibold text-destructive">{promo.suggested_discount_pct}%</div>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <TrendingUp className="h-4 w-4 text-success" />
+                              <div>
+                                <div className="text-xs text-muted-foreground">Sales Lift</div>
+                                <div className="font-semibold text-success">+{promo.projected_sales_lift.toFixed(0)}%</div>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Clock className="h-4 w-4 text-warning" />
+                              <div>
+                                <div className="text-xs text-muted-foreground">Clear Days</div>
+                                <div className="font-semibold">{promo.expected_clear_days} days</div>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Target className="h-4 w-4 text-primary" />
+                              <div>
+                                <div className="text-xs text-muted-foreground">Duration</div>
+                                <div className="font-semibold text-xs">
+                                  {new Date(promo.start_date).toLocaleDateString()} - {new Date(promo.end_date).toLocaleDateString()}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="mt-2 p-2 bg-muted/50 rounded text-xs text-muted-foreground">
+                            <strong>Reasoning:</strong> {promo.reasoning}
+                          </div>
+                        </div>
+
+                        <Button
+                          onClick={() => handleUsePromotion(promo)}
+                          className="bg-primary hover:bg-primary/90"
+                          size="sm"
+                        >
+                          Use Promotion
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="py-12 text-center">
+              <AlertTriangle className="h-12 w-12 text-muted mx-auto mb-4" />
+              <p className="text-muted-foreground">No promotions generated</p>
+              <p className="text-sm text-muted-foreground mt-2">
+                Unable to generate promotions for this item. Please try again later.
+              </p>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
