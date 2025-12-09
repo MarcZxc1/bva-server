@@ -177,17 +177,23 @@ export async function getDashboardAnalytics(shopId: string) {
     cacheKey,
     async () => {
       // 1. Calculate basic metrics from database
+      // Only get products that have externalId (synced from Shopee-Clone)
       const products = await prisma.product.findMany({
-        where: { shopId },
+        where: { 
+          shopId,
+          externalId: { not: null }, // Only products synced from integrations
+        },
         include: {
           inventories: { take: 1 },
         },
       });
 
       // 2. Get ALL sales for lifetime metrics (total revenue, total orders)
+      // Filter by SHOPEE platform since we're using Shopee-Clone integration
       const allSales = await prisma.sale.findMany({
         where: {
           shopId,
+          platform: 'SHOPEE', // Only get sales from Shopee-Clone platform
         },
         select: {
           items: true,
@@ -196,6 +202,7 @@ export async function getDashboardAnalytics(shopId: string) {
           profit: true,
           createdAt: true,
           status: true,
+          platform: true,
         },
       });
 
@@ -286,30 +293,67 @@ export async function getDashboardAnalytics(shopId: string) {
           // Group sales by date to check if we have enough data points
           const uniqueDates = new Set(salesRecords.map((r: any) => r.date));
           
+          console.log(`📊 Forecast preparation for shop ${shopId}:`, {
+            products: products.length,
+            salesRecords: salesRecords.length,
+            uniqueDates: uniqueDates.size,
+            dateRange: uniqueDates.size > 0 ? {
+              first: Array.from(uniqueDates).sort()[0],
+              last: Array.from(uniqueDates).sort().reverse()[0]
+            } : null
+          });
+          
           // Only call forecast if we have at least 14 days of data
           if (uniqueDates.size >= 14) {
             const productIds = products.slice(0, 10).map((p) => p.id); // Top 10 products
             
             console.log(`📊 Requesting forecast for shop ${shopId}: ${productIds.length} products, ${salesRecords.length} sales records, ${uniqueDates.size} unique days`);
+            console.log(`📊 Sample sales data:`, salesRecords.slice(0, 3));
             
-            forecast = await mlClient.getDashboardForecast({
+            const forecastResponse = await mlClient.getDashboardForecast({
               shop_id: shopId,
               product_list: productIds,
               sales: salesRecords,
               periods: 14, // 14-day forecast as per documentation
             });
             
-            console.log(`✅ Forecast received: ${forecast?.forecasts?.length || 0} product forecasts`);
+            console.log(`✅ Forecast received from ML service:`, {
+              hasForecast: !!forecastResponse,
+              forecastsCount: forecastResponse?.forecasts?.length || 0,
+              firstForecast: forecastResponse?.forecasts?.[0] ? {
+                productId: forecastResponse.forecasts[0].product_id,
+                predictionsCount: forecastResponse.forecasts[0].predictions?.length || 0,
+                firstPrediction: forecastResponse.forecasts[0].predictions?.[0]
+              } : null
+            });
+            
+            // Ensure forecast is in the correct format
+            if (forecastResponse && forecastResponse.forecasts) {
+              forecast = forecastResponse;
+            } else {
+              console.warn("⚠️  Forecast response missing forecasts array:", forecastResponse);
+            }
           } else {
             console.log(`⚠️  Insufficient historical data for forecast: ${uniqueDates.size} days (need at least 14)`);
+            console.log(`💡 Tip: Need at least 14 days of sales history. Current: ${uniqueDates.size} days`);
           }
         } catch (error: any) {
           console.error("❌ Failed to get forecast from ML service:", error?.message || error);
-          console.error("Error details:", error);
-          // Continue without forecast data
+          console.error("Error stack:", error?.stack);
+          if (error?.response) {
+            console.error("ML Service response:", error.response.data);
+            console.error("ML Service status:", error.response.status);
+          }
+          // Continue without forecast data - don't break the dashboard
         }
       } else {
         console.log(`⚠️  Cannot generate forecast: ${products.length} products, ${salesRecords.length} sales records`);
+        if (products.length === 0) {
+          console.log(`💡 Tip: No products with externalId found. Products need to be synced from Shopee-Clone.`);
+        }
+        if (salesRecords.length === 0) {
+          console.log(`💡 Tip: No sales records found in the last 60 days.`);
+        }
       }
 
       return {

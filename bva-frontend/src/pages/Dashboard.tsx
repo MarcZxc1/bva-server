@@ -54,30 +54,61 @@ export default function Dashboard() {
   // The forecast structure: forecast.forecasts[].predictions[]
   // Aggregate all product forecasts into a single time series
   const salesData = useMemo(() => {
-    if (!analyticsData?.forecast?.forecasts || analyticsData.forecast.forecasts.length === 0) {
-      console.log("📊 No forecast data available:", {
-        hasForecast: !!analyticsData?.forecast,
-        forecastsCount: analyticsData?.forecast?.forecasts?.length || 0
+    console.log("📊 Dashboard forecast data check:", {
+      hasAnalyticsData: !!analyticsData,
+      hasForecast: !!analyticsData?.forecast,
+      forecastType: typeof analyticsData?.forecast,
+      forecastsCount: analyticsData?.forecast?.forecasts?.length || 0,
+      forecastKeys: analyticsData?.forecast ? Object.keys(analyticsData.forecast) : []
+    });
+
+    if (!analyticsData?.forecast) {
+      console.log("📊 No forecast object in analyticsData");
+      return [];
+    }
+
+    // Handle both direct forecast object and nested structure
+    const forecastData = analyticsData.forecast;
+    
+    // Check if forecast is the response object with forecasts array
+    if (!forecastData.forecasts || !Array.isArray(forecastData.forecasts) || forecastData.forecasts.length === 0) {
+      console.log("📊 No forecasts array in forecast data:", {
+        hasForecasts: !!forecastData.forecasts,
+        isArray: Array.isArray(forecastData.forecasts),
+        length: forecastData.forecasts?.length || 0,
+        forecastDataKeys: Object.keys(forecastData)
       });
       return [];
     }
 
     console.log("📊 Processing forecast data:", {
-      products: analyticsData.forecast.forecasts.length,
-      firstProductPredictions: analyticsData.forecast.forecasts[0]?.predictions?.length || 0
+      products: forecastData.forecasts.length,
+      firstProduct: forecastData.forecasts[0] ? {
+        productId: forecastData.forecasts[0].product_id,
+        predictionsCount: forecastData.forecasts[0].predictions?.length || 0,
+        firstPrediction: forecastData.forecasts[0].predictions?.[0]
+      } : null
     });
 
     // Aggregate predictions from all products by date
     // Each prediction has a date field, so we group by date across all products
     const aggregatedByDate: { [key: string]: number } = {};
     
-    analyticsData.forecast.forecasts.forEach((productForecast: any) => {
+    forecastData.forecasts.forEach((productForecast: any) => {
       if (productForecast.predictions && Array.isArray(productForecast.predictions)) {
-        productForecast.predictions.forEach((prediction: any) => {
+        productForecast.predictions.forEach((prediction: any, index: number) => {
           // Use the date from prediction, or fallback to index-based day
-          const dateKey = prediction.date 
-            ? new Date(prediction.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-            : `Day ${prediction.index || 0}`;
+          let dateKey: string;
+          if (prediction.date) {
+            try {
+              const date = new Date(prediction.date);
+              dateKey = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+            } catch (e) {
+              dateKey = `Day ${index + 1}`;
+            }
+          } else {
+            dateKey = `Day ${index + 1}`;
+          }
           
           if (!aggregatedByDate[dateKey]) {
             aggregatedByDate[dateKey] = 0;
@@ -87,9 +118,17 @@ export default function Dashboard() {
       }
     });
 
-    // Convert to array format for chart, sorted by date
+    // Convert to array format for chart, sorted by date or day number
     const sortedEntries = Object.entries(aggregatedByDate).sort((a, b) => {
-      // Try to parse dates, fallback to string comparison
+      // Try to parse as "Day N" format first
+      const dayMatchA = a[0].match(/Day (\d+)/);
+      const dayMatchB = b[0].match(/Day (\d+)/);
+      
+      if (dayMatchA && dayMatchB) {
+        return parseInt(dayMatchA[1]) - parseInt(dayMatchB[1]);
+      }
+      
+      // Try to parse as date
       try {
         const dateA = new Date(a[0]);
         const dateB = new Date(b[0]);
@@ -103,7 +142,11 @@ export default function Dashboard() {
     });
 
     const result = sortedEntries.map(([month, sales]) => ({ month, sales }));
-    console.log("📊 Processed forecast data:", { dataPoints: result.length, sample: result.slice(0, 3) });
+    console.log("📊 Processed forecast data:", { 
+      dataPoints: result.length, 
+      sample: result.slice(0, 5),
+      totalSales: result.reduce((sum, item) => sum + item.sales, 0)
+    });
     return result;
   }, [analyticsData?.forecast]);
 
