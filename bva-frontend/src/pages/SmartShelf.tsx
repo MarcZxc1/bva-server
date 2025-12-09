@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { AlertTriangle, Package, TrendingDown, Calendar, Loader2, PackageOpen, Pencil } from "lucide-react";
+import { AlertTriangle, Package, TrendingDown, Calendar, Loader2, PackageOpen, Pencil, Sparkles, TrendingUp, Clock, Target } from "lucide-react";
 import { useAtRiskInventory } from "@/hooks/useSmartShelf";
 import { useAuth } from "@/contexts/AuthContext";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -12,6 +12,8 @@ import { useProducts } from "@/hooks/useProducts";
 import { useIntegration } from "@/hooks/useIntegration";
 import { AlertCircle } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { analyticsService, PromotionResponse } from "@/services/analytics.service";
+import { toast } from "sonner";
 
 const getRiskColor = (score: number): "destructive" | "secondary" | "outline" => {
   if (score >= 80) return "destructive";
@@ -89,13 +91,75 @@ export default function SmartShelf() {
   const { data: products, isLoading: isLoadingProducts, error: productsError } = useProducts(shopId || "");
   
   const [selectedItem, setSelectedItem] = useState<any>(null);
+  const [promotionsData, setPromotionsData] = useState<PromotionResponse | null>(null);
+  const [isGeneratingPromotions, setIsGeneratingPromotions] = useState(false);
+  const [showPromotionsModal, setShowPromotionsModal] = useState(false);
+  const [actionItem, setActionItem] = useState<any>(null);
 
-  const handleTakeAction = (item: any) => {
+  const handleTakeAction = async (item: any) => {
     const actionType = item.recommended_action.action_type.toLowerCase();
     
     if (actionType.includes("restock")) {
       navigate("/restock");
+      return;
     }
+
+    // For promotion, discount, clearance actions - generate promotions
+    if (actionType.includes("promotion") || actionType.includes("discount") || actionType.includes("clearance") || actionType.includes("bundle")) {
+      if (!shopId) {
+        toast.error("Shop ID is required");
+        return;
+      }
+
+      setIsGeneratingPromotions(true);
+      setActionItem(item);
+
+      try {
+        // Prepare item data for promotion generation
+        const itemData = {
+          product_id: item.product_id,
+          name: item.name,
+          expiry_date: item.days_to_expiry ? (() => {
+            const expiry = new Date();
+            expiry.setDate(expiry.getDate() + item.days_to_expiry);
+            return expiry.toISOString();
+          })() : null,
+          quantity: item.current_quantity,
+          price: 0, // Will be fetched from product if needed
+          categories: [],
+          days_to_expiry: item.days_to_expiry,
+        };
+
+        // Fetch product price if available
+        const product = products?.find(p => p.id === item.product_id);
+        if (product) {
+          itemData.price = product.price || 0;
+          itemData.categories = product.description ? [product.description] : [];
+        }
+
+        const promotions = await analyticsService.generatePromotionsForItem(shopId, itemData);
+        setPromotionsData(promotions);
+        setShowPromotionsModal(true);
+        toast.success(`Generated ${promotions.promotions.length} promotion${promotions.promotions.length !== 1 ? 's' : ''}`);
+      } catch (error: any) {
+        console.error("Error generating promotions:", error);
+        toast.error(error.message || "Failed to generate promotions");
+      } finally {
+        setIsGeneratingPromotions(false);
+      }
+    }
+  };
+
+  const handleUsePromotion = (promotion: any) => {
+    // Navigate to MarketMate with promotion data
+    navigate("/marketmate", { 
+      state: { 
+        promotion,
+        product: actionItem 
+      } 
+    });
+    setShowPromotionsModal(false);
+    toast.success("Redirecting to MarketMate to create campaign");
   };
 
   // Show empty state if no shop
@@ -368,8 +432,16 @@ export default function SmartShelf() {
                       size="sm" 
                       className="bg-primary hover:bg-primary/90 text-primary-foreground"
                       onClick={() => handleTakeAction(item)}
+                      disabled={isGeneratingPromotions}
                     >
-                      Take Action
+                      {isGeneratingPromotions && actionItem?.product_id === item.product_id ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Generating...
+                        </>
+                      ) : (
+                        "Take Action"
+                      )}
                     </Button>
                   </div>
                 </div>

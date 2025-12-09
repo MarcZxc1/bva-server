@@ -53,6 +53,42 @@ export interface AtRiskResponse {
   meta: any;
 }
 
+export interface PromotionRequest {
+  product_id: string;
+  name: string;
+  expiry_date?: string | null;
+  quantity: number;
+  price: number;
+  categories?: string[];
+  days_to_expiry?: number;
+}
+
+export interface GeneratedPromotion {
+  event_id: string;
+  event_title: string;
+  product_id: string;
+  product_name: string;
+  suggested_discount_pct: number;
+  promo_copy: string;
+  start_date: string;
+  end_date: string;
+  expected_clear_days: number;
+  projected_sales_lift: number;
+  confidence: string;
+  reasoning: string;
+}
+
+export interface PromotionResponse {
+  promotions: GeneratedPromotion[];
+  meta: {
+    shop_id: string;
+    total_items: number;
+    total_events: number;
+    promotions_generated: number;
+    analysis_date: string;
+  };
+}
+
 export const analyticsService = {
   getDashboardStats: async (shopId: string): Promise<DashboardResponse> => {
     const response = await apiClient.get<DashboardResponse>(`/api/smart-shelf/${shopId}/dashboard`);
@@ -70,5 +106,9 @@ export const analyticsService = {
 
   getAtRiskInventory: async (shopId: string): Promise<AtRiskResponse> => {
     return apiClient.get<AtRiskResponse>(`/api/smart-shelf/${shopId}/at-risk`);
+  },
+
+  generatePromotionsForItem: async (shopId: string, item: PromotionRequest): Promise<PromotionResponse> => {
+    return apiClient.post<PromotionResponse>(`/api/smart-shelf/${shopId}/generate-promotions`, item);
   },
 };

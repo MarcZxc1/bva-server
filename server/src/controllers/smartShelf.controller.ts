@@ -5,6 +5,9 @@ import {
   getDashboardAnalytics as getDashboardAnalyticsService,
   getAtRiskInventory as getAtRiskInventoryService
 } from "../service/smartShelf.service";
+import { AdService } from "../service/ad.service";
+
+const adService = new AdService();
 import { 
   MLAtRiskRequest, 
   MLAtRiskResponse, 
@@ -371,6 +374,45 @@ export const getAtRiskInventoryLegacy = async (req: Request, res: Response) => {
   } catch (error: any) {
     console.error("Error in getAtRiskInventory:", error);
     res.status(500).json({
+      success: false,
+      error: error.message || "Internal Server Error",
+    });
+  }
+};
+
+/**
+ * POST /api/smart-shelf/:shopId/generate-promotions
+ * Generate promotions for a specific at-risk item
+ */
+export const generatePromotionsForItem = async (req: Request, res: Response) => {
+  try {
+    const { shopId } = req.params;
+    const item = req.body;
+
+    if (!shopId) {
+      return res.status(400).json({
+        success: false,
+        error: "Shop ID is required",
+      });
+    }
+
+    if (!item || !item.product_id) {
+      return res.status(400).json({
+        success: false,
+        error: "Item data is required",
+      });
+    }
+
+    // Generate promotions for the item
+    const promotions = await adService.generatePromotionsForItem(shopId, item);
+
+    return res.json({
+      success: true,
+      data: promotions,
+    });
+  } catch (error: any) {
+    console.error("Error in generatePromotionsForItem:", error);
+    return res.status(500).json({
       success: false,
       error: error.message || "Internal Server Error",
     });

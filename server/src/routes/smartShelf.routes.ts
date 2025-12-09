@@ -18,4 +18,11 @@ router.get(
   smartShelfController.getDashboardAnalytics
 );
 
+// POST /api/smart-shelf/:shopId/generate-promotions
+router.post(
+  "/:shopId/generate-promotions",
+  authMiddleware,
+  smartShelfController.generatePromotionsForItem
+);
+
 export default router;

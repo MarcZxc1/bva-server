@@ -166,4 +166,81 @@ export class AdService {
       request
     );
   }
+
+  /**
+   * Generate promotions for a specific at-risk item
+   * Used when user clicks "Take Action" on an at-risk item
+   */
+  public async generatePromotionsForItem(
+    shopId: string,
+    item: {
+      product_id: string;
+      name: string;
+      expiry_date?: string | null;
+      quantity: number;
+      price: number;
+      categories?: string[];
+      days_to_expiry?: number;
+    }
+  ): Promise<PromotionResponse> {
+    // If no expiry date, create a near-expiry item based on days_to_expiry
+    let expiryDate: string;
+    if (item.expiry_date) {
+      expiryDate = item.expiry_date;
+    } else if (item.days_to_expiry !== undefined && item.days_to_expiry > 0) {
+      // Calculate expiry date from days_to_expiry
+      const expiry = new Date();
+      expiry.setDate(expiry.getDate() + item.days_to_expiry);
+      expiryDate = expiry.toISOString();
+    } else {
+      // Default to 7 days from now if no expiry info
+      const expiry = new Date();
+      expiry.setDate(expiry.getDate() + 7);
+      expiryDate = expiry.toISOString();
+    }
+
+    const nearExpiryItem: NearExpiryItem = {
+      product_id: item.product_id,
+      name: item.name,
+      expiry_date: expiryDate,
+      quantity: item.quantity,
+      price: item.price,
+      categories: item.categories || [],
+    };
+
+    // Generate calendar events (upcoming sales events)
+    const now = new Date();
+    const events: CalendarEvent[] = [
+      {
+        id: "evt_weekend",
+        date: new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000).toISOString(), // 3 days from now
+        title: "Weekend Sale",
+        event_type: "sale",
+      },
+      {
+        id: "evt_flash",
+        date: new Date(now.getTime() + 1 * 24 * 60 * 60 * 1000).toISOString(), // Tomorrow
+        title: "Flash Sale",
+        event_type: "sale",
+      },
+      {
+        id: "evt_payday",
+        date: new Date(now.getFullYear(), now.getMonth() + 1, 15).toISOString(), // Next 15th
+        title: "Payday Sale",
+        event_type: "sale",
+      },
+    ];
+
+    // Call ML Service
+    const request: PromotionRequest = {
+      shop_id: shopId,
+      items: [nearExpiryItem],
+      calendar_events: events,
+    };
+
+    return await mlClient.post<PromotionResponse>(
+      "/api/v1/smart-shelf/promotions",
+      request
+    );
+  }
 }
