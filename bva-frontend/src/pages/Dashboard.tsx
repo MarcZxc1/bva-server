@@ -55,32 +55,56 @@ export default function Dashboard() {
   // Aggregate all product forecasts into a single time series
   const salesData = useMemo(() => {
     if (!analyticsData?.forecast?.forecasts || analyticsData.forecast.forecasts.length === 0) {
+      console.log("📊 No forecast data available:", {
+        hasForecast: !!analyticsData?.forecast,
+        forecastsCount: analyticsData?.forecast?.forecasts?.length || 0
+      });
       return [];
     }
 
-    // Aggregate predictions from all products
-    const aggregatedPredictions: { [key: string]: number } = {};
+    console.log("📊 Processing forecast data:", {
+      products: analyticsData.forecast.forecasts.length,
+      firstProductPredictions: analyticsData.forecast.forecasts[0]?.predictions?.length || 0
+    });
+
+    // Aggregate predictions from all products by date
+    // Each prediction has a date field, so we group by date across all products
+    const aggregatedByDate: { [key: string]: number } = {};
     
     analyticsData.forecast.forecasts.forEach((productForecast: any) => {
       if (productForecast.predictions && Array.isArray(productForecast.predictions)) {
-        productForecast.predictions.forEach((prediction: any, index: number) => {
-          const dayKey = `Day ${index + 1}`;
-          if (!aggregatedPredictions[dayKey]) {
-            aggregatedPredictions[dayKey] = 0;
+        productForecast.predictions.forEach((prediction: any) => {
+          // Use the date from prediction, or fallback to index-based day
+          const dateKey = prediction.date 
+            ? new Date(prediction.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+            : `Day ${prediction.index || 0}`;
+          
+          if (!aggregatedByDate[dateKey]) {
+            aggregatedByDate[dateKey] = 0;
           }
-          aggregatedPredictions[dayKey] += Math.round(prediction.predicted_qty || 0);
+          aggregatedByDate[dateKey] += Math.round(prediction.predicted_qty || 0);
         });
       }
     });
 
-    // Convert to array format for chart
-    return Object.entries(aggregatedPredictions)
-      .sort((a, b) => {
-        const dayA = parseInt(a[0].replace('Day ', ''));
-        const dayB = parseInt(b[0].replace('Day ', ''));
-        return dayA - dayB;
-      })
-      .map(([month, sales]) => ({ month, sales }));
+    // Convert to array format for chart, sorted by date
+    const sortedEntries = Object.entries(aggregatedByDate).sort((a, b) => {
+      // Try to parse dates, fallback to string comparison
+      try {
+        const dateA = new Date(a[0]);
+        const dateB = new Date(b[0]);
+        if (!isNaN(dateA.getTime()) && !isNaN(dateB.getTime())) {
+          return dateA.getTime() - dateB.getTime();
+        }
+      } catch (e) {
+        // Fallback to string comparison
+      }
+      return a[0].localeCompare(b[0]);
+    });
+
+    const result = sortedEntries.map(([month, sales]) => ({ month, sales }));
+    console.log("📊 Processed forecast data:", { dataPoints: result.length, sample: result.slice(0, 3) });
+    return result;
   }, [analyticsData?.forecast]);
 
   // Prepare stock alerts from at-risk data
@@ -479,3 +503,4 @@ export default function Dashboard() {
     </div>
   );
 }
+

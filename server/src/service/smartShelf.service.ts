@@ -202,12 +202,13 @@ export async function getDashboardAnalytics(shopId: string) {
       // Debug logging
       console.log(`📊 Dashboard Analytics for shop ${shopId}: Found ${allSales.length} total sales`);
 
-      // 3. Get sales data for the last 30 days (for forecast/trends)
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      // 3. Get sales data for the last 60 days (for forecast/trends)
+      // We need at least 14 days of history for accurate forecasting
+      const sixtyDaysAgo = new Date();
+      sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
 
       const recentSales = allSales.filter(
-        (sale) => sale.createdAt >= thirtyDaysAgo
+        (sale) => sale.createdAt >= sixtyDaysAgo
       );
 
       // 4. Calculate lifetime totals from ALL sales
@@ -237,11 +238,15 @@ export async function getDashboardAnalytics(shopId: string) {
               totalItems += item.quantity || 0;
             }
 
-            // Only add to salesRecords if it's in the last 30 days (for forecast)
-            if (sale.createdAt >= thirtyDaysAgo && item.productId) {
+            // Only add to salesRecords if it's in the last 60 days (for forecast)
+            if (sale.createdAt >= sixtyDaysAgo && item.productId) {
+              // Format date as YYYY-MM-DD (ML service expects date string, not ISO with time)
+              const saleDate = new Date(sale.createdAt);
+              const dateStr = saleDate.toISOString().split('T')[0];
+              
               salesRecords.push({
                 product_id: item.productId,
-                date: sale.createdAt.toISOString(),
+                date: dateStr,
                 qty: item.quantity || 0,
               });
             }
@@ -273,21 +278,38 @@ export async function getDashboardAnalytics(shopId: string) {
       const profitMargin = totalRevenue > 0 ? (totalProfit / totalRevenue) * 100 : 0;
 
       // 5. Get forecast from ML Service (optional - only if products exist)
-      // Use recent sales (last 30 days) for forecast
+      // Use recent sales (last 60 days) for forecast
+      // Need at least 14 days of historical data for accurate forecasting
       let forecast = null;
-      if (products.length > 0 && recentSales.length > 0) {
+      if (products.length > 0 && salesRecords.length > 0) {
         try {
-          const productIds = products.slice(0, 10).map((p) => p.id); // Top 10 products
-          forecast = await mlClient.getDashboardForecast({
-            shop_id: shopId,
-            product_list: productIds,
-            sales: salesRecords,
-            periods: 7,
-          });
-        } catch (error) {
-          console.warn("Failed to get forecast from ML service:", error);
+          // Group sales by date to check if we have enough data points
+          const uniqueDates = new Set(salesRecords.map((r: any) => r.date));
+          
+          // Only call forecast if we have at least 14 days of data
+          if (uniqueDates.size >= 14) {
+            const productIds = products.slice(0, 10).map((p) => p.id); // Top 10 products
+            
+            console.log(`📊 Requesting forecast for shop ${shopId}: ${productIds.length} products, ${salesRecords.length} sales records, ${uniqueDates.size} unique days`);
+            
+            forecast = await mlClient.getDashboardForecast({
+              shop_id: shopId,
+              product_list: productIds,
+              sales: salesRecords,
+              periods: 14, // 14-day forecast as per documentation
+            });
+            
+            console.log(`✅ Forecast received: ${forecast?.forecasts?.length || 0} product forecasts`);
+          } else {
+            console.log(`⚠️  Insufficient historical data for forecast: ${uniqueDates.size} days (need at least 14)`);
+          }
+        } catch (error: any) {
+          console.error("❌ Failed to get forecast from ML service:", error?.message || error);
+          console.error("Error details:", error);
           // Continue without forecast data
         }
+      } else {
+        console.log(`⚠️  Cannot generate forecast: ${products.length} products, ${salesRecords.length} sales records`);
       }
 
       return {
@@ -301,9 +323,9 @@ export async function getDashboardAnalytics(shopId: string) {
         },
         forecast,
         period: {
-          start: thirtyDaysAgo.toISOString(),
+          start: sixtyDaysAgo.toISOString(),
           end: new Date().toISOString(),
-          days: 30,
+          days: 60,
         },
       };
     },
