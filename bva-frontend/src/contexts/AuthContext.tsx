@@ -114,7 +114,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Ensure isLoading is false so ProtectedRoute allows navigation
       setIsLoading(false);
       
-      // Refresh user data in background to get latest shops
+      // Refresh user data in background to get latest shops (non-blocking)
       refreshUserData(response.token, false).catch((error) => {
         console.error("Failed to refresh user data:", error);
         // Don't throw - we already have user data from response
@@ -147,7 +147,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Ensure isLoading is false so ProtectedRoute allows navigation
       setIsLoading(false);
       
-      // Refresh user data in background to get latest shops
+      // Refresh user data in background to get latest shops (non-blocking)
       refreshUserData(response.token, false).catch((error) => {
         console.error("Failed to refresh user data:", error);
         // Don't throw - we already have user data from response

@@ -62,8 +62,8 @@ export default function Login() {
     const hasError = searchParams.has("error");
     
     // Only redirect if authenticated, no OAuth params, and not processing OAuth
+    // Use immediate navigation without delay
     if (isAuthenticated && !hasToken && !hasError && !oauthProcessedRef.current) {
-      console.log("✅ Already authenticated, redirecting to dashboard...");
       navigate("/dashboard", { replace: true });
     }
   }, [isAuthenticated, searchParams, navigate]);
@@ -91,14 +91,8 @@ export default function Login() {
           
           // Save token and fetch user data
           await setToken(token);
-          console.log("✅ Token saved and user data loaded");
-          toast.success("OAuth login successful!");
-          
-          // Navigate after a brief delay to ensure state is updated
-          setTimeout(() => {
-            console.log("🚀 Navigating to dashboard...");
-            navigate("/dashboard", { replace: true });
-          }, 200);
+          // Navigate immediately - state is updated synchronously
+          navigate("/dashboard", { replace: true });
         } catch (err) {
           console.error("OAuth token error:", err);
           toast.error("Failed to complete login. Please try again.");
@@ -139,16 +133,17 @@ export default function Login() {
     setIsSubmitting(true);
     try {
       await login(loginEmail, loginPassword);
-      toast.success("Login successful!");
-      navigate("/dashboard");
+      // Don't show toast here - navigate immediately
+      // The navigation will happen automatically when isAuthenticated becomes true
+      navigate("/dashboard", { replace: true });
     } catch (error) {
       const axiosError = error as AxiosError<{ error?: string; message?: string }>;
-      toast.error(
+      const errorMessage = 
         axiosError.response?.data?.error || 
         axiosError.response?.data?.message ||
         axiosError.message || 
-        "Login failed. Please check your credentials."
-      );
+        "Login failed. Please check your credentials.";
+      toast.error(errorMessage);
     } finally {
       setIsSubmitting(false);
     }
@@ -175,8 +170,9 @@ export default function Login() {
     setIsSubmitting(true);
     try {
       await register(registerEmail, registerPassword, registerName);
-      toast.success("Registration successful! Welcome to BVA!");
-      navigate("/dashboard");
+      // Don't show toast here - navigate immediately
+      // The navigation will happen automatically when isAuthenticated becomes true
+      navigate("/dashboard", { replace: true });
     } catch (error) {
       const axiosError = error as AxiosError<{ error?: string; message?: string }>;
       toast.error(

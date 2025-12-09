@@ -3,6 +3,7 @@ import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import prisma from "../lib/prisma";
 import { shopeeIntegrationService } from "./shopeeIntegration.service";
+import { LoginAttemptService } from "./loginAttempt.service";
 
 export interface RegisterInput {
   email: string;
@@ -120,19 +121,33 @@ class AuthService {
 
   /**
    * Login user
+   * Includes login attempt limiting to prevent brute force attacks
    */
   async login(data: LoginInput) {
+    // Check if account is locked
+    const lockStatus = await LoginAttemptService.isLocked(data.email);
+    if (lockStatus.locked) {
+      const minutes = Math.floor((lockStatus.remainingSeconds || 0) / 60);
+      const seconds = (lockStatus.remainingSeconds || 0) % 60;
+      throw new Error(
+        `Account temporarily locked due to too many failed login attempts. Please try again in ${minutes}m ${seconds}s.`
+      );
+    }
+
     // Find user by email
     const user = await prisma.user.findUnique({
       where: { email: data.email },
     });
 
+    // Record failed attempt if user doesn't exist (don't reveal if email exists)
     if (!user) {
+      await LoginAttemptService.recordFailedAttempt(data.email);
       throw new Error("Invalid credentials");
     }
 
     // Check if user has a password (not a Google OAuth user)
     if (!user.password) {
+      await LoginAttemptService.recordFailedAttempt(data.email);
       throw new Error("This account uses Google OAuth. Please sign in with Google.");
     }
 
@@ -140,8 +155,29 @@ class AuthService {
     const isPasswordValid = await bcrypt.compare(data.password, user.password);
 
     if (!isPasswordValid) {
-      throw new Error("Invalid credentials");
+      // Record failed attempt
+      const attemptResult = await LoginAttemptService.recordFailedAttempt(data.email);
+      
+      // If account is now locked, throw lockout error
+      if (attemptResult.locked) {
+        const minutes = Math.floor((attemptResult.remainingSeconds || 0) / 60);
+        const seconds = (attemptResult.remainingSeconds || 0) % 60;
+        throw new Error(
+          `Too many failed login attempts. Account locked for ${minutes}m ${seconds}s. Please try again later.`
+        );
+      }
+
+      // Get remaining attempts for error message
+      const remainingAttempts = await LoginAttemptService.getRemainingAttempts(data.email);
+      throw new Error(
+        remainingAttempts > 0
+          ? `Invalid credentials. ${remainingAttempts} attempt${remainingAttempts > 1 ? 's' : ''} remaining.`
+          : "Invalid credentials"
+      );
     }
+
+    // Successful login - clear all attempts
+    await LoginAttemptService.clearAttempts(data.email);
 
     // Fetch user's shop if they're a seller
     const userShops = await prisma.shop.findMany({

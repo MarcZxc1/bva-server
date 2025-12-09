@@ -1,6 +1,7 @@
 import prisma from "../lib/prisma";
 import { User, Prisma, Role } from "../generated/prisma";
 import bcrypt from "bcrypt";
+import { LoginAttemptService } from "./loginAttempt.service";
 
 export class UserService {
   async register(email: string, password: string, name?: string) {
@@ -30,6 +31,16 @@ export class UserService {
   }
 
   async login(email: string, password: string) {
+    // Check if account is locked
+    const lockStatus = await LoginAttemptService.isLocked(email);
+    if (lockStatus.locked) {
+      const minutes = Math.floor((lockStatus.remainingSeconds || 0) / 60);
+      const seconds = (lockStatus.remainingSeconds || 0) % 60;
+      throw new Error(
+        `Account temporarily locked due to too many failed login attempts. Please try again in ${minutes}m ${seconds}s.`
+      );
+    }
+
     const user = await prisma.user.findUnique({
       where: { email },
       include: {
@@ -42,20 +53,44 @@ export class UserService {
       },
     });
 
+    // Record failed attempt if user doesn't exist (don't reveal if email exists)
     if (!user) {
+      await LoginAttemptService.recordFailedAttempt(email);
       throw new Error("Invalid email or password");
     }
 
     // Check if user has a password (not a Google OAuth user)
     if (!user.password) {
+      await LoginAttemptService.recordFailedAttempt(email);
       throw new Error("This account uses Google OAuth. Please sign in with Google.");
     }
 
     const isPasswordValid = await bcrypt.compare(password, user.password);
 
     if (!isPasswordValid) {
-      throw new Error("Invalid email or password");
+      // Record failed attempt
+      const attemptResult = await LoginAttemptService.recordFailedAttempt(email);
+      
+      // If account is now locked, throw lockout error
+      if (attemptResult.locked) {
+        const minutes = Math.floor((attemptResult.remainingSeconds || 0) / 60);
+        const seconds = (attemptResult.remainingSeconds || 0) % 60;
+        throw new Error(
+          `Too many failed login attempts. Account locked for ${minutes}m ${seconds}s. Please try again later.`
+        );
+      }
+
+      // Get remaining attempts for error message
+      const remainingAttempts = await LoginAttemptService.getRemainingAttempts(email);
+      throw new Error(
+        remainingAttempts > 0
+          ? `Invalid email or password. ${remainingAttempts} attempt${remainingAttempts > 1 ? 's' : ''} remaining.`
+          : "Invalid email or password"
+      );
     }
+
+    // Successful login - clear all attempts
+    await LoginAttemptService.clearAttempts(email);
 
     return user;
   }
