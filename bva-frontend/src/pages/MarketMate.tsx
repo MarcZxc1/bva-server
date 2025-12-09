@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useLocation } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -38,6 +39,7 @@ const getPlatformColor = (platform: string) => {
 
 export default function MarketMate() {
   const { user } = useAuth();
+  const location = useLocation();
   const shopId = user?.shops?.[0]?.id || "";
   const { data: promotionsData, isLoading: promotionsLoading } = usePromotions(shopId, !!shopId);
   const { data: campaignsData, isLoading: campaignsLoading, refetch: refetchCampaigns } = useCampaigns(shopId, !!shopId);
@@ -54,6 +56,22 @@ export default function MarketMate() {
   const campaigns = campaignsData || [];
   const hasCampaigns = campaigns && campaigns.length > 0;
   const hasPromotions = promotionsData && promotionsData.promotions.length > 0;
+
+  // Handle promotion data from SmartShelf navigation
+  useEffect(() => {
+    const state = location.state as { promotion?: any; product?: any } | null;
+    if (state?.promotion) {
+      console.log("🎯 Received promotion from SmartShelf:", state.promotion);
+      // Auto-create campaign from the promotion
+      handleUsePromotion(state.promotion).then(() => {
+        // Clear the state after processing
+        window.history.replaceState({}, document.title);
+        toast.success("Campaign created from SmartShelf promotion!");
+      }).catch((error) => {
+        console.error("Error creating campaign from promotion:", error);
+      });
+    }
+  }, [location.state]);
 
   const handleUsePromotion = async (promo: any) => {
     try {

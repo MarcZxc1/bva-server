@@ -216,8 +216,12 @@ export default function SmartShelf() {
   };
 
   const handleUsePromotion = (promotion: any) => {
-    // Navigate to MarketMate with promotion data
-    navigate("/marketmate", { 
+    // Navigate to MarketMate with promotion data (route is /ads, not /marketmate)
+    console.log("🎯 Navigating to MarketMate with promotion:", {
+      promotion,
+      product: actionItem
+    });
+    navigate("/ads", { 
       state: { 
         promotion,
         product: actionItem 
