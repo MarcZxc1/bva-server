@@ -202,10 +202,16 @@ export class UserController {
   // Update user profile
   async updateProfile(req: Request, res: Response) {
     try {
-      // Try multiple ways to get userId (different middlewares set it differently)
-      const userId = (req as any).user?.id || (req as any).user?.userId || (req as any).userId;
+      // JWT token contains userId (not id), and authMiddleware sets req.user = decoded token
+      const decoded = (req as any).user;
+      const userId = decoded?.userId || decoded?.id;
       
       if (!userId) {
+        console.error("User ID not found in request:", { 
+          user: decoded,
+          hasUser: !!(req as any).user,
+          keys: decoded ? Object.keys(decoded) : []
+        });
         return res.status(401).json({
           success: false,
           error: "User ID not found in request. Please ensure you are authenticated.",
