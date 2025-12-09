@@ -330,7 +330,9 @@ export async function getDashboardAnalytics(shopId: string) {
       // 5. Get forecast from ML Service (optional - only if products exist)
       // Use recent sales (last 60 days) for forecast
       // Need at least 14 days of historical data for accurate forecasting
-      let forecast = null;
+      let forecast: any = null;
+      
+      // Always try to generate a forecast if we have any sales data
       if (products.length > 0 && salesRecords.length > 0) {
         try {
           // Group sales by date to check if we have enough data points
@@ -348,7 +350,7 @@ export async function getDashboardAnalytics(shopId: string) {
           
           // Calculate average daily sales for fallback forecast
           const totalQty = salesRecords.reduce((sum: number, r: any) => sum + (r.qty || 0), 0);
-          const avgDailySales = uniqueDates.size > 0 ? totalQty / uniqueDates.size : 0;
+          const avgDailySales = uniqueDates.size > 0 ? totalQty / uniqueDates.size : (totalQty / Math.max(1, salesRecords.length));
           
           // Only call ML service if we have at least 14 days of data
           if (uniqueDates.size >= 14) {
@@ -372,38 +374,52 @@ export async function getDashboardAnalytics(shopId: string) {
                   productId: forecastResponse.forecasts[0].product_id,
                   predictionsCount: forecastResponse.forecasts[0].predictions?.length || 0,
                   firstPrediction: forecastResponse.forecasts[0].predictions?.[0]
-                } : null
+                } : null,
+                fullResponse: JSON.stringify(forecastResponse).substring(0, 200)
               });
               
               // Ensure forecast is in the correct format
-              if (forecastResponse && forecastResponse.forecasts && Array.isArray(forecastResponse.forecasts)) {
+              if (forecastResponse && forecastResponse.forecasts && Array.isArray(forecastResponse.forecasts) && forecastResponse.forecasts.length > 0) {
                 forecast = forecastResponse;
+                console.log(`✅ Using ML service forecast with ${forecastResponse.forecasts.length} product forecasts`);
               } else {
                 console.warn("⚠️  Forecast response missing forecasts array, using fallback:", forecastResponse);
                 // Use fallback forecast
-                forecast = generateFallbackForecast(avgDailySales, uniqueDates.size);
+                forecast = generateFallbackForecast(avgDailySales, uniqueDates.size || 1);
+                console.log(`✅ Generated fallback forecast`);
               }
             } catch (mlError: any) {
               console.error("❌ ML service forecast failed, using fallback:", mlError?.message);
+              console.error("ML Error details:", {
+                message: mlError?.message,
+                response: mlError?.response?.data,
+                status: mlError?.response?.status
+              });
               // Use fallback forecast based on historical average
-              forecast = generateFallbackForecast(avgDailySales, uniqueDates.size);
+              forecast = generateFallbackForecast(avgDailySales, uniqueDates.size || 1);
+              console.log(`✅ Generated fallback forecast after ML error`);
             }
-          } else if (uniqueDates.size >= 7) {
-            // If we have at least 7 days, use fallback forecast
-            console.log(`📊 Using fallback forecast (${uniqueDates.size} days of history, need 14 for ML service)`);
-            forecast = generateFallbackForecast(avgDailySales, uniqueDates.size);
+          } else if (uniqueDates.size >= 1 || salesRecords.length > 0) {
+            // If we have ANY sales data, use fallback forecast (even with just 1 day)
+            console.log(`📊 Using fallback forecast (${uniqueDates.size} unique days, ${salesRecords.length} sales records)`);
+            forecast = generateFallbackForecast(avgDailySales, uniqueDates.size || 1);
+            console.log(`✅ Generated fallback forecast with avgDailySales: ${avgDailySales.toFixed(2)}`);
           } else {
-            console.log(`⚠️  Insufficient historical data for forecast: ${uniqueDates.size} days (need at least 7 for fallback, 14 for ML)`);
-            console.log(`💡 Tip: Need at least 7 days of sales history for basic forecast. Current: ${uniqueDates.size} days`);
+            console.log(`⚠️  No sales data available for forecast generation`);
+            forecast = null; // Explicitly set to null
           }
         } catch (error: any) {
-          console.error("❌ Failed to get forecast from ML service:", error?.message || error);
+          console.error("❌ Error in forecast generation:", error?.message || error);
           console.error("Error stack:", error?.stack);
-          if (error?.response) {
-            console.error("ML Service response:", error.response.data);
-            console.error("ML Service status:", error.response.status);
+          // Try to generate fallback even on error if we have sales data
+          if (salesRecords.length > 0) {
+            const totalQty = salesRecords.reduce((sum: number, r: any) => sum + (r.qty || 0), 0);
+            const avgDailySales = totalQty / Math.max(1, salesRecords.length);
+            forecast = generateFallbackForecast(avgDailySales, 1);
+            console.log(`✅ Generated fallback forecast after error`);
+          } else {
+            forecast = null; // Explicitly set to null
           }
-          // Continue without forecast data - don't break the dashboard
         }
       } else {
         console.log(`⚠️  Cannot generate forecast: ${products.length} products, ${salesRecords.length} sales records`);
@@ -411,8 +427,15 @@ export async function getDashboardAnalytics(shopId: string) {
           console.log(`💡 Tip: No products with externalId found. Products need to be synced from Shopee-Clone.`);
         }
         if (salesRecords.length === 0) {
-          console.log(`💡 Tip: No sales records found in the last 60 days.`);
+          console.log(`💡 Tip: No sales records found in the last 60 days from Shopee-Clone platform.`);
         }
+        forecast = null; // Explicitly set to null
+      }
+      
+      // Ensure forecast is either null or a valid structure
+      if (forecast && (!forecast.forecasts || !Array.isArray(forecast.forecasts) || forecast.forecasts.length === 0)) {
+        console.warn("⚠️  Invalid forecast structure, setting to null:", forecast);
+        forecast = null;
       }
 
       return {

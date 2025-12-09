@@ -62,13 +62,20 @@ export default function Dashboard() {
       forecastKeys: analyticsData?.forecast ? Object.keys(analyticsData.forecast) : []
     });
 
-    if (!analyticsData?.forecast) {
-      console.log("📊 No forecast object in analyticsData");
+    // Check if forecast exists and is not null/empty
+    if (!analyticsData?.forecast || analyticsData.forecast === null) {
+      console.log("📊 No forecast object in analyticsData (null or undefined)");
       return [];
     }
 
     // Handle both direct forecast object and nested structure
     const forecastData = analyticsData.forecast;
+    
+    // Check if forecast is an empty object
+    if (typeof forecastData === 'object' && Object.keys(forecastData).length === 0) {
+      console.log("📊 Forecast is an empty object");
+      return [];
+    }
     
     // Check if forecast is the response object with forecasts array
     if (!forecastData.forecasts || !Array.isArray(forecastData.forecasts) || forecastData.forecasts.length === 0) {
@@ -76,7 +83,9 @@ export default function Dashboard() {
         hasForecasts: !!forecastData.forecasts,
         isArray: Array.isArray(forecastData.forecasts),
         length: forecastData.forecasts?.length || 0,
-        forecastDataKeys: Object.keys(forecastData)
+        forecastDataKeys: Object.keys(forecastData),
+        forecastDataType: typeof forecastData,
+        forecastDataValue: forecastData
       });
       return [];
     }
