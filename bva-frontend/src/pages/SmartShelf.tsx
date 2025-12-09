@@ -111,15 +111,9 @@ export default function SmartShelf() {
       return;
     }
 
-    // Validate recommended action
-    if (!item.recommended_action) {
-      console.error("❌ No recommended_action in item:", item);
-      toast.error("No action recommendation available for this item");
-      return;
-    }
-
+    // Get action type (may be missing, that's okay - we'll still generate promotions)
     const actionType = item.recommended_action?.action_type?.toLowerCase() || "";
-    console.log("📋 Action type detected:", actionType);
+    console.log("📋 Action type detected:", actionType || "none (will generate promotions anyway)");
 
     // Handle restock action - navigate to Restock Planner
     if (actionType.includes("restock")) {
