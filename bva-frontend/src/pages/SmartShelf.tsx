@@ -462,20 +462,20 @@ export default function SmartShelf() {
 
                     <div className="p-3 glass-card-sm text-sm">
                       <div className="flex items-start gap-2">
-                        {getActionIcon(item.recommended_action.action_type)}
+                        {getActionIcon(item.recommended_action?.action_type || "monitor")}
                         <div>
                           <div className="font-semibold text-foreground capitalize mb-1">
-                            {item.recommended_action.action_type.replace(/_/g, ' ')}
+                            {item.recommended_action?.action_type?.replace(/_/g, ' ') || "Review Required"}
                           </div>
                           <div className="text-muted-foreground text-xs">
-                            {item.recommended_action.reasoning}
+                            {item.recommended_action?.reasoning || "This item requires attention. Click 'Take Action' to see recommendations."}
                           </div>
-                          {item.recommended_action.restock_qty && (
+                          {item.recommended_action?.restock_qty && (
                             <div className="text-xs mt-1 text-success">
                               Recommended Restock: <strong>{item.recommended_action.restock_qty} units</strong>
                             </div>
                           )}
-                          {item.recommended_action.discount_range && (
+                          {item.recommended_action?.discount_range && (
                             <div className="text-xs mt-1 text-warning">
                               Suggested Discount: <strong>{item.recommended_action.discount_range[0]}-{item.recommended_action.discount_range[1]}%</strong>
                             </div>
