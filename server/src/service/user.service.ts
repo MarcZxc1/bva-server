@@ -118,7 +118,7 @@ export class UserService {
       firstName?: string | null;
       lastName?: string | null;
       email?: string;
-      name?: string;
+      name?: string | null;
     } = {};
 
     // Handle email update
