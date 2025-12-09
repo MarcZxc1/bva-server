@@ -6,7 +6,7 @@ import { toast } from "sonner";
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
 
 interface DashboardUpdate {
-  type: "new_order" | "low_stock" | "inventory_update" | "restock_plan_generated";
+  type: "new_order" | "low_stock" | "inventory_update" | "restock_plan_generated" | "forecast_update";
   data: any;
 }
 
@@ -60,6 +60,9 @@ export function useRealtimeDashboard({
           break;
         case "restock_plan_generated":
           handleRestockPlanGenerated(update.data);
+          break;
+        case "forecast_update":
+          handleForecastUpdate(update.data);
           break;
       }
     });
@@ -169,6 +172,16 @@ export function useRealtimeDashboard({
     // Also invalidate inventory since restock affects inventory planning
     queryClient.invalidateQueries({ queryKey: ["inventory"] });
     queryClient.invalidateQueries({ queryKey: ["at-risk-inventory"] });
+  };
+
+  const handleForecastUpdate = (data: {
+    shopId: string;
+    timestamp: string;
+  }) => {
+    // Silently update forecast data by invalidating dashboard analytics
+    // This will trigger a refetch with updated sales data
+    queryClient.invalidateQueries({ queryKey: ["dashboard-analytics"] });
+    console.log("📊 Forecast update received, refreshing dashboard analytics");
   };
 
   return {

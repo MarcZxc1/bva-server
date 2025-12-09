@@ -18,10 +18,20 @@ export default function Settings() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   
-  // Profile Form State
-  const [firstName, setFirstName] = useState(user?.name?.split(" ")[0] || "");
-  const [lastName, setLastName] = useState(user?.name?.split(" ").slice(1).join(" ") || "");
-  const [email, setEmail] = useState(user?.email || "");
+  // Profile Form State - Initialize from user data
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [email, setEmail] = useState("");
+
+  // Initialize form fields when user data is available
+  useEffect(() => {
+    if (user) {
+      const nameParts = user.name?.split(" ") || [];
+      setFirstName(nameParts[0] || "");
+      setLastName(nameParts.slice(1).join(" ") || "");
+      setEmail(user.email || "");
+    }
+  }, [user]);
 
   // Integration State
   const [showAgreementDialog, setShowAgreementDialog] = useState(false);
@@ -35,11 +45,22 @@ export default function Settings() {
   // Profile Update Mutation
   const updateProfileMutation = useMutation({
     mutationFn: userApi.updateProfile,
-    onSuccess: () => {
+    onSuccess: (data) => {
       toast.success("Profile updated successfully");
+      // Update local user state if available
+      if (data && user) {
+        // The user context will be updated by the API response
+        // We can also manually update the form fields if needed
+        const updatedNameParts = data.name?.split(" ") || [];
+        setFirstName(updatedNameParts[0] || firstName);
+        setLastName(updatedNameParts.slice(1).join(" ") || lastName);
+        if (data.email) {
+          setEmail(data.email);
+        }
+      }
     },
     onError: (error: any) => {
-      toast.error(error.response?.data?.error || "Failed to update profile");
+      toast.error(error.response?.data?.error || error.message || "Failed to update profile");
     },
   });
 
@@ -59,7 +80,34 @@ export default function Settings() {
 
   const handleProfileSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    updateProfileMutation.mutate({ firstName, lastName, email });
+    
+    // Build update object with only changed fields
+    const updates: { firstName?: string; lastName?: string; email?: string } = {};
+    
+    // Only include fields that have changed from the original user data
+    const originalNameParts = user?.name?.split(" ") || [];
+    const originalFirstName = originalNameParts[0] || "";
+    const originalLastName = originalNameParts.slice(1).join(" ") || "";
+    const originalEmail = user?.email || "";
+    
+    if (firstName !== originalFirstName) {
+      updates.firstName = firstName;
+    }
+    if (lastName !== originalLastName) {
+      updates.lastName = lastName;
+    }
+    if (email !== originalEmail) {
+      updates.email = email;
+    }
+    
+    // If no changes, show message and return
+    if (Object.keys(updates).length === 0) {
+      toast.info("No changes to save");
+      return;
+    }
+    
+    // Update only changed fields
+    updateProfileMutation.mutate(updates);
   };
 
   const handlePasswordSubmit = (e: React.FormEvent) => {

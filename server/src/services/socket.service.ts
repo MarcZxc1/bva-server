@@ -155,3 +155,24 @@ export function notifyInventoryUpdate(shopId: string, updates: Array<{
   console.log(`📦 Notified shop ${shopId} about inventory updates`);
 }
 
+/**
+ * Notify shop about forecast update (when sales data changes)
+ */
+export function notifyForecastUpdate(shopId: string): void {
+  if (!io) {
+    console.warn("⚠️  Socket.IO not initialized. Skipping forecast update.");
+    return;
+  }
+
+  const room = `shop_${shopId}`;
+  io.to(room).emit("dashboard_update", {
+    type: "forecast_update",
+    data: {
+      shopId,
+      timestamp: new Date().toISOString(),
+    },
+  });
+
+  console.log(`📊 Notified shop ${shopId} about forecast update`);
+}
+

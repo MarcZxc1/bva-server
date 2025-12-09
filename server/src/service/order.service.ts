@@ -1,6 +1,6 @@
 import prisma from "../lib/prisma";
 import { Platform } from "../generated/prisma";
-import { notifyNewOrder, notifyLowStock, notifyInventoryUpdate, OrderNotificationData } from "../services/socket.service";
+import { notifyNewOrder, notifyLowStock, notifyInventoryUpdate, notifyForecastUpdate, OrderNotificationData } from "../services/socket.service";
 import { CacheService } from "../lib/redis";
 
 export async function createOrder(data: {
@@ -263,6 +263,8 @@ export async function createOrder(data: {
     // Emit new order notification (non-blocking)
     setImmediate(() => {
       notifyNewOrder(orderNotificationData);
+      // Also notify about forecast update since sales data has changed
+      notifyForecastUpdate(shopId);
     });
 
     // Invalidate cache for dashboard analytics immediately

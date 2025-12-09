@@ -107,25 +107,57 @@ export class UserService {
       }
     }
 
-    // Update name based on first and last name if provided
-    let nameUpdate = {};
-    if (data.firstName || data.lastName) {
-      const user = await prisma.user.findUnique({ where: { id: userId } });
-      const currentName = user?.name || "";
-      const firstName = data.firstName || (user?.firstName ?? currentName.split(" ")[0]);
-      const lastName = data.lastName || (user?.lastName ?? currentName.split(" ").slice(1).join(" "));
-      
-      nameUpdate = {
-        name: `${firstName} ${lastName}`.trim(),
-      };
+    // Get current user data to preserve existing values
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    // Build update object with only provided fields
+    const updateData: {
+      firstName?: string | null;
+      lastName?: string | null;
+      email?: string;
+      name?: string;
+    } = {};
+
+    // Handle email update
+    if (data.email !== undefined) {
+      updateData.email = data.email;
+    }
+
+    // Handle firstName and lastName updates
+    // If firstName is provided, use it; otherwise keep existing or derive from name
+    const finalFirstName = data.firstName !== undefined 
+      ? data.firstName 
+      : (user.firstName ?? user.name?.split(" ")[0] ?? "");
+    
+    // If lastName is provided, use it; otherwise keep existing or derive from name
+    const finalLastName = data.lastName !== undefined 
+      ? data.lastName 
+      : (user.lastName ?? user.name?.split(" ").slice(1).join(" ") ?? "");
+
+    // Only update firstName/lastName if they were provided in the request
+    if (data.firstName !== undefined) {
+      updateData.firstName = finalFirstName || null;
+    }
+    if (data.lastName !== undefined) {
+      updateData.lastName = finalLastName || null;
+    }
+
+    // Update the full name field based on firstName and lastName
+    if (data.firstName !== undefined || data.lastName !== undefined) {
+      updateData.name = `${finalFirstName} ${finalLastName}`.trim() || null;
+    }
+
+    // Only update if there are changes
+    if (Object.keys(updateData).length === 0) {
+      return user;
     }
 
     return await prisma.user.update({
       where: { id: userId },
-      data: {
-        ...data,
-        ...nameUpdate,
-      },
+      data: updateData,
     });
   }
 
