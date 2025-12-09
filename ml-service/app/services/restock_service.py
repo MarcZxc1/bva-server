@@ -23,10 +23,90 @@ from app.schemas.restock_schema import (
     RestockItem,
     RestockTotals,
     RestockGoal,
-    ProductInput
+    ProductInput,
+    WeatherCondition
 )
 
 logger = structlog.get_logger()
+
+
+def apply_context_multipliers(
+    base_demand: float,
+    product: ProductInput,
+    weather_condition: WeatherCondition | None = None,
+    is_payday: bool = False,
+    upcoming_holiday: str | None = None
+) -> float:
+    """
+    Apply context-aware multipliers to base demand based on real-world factors.
+    
+    Multiplier Rules:
+    - Payday: +20% demand for all items
+    - Holiday (11.11/Christmas): +50% demand
+    - Weather (Storm):
+      - Essentials (Food, Water): +40% demand
+      - Luxury/Fashion: -30% demand (people don't shop for clothes during storms)
+    - Weather (Sunny): Standard demand (no change)
+    - Weather (Rainy): Standard demand (no change)
+    
+    Args:
+        base_demand: Base daily demand (avg_daily_sales)
+        product: ProductInput with category information
+        weather_condition: Current weather condition
+        is_payday: Whether it's a payday period
+        upcoming_holiday: Upcoming holiday or sale event
+    
+    Returns:
+        Adjusted demand with context multipliers applied
+    """
+    adjusted_demand = base_demand
+    multipliers_applied = []
+    
+    # Payday multiplier: +20% for all items
+    if is_payday:
+        adjusted_demand *= 1.20
+        multipliers_applied.append("payday (+20%)")
+    
+    # Holiday multiplier: +50% for all items
+    if upcoming_holiday:
+        holiday_lower = upcoming_holiday.lower()
+        if holiday_lower in ["11.11", "christmas", "black friday", "new year", "valentine"]:
+            adjusted_demand *= 1.50
+            multipliers_applied.append(f"holiday {upcoming_holiday} (+50%)")
+    
+    # Weather multipliers (category-dependent)
+    if weather_condition == WeatherCondition.STORM:
+        category_lower = (product.category or "").lower()
+        
+        # Essentials categories (Food, Water, Medicine, etc.)
+        essentials_keywords = ["food", "water", "medicine", "medical", "essential", "grocery", "beverage"]
+        is_essential = any(keyword in category_lower for keyword in essentials_keywords)
+        
+        # Luxury/Fashion categories
+        luxury_keywords = ["fashion", "clothing", "apparel", "luxury", "jewelry", "cosmetics", "beauty"]
+        is_luxury = any(keyword in category_lower for keyword in luxury_keywords)
+        
+        if is_essential:
+            adjusted_demand *= 1.40
+            multipliers_applied.append("storm - essentials (+40%)")
+        elif is_luxury:
+            adjusted_demand *= 0.70  # -30% demand
+            multipliers_applied.append("storm - luxury/fashion (-30%)")
+        # For other categories during storm, no change (standard demand)
+    
+    # Sunny and Rainy weather: No multiplier (standard demand)
+    # This is handled implicitly by not applying any multiplier
+    
+    if multipliers_applied:
+        logger.debug(
+            "context_multipliers_applied",
+            product_id=product.product_id,
+            base_demand=base_demand,
+            adjusted_demand=adjusted_demand,
+            multipliers=multipliers_applied
+        )
+    
+    return adjusted_demand
 
 
 def compute_restock_strategy(request: RestockRequest) -> RestockResponse:
@@ -49,7 +129,10 @@ def compute_restock_strategy(request: RestockRequest) -> RestockResponse:
         shop_id=request.shop_id,
         budget=request.budget,
         goal=request.goal,
-        products_count=len(request.products)
+        products_count=len(request.products),
+        weather=request.weather_condition,
+        is_payday=request.is_payday,
+        holiday=request.upcoming_holiday
     )
     
     # Filter out products where cost >= price (negative profit margin)
@@ -90,23 +173,33 @@ def compute_restock_strategy(request: RestockRequest) -> RestockResponse:
         )
     
     # Route to appropriate strategy (use filtered valid products)
+    # Pass context parameters for demand adjustment
     if request.goal == RestockGoal.PROFIT:
         items, reasoning = profit_maximization(
             products=valid_products,
             budget=request.budget,
-            restock_days=request.restock_days
+            restock_days=request.restock_days,
+            weather_condition=request.weather_condition,
+            is_payday=request.is_payday,
+            upcoming_holiday=request.upcoming_holiday
         )
     elif request.goal == RestockGoal.VOLUME:
         items, reasoning = volume_maximization(
             products=valid_products,
             budget=request.budget,
-            restock_days=request.restock_days
+            restock_days=request.restock_days,
+            weather_condition=request.weather_condition,
+            is_payday=request.is_payday,
+            upcoming_holiday=request.upcoming_holiday
         )
     else:  # BALANCED
         items, reasoning = balanced_strategy(
             products=valid_products,
             budget=request.budget,
-            restock_days=request.restock_days
+            restock_days=request.restock_days,
+            weather_condition=request.weather_condition,
+            is_payday=request.is_payday,
+            upcoming_holiday=request.upcoming_holiday
         )
     
     # Compute totals
@@ -149,7 +242,10 @@ def compute_restock_strategy(request: RestockRequest) -> RestockResponse:
 def profit_maximization(
     products: List[ProductInput],
     budget: float,
-    restock_days: int
+    restock_days: int,
+    weather_condition: WeatherCondition | None = None,
+    is_payday: bool = False,
+    upcoming_holiday: str | None = None
 ) -> Tuple[List[RestockItem], List[str]]:
     """
     Profit Maximization Strategy.
@@ -178,11 +274,26 @@ def profit_maximization(
         f"Target: {restock_days} days of stock"
     ]
     
+    # Add context information to reasoning
+    if is_payday:
+        reasoning.append("Context: Payday period detected - demand increased by 20%")
+    if upcoming_holiday:
+        reasoning.append(f"Context: Upcoming holiday ({upcoming_holiday}) - demand increased by 50%")
+    if weather_condition == WeatherCondition.STORM:
+        reasoning.append("Context: Storm weather - essentials +40%, luxury/fashion -30%")
+    
     # Calculate profit scores for each product
     scored_products = []
     for p in products:
-        # Calculate needed quantity based on sales velocity
-        daily_demand = p.avg_daily_sales
+        # Apply context multipliers to base demand
+        base_demand = p.avg_daily_sales
+        daily_demand = apply_context_multipliers(
+            base_demand=base_demand,
+            product=p,
+            weather_condition=weather_condition,
+            is_payday=is_payday,
+            upcoming_holiday=upcoming_holiday
+        )
         current_days_of_stock = p.stock / daily_demand if daily_demand > 0 else 999
         
         # Urgency multiplier: higher when stock is low
@@ -280,7 +391,10 @@ def profit_maximization(
 def volume_maximization(
     products: List[ProductInput],
     budget: float,
-    restock_days: int
+    restock_days: int,
+    weather_condition: WeatherCondition | None = None,
+    is_payday: bool = False,
+    upcoming_holiday: str | None = None
 ) -> Tuple[List[RestockItem], List[str]]:
     """
     Volume Maximization Strategy.
@@ -310,14 +424,32 @@ def volume_maximization(
         f"Target: {restock_days} days of fast-moving stock"
     ]
     
+    # Add context information to reasoning
+    if is_payday:
+        reasoning.append("Context: Payday period detected - demand increased by 20%")
+    if upcoming_holiday:
+        reasoning.append(f"Context: Upcoming holiday ({upcoming_holiday}) - demand increased by 50%")
+    if weather_condition == WeatherCondition.STORM:
+        reasoning.append("Context: Storm weather - essentials +40%, luxury/fashion -30%")
+    
     # Calculate volume scores
     scored_products = []
     for p in products:
-        # Volume score = sales velocity / cost (units per peso)
-        volume_score = p.avg_daily_sales / p.cost if p.cost > 0 else 0
+        # Apply context multipliers to base demand
+        base_demand = p.avg_daily_sales
+        adjusted_demand = apply_context_multipliers(
+            base_demand=base_demand,
+            product=p,
+            weather_condition=weather_condition,
+            is_payday=is_payday,
+            upcoming_holiday=upcoming_holiday
+        )
         
-        # Calculate needed quantity
-        daily_demand = p.avg_daily_sales
+        # Volume score = adjusted sales velocity / cost (units per peso)
+        volume_score = adjusted_demand / p.cost if p.cost > 0 else 0
+        
+        # Calculate needed quantity using adjusted demand
+        daily_demand = adjusted_demand
         current_days_of_stock = p.stock / daily_demand if daily_demand > 0 else 999
         
         needed_qty = max(0, int((daily_demand * restock_days) - p.stock))
@@ -390,7 +522,10 @@ def volume_maximization(
 def balanced_strategy(
     products: List[ProductInput],
     budget: float,
-    restock_days: int
+    restock_days: int,
+    weather_condition: WeatherCondition | None = None,
+    is_payday: bool = False,
+    upcoming_holiday: str | None = None
 ) -> Tuple[List[RestockItem], List[str]]:
     """
     Balanced Growth Strategy.
@@ -419,13 +554,29 @@ def balanced_strategy(
         f"Target: {restock_days} days of balanced inventory"
     ]
     
+    # Add context information to reasoning
+    if is_payday:
+        reasoning.append("Context: Payday period detected - demand increased by 20%")
+    if upcoming_holiday:
+        reasoning.append(f"Context: Upcoming holiday ({upcoming_holiday}) - demand increased by 50%")
+    if weather_condition == WeatherCondition.STORM:
+        reasoning.append("Context: Storm weather - essentials +40%, luxury/fashion -30%")
+    
     # Calculate both profit and volume scores
     scored_products = []
     profit_scores = []
     volume_scores = []
     
     for p in products:
-        daily_demand = p.avg_daily_sales
+        # Apply context multipliers to base demand
+        base_demand = p.avg_daily_sales
+        daily_demand = apply_context_multipliers(
+            base_demand=base_demand,
+            product=p,
+            weather_condition=weather_condition,
+            is_payday=is_payday,
+            upcoming_holiday=upcoming_holiday
+        )
         current_days_of_stock = p.stock / daily_demand if daily_demand > 0 else 999
         
         # Urgency factor
@@ -443,7 +594,7 @@ def balanced_strategy(
         profit_score = unit_profit * daily_demand * urgency
         profit_scores.append(profit_score)
         
-        # Volume score
+        # Volume score (using adjusted demand)
         volume_score = daily_demand / p.cost if p.cost > 0 else 0
         volume_scores.append(volume_score)
         

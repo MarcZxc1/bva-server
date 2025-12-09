@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Megaphone, Sparkles, Calendar, Eye, TrendingUp, Loader2, Lightbulb, PackageOpen, BarChart3 } from "lucide-react";
+import { Megaphone, Sparkles, Calendar, Eye, TrendingUp, Loader2, Lightbulb, PackageOpen, BarChart3, Download, Image as ImageIcon, Copy } from "lucide-react";
 import { AdGeneratorDialog } from "@/components/AdGeneratorDialog";
 import { usePromotions, useCampaigns, useCreateCampaign, useScheduleCampaign, usePublishCampaign, useDeleteCampaign } from "@/hooks/useMarketMate";
 import { useAuth } from "@/contexts/AuthContext";
@@ -52,6 +52,7 @@ export default function MarketMate() {
   const [previewPromo, setPreviewPromo] = useState<any>(null);
   const [editingCampaign, setEditingCampaign] = useState<any>(null);
   const [schedulingCampaign, setSchedulingCampaign] = useState<any>(null);
+  const [viewingCampaign, setViewingCampaign] = useState<any>(null);
 
   const campaigns = campaignsData || [];
   const hasCampaigns = campaigns && campaigns.length > 0;
@@ -408,8 +409,18 @@ export default function MarketMate() {
                     </div>
                   </div>
 
+                  {/* Campaign Image - Hidden in list view, only shown in View dialog */}
+                  {/* Images are visible when clicking the "View" button */}
+                  
+                  {/* Campaign Caption/Ad Copy Preview */}
                   <div className="mb-3 p-3 glass-card-sm text-sm">
-                    {campaign.caption}
+                    <p className="text-foreground">{campaign.caption || "No ad copy available"}</p>
+                    {(campaign.imageUrl || campaign.content?.image_url) && (
+                      <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
+                        <ImageIcon className="h-3 w-3" />
+                        Image available - Click "View" to see
+                      </p>
+                    )}
                   </div>
 
                   <div className="flex items-center justify-between">
@@ -428,6 +439,17 @@ export default function MarketMate() {
                       )}
                     </div>
                     <div className="flex gap-2">
+                      {/* View Button - Available for all campaign statuses */}
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="glass-card-sm"
+                        onClick={() => setViewingCampaign(campaign)}
+                      >
+                        <Eye className="h-3 w-3 mr-1" />
+                        View
+                      </Button>
+                      
                       {campaign.status === "draft" && (
                         <>
                           <Button 
@@ -592,6 +614,229 @@ export default function MarketMate() {
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* View Campaign Dialog */}
+      <Dialog open={!!viewingCampaign} onOpenChange={(open) => !open && setViewingCampaign(null)}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Eye className="h-5 w-5 text-primary" />
+              View Campaign
+            </DialogTitle>
+            <DialogDescription>
+              View full campaign details including generated ad copy and image
+            </DialogDescription>
+          </DialogHeader>
+          {viewingCampaign && (() => {
+            // Get the latest campaign data from the campaigns list to ensure we have fresh data
+            const latestCampaign = campaigns.find((c: any) => c.id === viewingCampaign.id) || viewingCampaign;
+            
+            // Debug: Log campaign data when viewing
+            console.log("Viewing campaign:", {
+              id: latestCampaign.id,
+              title: latestCampaign.title,
+              hasImageUrl: !!latestCampaign.imageUrl,
+              hasContentImageUrl: !!latestCampaign.content?.image_url,
+              imageUrl: latestCampaign.imageUrl?.substring(0, 50),
+              contentImageUrl: latestCampaign.content?.image_url?.substring(0, 50),
+            });
+            
+            // Get the image URL from either source - prioritize database imageUrl
+            const displayImageUrl = latestCampaign.imageUrl || latestCampaign.content?.image_url || null;
+            
+            return (
+            <div className="space-y-6 py-4">
+              {/* Campaign Header */}
+              <div className="flex items-start justify-between pb-4 border-b">
+                <div>
+                  <h3 className="text-2xl font-bold text-foreground mb-2">{viewingCampaign.title}</h3>
+                  <div className="flex items-center gap-2">
+                    <Badge variant={getStatusColor(viewingCampaign.status)} className={viewingCampaign.status === 'published' ? 'bg-green-600' : ''}>
+                      {viewingCampaign.status}
+                    </Badge>
+                    <Badge variant="outline" className={getPlatformColor(viewingCampaign.platform)}>
+                      {viewingCampaign.platform}
+                    </Badge>
+                    <Badge variant="secondary">{viewingCampaign.type}</Badge>
+                    {viewingCampaign.scheduledDate && (
+                      <span className="text-xs text-muted-foreground flex items-center gap-1">
+                        <Calendar className="h-3 w-3" />
+                        Scheduled: {viewingCampaign.scheduledDate}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Campaign Image - Full View */}
+              {displayImageUrl ? (
+                <Card className="glass-card">
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-lg flex items-center gap-2">
+                        <ImageIcon className="h-5 w-5 text-primary" />
+                        Generated Ad Image
+                      </CardTitle>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          try {
+                            const link = document.createElement('a');
+                            link.href = displayImageUrl;
+                            link.download = `campaign-${latestCampaign.title.replace(/\s+/g, '-')}-${Date.now()}.png`;
+                            document.body.appendChild(link);
+                            link.click();
+                            document.body.removeChild(link);
+                            toast.success("Image downloaded successfully!");
+                          } catch (error) {
+                            toast.error("Failed to download image");
+                          }
+                        }}
+                        className="gap-2"
+                      >
+                        <Download className="h-4 w-4" />
+                        Download Image
+                      </Button>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="relative w-full rounded-lg overflow-hidden border border-card-glass-border bg-muted">
+                      <img 
+                        src={displayImageUrl} 
+                        alt={latestCampaign.title}
+                        className="w-full h-auto max-h-[600px] object-contain mx-auto"
+                        onError={(e) => {
+                          console.error("Failed to load campaign image:", {
+                            imageUrl: displayImageUrl?.substring(0, 100),
+                            campaignId: latestCampaign.id,
+                            hasImageUrl: !!latestCampaign.imageUrl,
+                            hasContentImageUrl: !!latestCampaign.content?.image_url
+                          });
+                          toast.error("Failed to load campaign image");
+                        }}
+                      />
+                    </div>
+                  </CardContent>
+                </Card>
+              ) : (
+                <Card className="glass-card">
+                  <CardHeader>
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <ImageIcon className="h-5 w-5 text-muted-foreground" />
+                      Generated Ad Image
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="p-8 text-center text-muted-foreground">
+                      <ImageIcon className="h-16 w-16 mx-auto mb-2 opacity-50" />
+                      <p>No image generated for this campaign</p>
+                      <p className="text-xs mt-2">Generate an image when creating or editing this campaign</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Ad Copy - Full View */}
+              <Card className="glass-card">
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <Sparkles className="h-5 w-5 text-primary" />
+                      Generated Ad Copy
+                    </CardTitle>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        if (latestCampaign.caption) {
+                          navigator.clipboard.writeText(latestCampaign.caption);
+                          toast.success("Ad copy copied to clipboard!");
+                        }
+                      }}
+                      className="gap-2"
+                    >
+                      <Copy className="h-4 w-4" />
+                      Copy Text
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="p-4 glass-card-sm rounded-lg">
+                    <p className="text-sm whitespace-pre-wrap text-foreground leading-relaxed">
+                      {latestCampaign.caption || latestCampaign.content?.ad_copy || latestCampaign.content?.promo_copy || "No ad copy available"}
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Campaign Details */}
+              <Card className="glass-card">
+                <CardHeader>
+                  <CardTitle className="text-lg">Campaign Details</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <span className="text-muted-foreground">Product:</span>
+                      <p className="font-semibold text-foreground">{latestCampaign.content?.product_name || "N/A"}</p>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Playbook:</span>
+                      <p className="font-semibold text-foreground">{latestCampaign.type || "N/A"}</p>
+                    </div>
+                    {latestCampaign.content?.discount && (
+                      <div>
+                        <span className="text-muted-foreground">Discount:</span>
+                        <p className="font-semibold text-success">{latestCampaign.content.discount}</p>
+                      </div>
+                    )}
+                    <div>
+                      <span className="text-muted-foreground">Created:</span>
+                      <p className="font-semibold text-foreground">
+                        {latestCampaign.content?.createdAt 
+                          ? new Date(latestCampaign.content.createdAt).toLocaleDateString()
+                          : "N/A"}
+                      </p>
+                    </div>
+                    {latestCampaign.status === "published" && latestCampaign.engagement && (
+                      <>
+                        <div>
+                          <span className="text-muted-foreground">Views:</span>
+                          <p className="font-semibold text-foreground">{latestCampaign.engagement.views?.toLocaleString() || "0"}</p>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Clicks:</span>
+                          <p className="font-semibold text-foreground">{latestCampaign.engagement.clicks?.toLocaleString() || "0"}</p>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Action Buttons */}
+              <div className="flex justify-end gap-2 pt-4 border-t">
+                <Button variant="outline" onClick={() => setViewingCampaign(null)}>
+                  Close
+                </Button>
+                {latestCampaign.status === "draft" && (
+                  <Button 
+                    variant="outline"
+                    onClick={() => {
+                      setViewingCampaign(null);
+                      setEditingCampaign(latestCampaign);
+                    }}
+                  >
+                    Edit Campaign
+                  </Button>
+                )}
+              </div>
+            </div>
+            );
+          })()}
         </DialogContent>
       </Dialog>
 

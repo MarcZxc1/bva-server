@@ -337,10 +337,10 @@ class AdService:
         style: Optional[str] = None
     ) -> str:
         """
-         Generate AI-powered ad image using Google Imagen 4.0.
+        Generate AI-powered ad image using Gemini 2.5 Flash Image model.
         
-        Note: Uses settings.IMAGEN_MODEL (imagen-4.0-generate-001), NOT Gemini model.
-        Gemini models are for text generation only.
+        Uses gemini-2.5-flash-image with responseModalities to generate images.
+        Returns base64-encoded image data URL.
         """
         try:
             # Build discount visual information
@@ -362,18 +362,157 @@ class AdService:
                 logger.warning("gemini_not_available", mode="placeholder_fallback")
                 return self._generate_placeholder_image(product_name, playbook_config)
             
-            # NOTE: Imagen 4.0 is not currently available through google-genai SDK's generateContent
-            # The SDK primarily supports Gemini models for text/image input, not Imagen for image generation
-            # For now, we'll use placeholder images. In the future, you may need to use:
-            # - Vertex AI Imagen API directly (via google-cloud-aiplatform)
-            # - Or wait for SDK support
-            logger.warning(
-                "imagen_not_available_via_sdk",
-                model=settings.IMAGEN_MODEL,
-                message="Imagen models are not available through google-genai SDK generateContent method. Using placeholder image.",
-                fallback="placeholder"
-            )
-            return self._generate_placeholder_image(product_name, playbook_config)
+            # Use gemini-2.5-flash-image with responseModalities for image generation
+            try:
+                # Enhanced prompt for high-quality marketing images
+                enhanced_prompt = f"{prompt}\n\nIMPORTANT: Generate a high-resolution, professional marketing image suitable for social media advertising. The image must be crisp, clear, and visually appealing with excellent color contrast and professional composition."
+                
+                response = self.client.models.generate_content(
+                    model=settings.IMAGEN_MODEL,  # gemini-2.5-flash-image
+                    contents=[enhanced_prompt],
+                    config=types.GenerateContentConfig(
+                        response_modalities=["TEXT", "IMAGE"],
+                        temperature=0.8,  # Slightly higher for more creative images
+                    )
+                )
+                
+                # Extract image from response
+                # Based on google-genai SDK structure: response.candidates[0].content.parts
+                image_data = None
+                mime_type = "image/png"
+                
+                # Debug: Log response structure
+                logger.debug(
+                    "gemini_response_structure",
+                    has_candidates=hasattr(response, 'candidates'),
+                    response_type=type(response).__name__
+                )
+                
+                # Try accessing via candidates (standard structure)
+                if hasattr(response, 'candidates') and response.candidates:
+                    candidate = response.candidates[0]
+                    if hasattr(candidate, 'content'):
+                        content = candidate.content
+                        # Check if content has parts attribute
+                        if hasattr(content, 'parts'):
+                            for part in content.parts:
+                                # Check for inline_data (image data) - try multiple attribute names
+                                inline_data = None
+                                
+                                # Try different possible attribute names
+                                if hasattr(part, 'inline_data'):
+                                    inline_data = part.inline_data
+                                elif hasattr(part, 'inlineData'):  # camelCase variant
+                                    inline_data = part.inlineData
+                                elif hasattr(part, 'inlineData') and hasattr(part, 'inlineData'):
+                                    inline_data = getattr(part, 'inlineData', None)
+                                
+                                if inline_data:
+                                    # Get the base64 data - try multiple attribute names
+                                    raw_data = None
+                                    if hasattr(inline_data, 'data'):
+                                        raw_data = inline_data.data
+                                    elif hasattr(inline_data, 'Data'):
+                                        raw_data = inline_data.Data
+                                    
+                                    if raw_data:
+                                        # Handle different data types
+                                        if isinstance(raw_data, str):
+                                            # Already a string, assume it's base64
+                                            image_data = raw_data
+                                        elif isinstance(raw_data, bytes):
+                                            # Convert bytes to base64 string
+                                            image_data = base64.b64encode(raw_data).decode('utf-8')
+                                        else:
+                                            # Try to convert to string
+                                            image_data = str(raw_data)
+                                        
+                                        # Get mime type
+                                        if hasattr(inline_data, 'mime_type') and inline_data.mime_type:
+                                            mime_type = inline_data.mime_type
+                                        elif hasattr(inline_data, 'mimeType') and inline_data.mimeType:
+                                            mime_type = inline_data.mimeType
+                                        
+                                        logger.info(
+                                            "image_data_extracted",
+                                            data_type=type(raw_data).__name__,
+                                            mime_type=mime_type,
+                                            data_length=len(image_data) if image_data else 0
+                                        )
+                                        break
+                
+                # If still no image, try alternative access patterns
+                if not image_data:
+                    # Try accessing response directly
+                    try:
+                        # Check if response has a direct image property
+                        if hasattr(response, 'images') and response.images:
+                            image_data = response.images[0]
+                            if isinstance(image_data, bytes):
+                                image_data = base64.b64encode(image_data).decode('utf-8')
+                    except Exception as e:
+                        logger.debug("alternative_image_access_failed", error=str(e))
+                
+                if image_data:
+                    # Ensure image_data is properly formatted base64 string
+                    # Remove any whitespace or newlines
+                    image_data = image_data.strip()
+                    
+                    # Validate base64 format
+                    try:
+                        # Try to decode to verify it's valid base64
+                        base64.b64decode(image_data, validate=True)
+                    except Exception as e:
+                        logger.error(
+                            "invalid_base64_data",
+                            error=str(e),
+                            data_preview=image_data[:50] if image_data else None
+                        )
+                        return self._generate_placeholder_image(product_name, playbook_config)
+                    
+                    # Convert to base64 data URL
+                    image_url = f"data:{mime_type};base64,{image_data}"
+                    
+                    logger.info(
+                        "ad_image_generated",
+                        model=settings.IMAGEN_MODEL,
+                        size_bytes=len(image_data),
+                        mime_type=mime_type,
+                        data_url_preview=image_url[:100]
+                    )
+                    
+                    return image_url
+                
+                # If no image found in response, log warning and fallback
+                logger.warning(
+                    "no_image_in_response",
+                    model=settings.IMAGEN_MODEL,
+                    response_type=type(response).__name__,
+                    has_candidates=hasattr(response, 'candidates'),
+                    fallback="placeholder"
+                )
+                return self._generate_placeholder_image(product_name, playbook_config)
+                
+            except Exception as api_error:
+                # Check for quota/rate limit errors
+                error_str = str(api_error)
+                if "429" in error_str or "RESOURCE_EXHAUSTED" in error_str or "quota" in error_str.lower():
+                    logger.warning(
+                        "gemini_quota_exceeded_image",
+                        error=error_str[:500],
+                        fallback="placeholder",
+                        message="Gemini API quota exceeded for image generation, using placeholder"
+                    )
+                    return self._generate_placeholder_image(product_name, playbook_config)
+                else:
+                    # Log other errors but still fallback
+                    logger.error(
+                        "image_generation_api_error",
+                        error=error_str[:500],
+                        error_type=type(api_error).__name__,
+                        fallback="placeholder"
+                    )
+                    return self._generate_placeholder_image(product_name, playbook_config)
                 
         except Exception as e:
             logger.error(

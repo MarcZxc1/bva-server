@@ -13,7 +13,7 @@ export async function getRestockStrategy(
   res: Response
 ): Promise<void> {
   try {
-    const { shopId, budget, goal, restockDays } = req.body;
+    const { shopId, budget, goal, restockDays, weatherCondition, isPayday, upcomingHoliday } = req.body;
 
     // Check if user has an active Shopee integration
     // Check settings JSON for isActive or termsAccepted
@@ -219,12 +219,24 @@ export async function getRestockStrategy(
     // Ensure restock_days is an integer between 1 and 90
     const restockDaysInt = Math.max(1, Math.min(90, Math.floor(Number(restockDays) || 14)));
 
+    // Validate and sanitize context fields
+    const validWeatherConditions = ['sunny', 'rainy', 'storm', null, undefined];
+    const sanitizedWeather = validWeatherConditions.includes(weatherCondition) 
+      ? weatherCondition || null 
+      : null;
+    
+    const sanitizedIsPayday = Boolean(isPayday);
+    const sanitizedHoliday = upcomingHoliday ? String(upcomingHoliday).trim() : null;
+
     const mlPayload: MLRestockRequest = {
       shop_id: String(shopId),
       budget: budgetFloat, // float > 0
       goal: sanitizedGoal, // 'profit' | 'volume' | 'balanced'
       products: validProducts, // Array with min_length=1
-      restock_days: restockDaysInt // int between 1 and 90
+      restock_days: restockDaysInt, // int between 1 and 90
+      weather_condition: sanitizedWeather as 'sunny' | 'rainy' | 'storm' | null,
+      is_payday: sanitizedIsPayday,
+      upcoming_holiday: sanitizedHoliday
     };
 
     // 5. Call ML Service

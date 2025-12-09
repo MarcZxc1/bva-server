@@ -5,7 +5,7 @@ const router = Router();
 const controller = new AdController();
 
 // Ad copy generation
-router.post("/generate-ad", controller.generatedAd.bind(controller));
+router.post("/generate-ad", controller.generateAd.bind(controller));
 
 // Ad image generation
 router.post("/generate-ad-image", controller.generateAdImage.bind(controller));

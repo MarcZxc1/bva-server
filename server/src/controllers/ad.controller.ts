@@ -23,7 +23,7 @@ export class AdController {
    * - playbook: string (required) - Marketing playbook type
    * - discount: string (optional) - Discount information
    */
-  public async generatedAd(req: Request, res: Response): Promise<void> {
+  public async generateAd(req: Request, res: Response): Promise<void> {
     try {
       const requestData: AdRequest & { productId?: string } = req.body;
       
@@ -92,17 +92,15 @@ export class AdController {
       }
       
       // Generate ad copy via service (with enriched data if available)
-      const adCopy = await adService.generateAdCopy(enrichedRequestData);
+      const result = await adService.generateAdCopy(enrichedRequestData);
       
-      const response: AdResponse = {
-        playbookUsed: enrichedRequestData.playbook,
-        product_name: enrichedRequestData.product_name,
-        generated_ad_copy: adCopy,
-      };
-      
+      // Return response matching frontend expectations
       res.status(200).json({
         success: true,
-        data: response,
+        data: {
+          ad_copy: result.ad_copy,
+          hashtags: result.hashtags,
+        },
       });
     } catch (error) {
       console.error("Error in AdController.generatedAd:", error);

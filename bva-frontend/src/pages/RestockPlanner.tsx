@@ -8,7 +8,8 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { TrendingUp, Calendar, Package, Sparkles, Loader2, PackageOpen, Download, ShoppingCart, AlertCircle } from "lucide-react";
+import { TrendingUp, Calendar, Package, Sparkles, Loader2, PackageOpen, Download, ShoppingCart, AlertCircle, Cloud, CloudRain, Sun, CloudLightning } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import { useRestock } from "@/hooks/useRestock";
 import { toast } from "sonner";
@@ -39,6 +40,9 @@ export default function RestockPlanner() {
   const [budget, setBudget] = useState("50000");
   const [goal, setGoal] = useState<"profit" | "volume" | "balanced">("balanced");
   const [restockDays, setRestockDays] = useState("14");
+  const [weatherCondition, setWeatherCondition] = useState<"sunny" | "rainy" | "storm" | null>(null);
+  const [isPayday, setIsPayday] = useState(false);
+  const [upcomingHoliday, setUpcomingHoliday] = useState<string | null>(null);
   const [isShoppingListOpen, setIsShoppingListOpen] = useState(false);
   const shoppingListRef = useRef<HTMLDivElement>(null);
   const pdfContentRef = useRef<HTMLDivElement>(null);
@@ -108,6 +112,9 @@ export default function RestockPlanner() {
       budget: budgetNum,
       goal,
       restockDays: restockDays ? parseInt(restockDays) : undefined,
+      weatherCondition: weatherCondition || null,
+      isPayday: isPayday || false,
+      upcomingHoliday: upcomingHoliday || null,
     });
   };
 
@@ -349,6 +356,114 @@ export default function RestockPlanner() {
               />
             </div>
           </div>
+          
+          {/* Scenario Context Panel */}
+          <div className="mt-6 p-4 glass-card-sm border border-card-glass-border rounded-lg">
+            <div className="flex items-center gap-2 mb-4">
+              <Sparkles className="h-4 w-4 text-primary" />
+              <Label className="text-sm font-semibold text-foreground">Scenario Context</Label>
+              <span className="text-xs text-muted-foreground">(Optional - Adjusts demand forecasts)</span>
+            </div>
+            <div className="grid gap-4 md:grid-cols-3">
+              <div className="space-y-2">
+                <Label htmlFor="weather" className="text-sm">Weather Condition</Label>
+                <Select 
+                  value={weatherCondition || "none"} 
+                  onValueChange={(value) => setWeatherCondition(value === "none" ? null : value as "sunny" | "rainy" | "storm")}
+                >
+                  <SelectTrigger className="glass-card-sm border-card-glass-border">
+                    <SelectValue placeholder="Select weather" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">None (Standard)</SelectItem>
+                    <SelectItem value="sunny">
+                      <div className="flex items-center gap-2">
+                        <Sun className="h-4 w-4 text-yellow-500" />
+                        Sunny
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="rainy">
+                      <div className="flex items-center gap-2">
+                        <CloudRain className="h-4 w-4 text-blue-500" />
+                        Rainy
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="storm">
+                      <div className="flex items-center gap-2">
+                        <CloudLightning className="h-4 w-4 text-red-500" />
+                        Storm
+                      </div>
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Storm: +40% essentials, -30% luxury/fashion
+                </p>
+              </div>
+              
+              <div className="space-y-2">
+                <Label className="text-sm">Special Events</Label>
+                <div className="space-y-3">
+                  <div className="flex items-center space-x-2">
+                    <Checkbox 
+                      id="payday" 
+                      checked={isPayday}
+                      onCheckedChange={(checked) => setIsPayday(checked === true)}
+                    />
+                    <Label 
+                      htmlFor="payday" 
+                      className="text-sm font-normal cursor-pointer flex items-center gap-2"
+                    >
+                      <Calendar className="h-4 w-4 text-primary" />
+                      Is Payday? (+20% demand)
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox 
+                      id="holiday" 
+                      checked={upcomingHoliday === "11.11"}
+                      onCheckedChange={(checked) => setUpcomingHoliday(checked === true ? "11.11" : null)}
+                    />
+                    <Label 
+                      htmlFor="holiday" 
+                      className="text-sm font-normal cursor-pointer flex items-center gap-2"
+                    >
+                      <Sparkles className="h-4 w-4 text-primary" />
+                      Upcoming Mega Sale (11.11) (+50% demand)
+                    </Label>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                <Label className="text-sm">Context Summary</Label>
+                <div className="p-3 glass-card-sm border border-card-glass-border rounded text-xs space-y-1">
+                  {!weatherCondition && !isPayday && !upcomingHoliday ? (
+                    <p className="text-muted-foreground">No context adjustments</p>
+                  ) : (
+                    <>
+                      {weatherCondition && (
+                        <p className="text-foreground">
+                          <span className="font-semibold">Weather:</span> {weatherCondition}
+                        </p>
+                      )}
+                      {isPayday && (
+                        <p className="text-success">
+                          <span className="font-semibold">Payday:</span> +20% demand
+                        </p>
+                      )}
+                      {upcomingHoliday && (
+                        <p className="text-primary">
+                          <span className="font-semibold">Holiday:</span> {upcomingHoliday} (+50% demand)
+                        </p>
+                      )}
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+          
           <Button 
             className="mt-4 gap-2 bg-primary hover:bg-primary/90 text-primary-foreground shadow-nav-active disabled:opacity-50 disabled:cursor-not-allowed" 
             onClick={handleGeneratePlan}

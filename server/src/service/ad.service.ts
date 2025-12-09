@@ -10,30 +10,48 @@ import {
 import prisma from "../lib/prisma";
 
 // Don't load dotenv here - it's already loaded in server.ts
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY as string);
-const textModel = genAI.getGenerativeModel({
-  model: "gemini-2.0-flash-exp", // Use text model, not image model
-});
+// Initialize Gemini client only if API key is available (for fallback)
+let genAI: GoogleGenerativeAI | null = null;
+let textModel: any = null;
+
+if (process.env.GEMINI_API_KEY) {
+  try {
+    genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+    textModel = genAI.getGenerativeModel({
+      model: "gemini-2.0-flash-exp", // Use text model, not image model
+    });
+  } catch (error) {
+    console.warn("Failed to initialize Gemini fallback client:", error);
+  }
+}
 
 export class AdService {
-  public async generateAdCopy(request: AdRequest): Promise<string> {
+  public async generateAdCopy(request: AdRequest): Promise<{ ad_copy: string; hashtags: string[] }> {
     const { product_name, playbook, discount } = request;
 
     try {
-      // Call ML Service for complete ad generation
-      const result = await mlClient.generateCompleteAd({
+      // Call ML Service for ad copy generation (faster endpoint, no image)
+      // ML service returns AdCopyResponse directly: { ad_copy, hashtags }
+      const result = await mlClient.generateAdCopy({
         product_name,
         playbook,
         discount,
       });
 
-      // Return just the ad copy text
-      return result.ad_copy;
+      // Return ad copy and hashtags
+      return {
+        ad_copy: result.ad_copy || "",
+        hashtags: result.hashtags || []
+      };
     } catch (error: any) {
       console.error("Error generating ad via ML service:", error);
       
       // Fallback to legacy Gemini if ML service fails
-      return this.generateAdCopyFallback(request);
+      const fallbackCopy = await this.generateAdCopyFallback(request);
+      return {
+        ad_copy: fallbackCopy,
+        hashtags: [] // Fallback doesn't provide hashtags
+      };
     }
   }
 
@@ -69,6 +87,11 @@ export class AdService {
 
     prompt += "\n\n**Generated Post**";
 
+    // Check if Gemini fallback is available
+    if (!textModel) {
+      throw new Error("Gemini API key not configured. ML service is required for ad generation.");
+    }
+
     try {
       const result = await textModel.generateContent(prompt);
       const response = await result.response;
@@ -90,7 +113,12 @@ export class AdService {
     style?: string;
   }): Promise<{ image_url: string }> {
     try {
-      return await mlClient.generateAdImage(request);
+      // ML service returns AdImageResponse directly: { image_url }
+      const result = await mlClient.generateAdImage(request);
+      
+      return {
+        image_url: result.image_url || ""
+      };
     } catch (error) {
       console.error("Error generating ad image:", error);
       throw error;

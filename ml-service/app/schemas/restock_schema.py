@@ -29,6 +29,13 @@ class RestockGoal(str, Enum):
     BALANCED = "balanced"
 
 
+class WeatherCondition(str, Enum):
+    """Weather conditions for context-aware demand adjustment."""
+    SUNNY = "sunny"
+    RAINY = "rainy"
+    STORM = "storm"
+
+
 class ProductInput(BaseModel):
     """
     Single product with inventory and sales data for restocking analysis.
@@ -74,12 +81,27 @@ class RestockRequest(BaseModel):
     Request payload for /restock/strategy endpoint.
     
     Contains shop context, budget constraint, optimization goal, and product list.
+    Supports real-world context adjustments (weather, holidays, payday cycles).
     """
     shop_id: str
     budget: float = Field(gt=0, description="Total budget for restocking")
     goal: RestockGoal = Field(default=RestockGoal.PROFIT, description="Optimization strategy")
     products: List[ProductInput] = Field(..., min_length=1, description="Products to analyze")
     restock_days: int = Field(default=14, ge=1, le=90, description="Days of stock to maintain")
+    
+    # Context-aware fields for demand adjustment
+    weather_condition: Optional[WeatherCondition] = Field(
+        default=None,
+        description="Current or forecasted weather condition (affects demand patterns)"
+    )
+    is_payday: bool = Field(
+        default=False,
+        description="Whether it's a payday period (typically increases demand by 20%)"
+    )
+    upcoming_holiday: Optional[str] = Field(
+        default=None,
+        description="Upcoming holiday or sale event (e.g., 'christmas', '11.11') - increases demand by 50%"
+    )
     
     @field_validator('products')
     @classmethod

@@ -5,6 +5,9 @@ export interface RestockStrategyRequest {
   budget: number;
   goal: "profit" | "volume" | "balanced";
   restockDays?: number;
+  weatherCondition?: "sunny" | "rainy" | "storm" | null;
+  isPayday?: boolean;
+  upcomingHoliday?: string | null;
 }
 
 export interface RestockRecommendation {

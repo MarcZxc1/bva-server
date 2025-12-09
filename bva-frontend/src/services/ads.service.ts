@@ -28,6 +28,7 @@ export interface Campaign {
   platform: string;
   status: string;
   caption: string;
+  imageUrl: string | null; // Generated ad image URL (base64 or external URL)
   scheduledDate: string | null;
   engagement: {
     views: number;

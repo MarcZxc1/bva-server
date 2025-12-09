@@ -12,7 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
-import { Sparkles, Loader2, Image as ImageIcon, Copy, Check } from "lucide-react";
+import { Sparkles, Loader2, Image as ImageIcon, Copy, Check, Download } from "lucide-react";
 import { useGenerateAdCopy, useGenerateAdImage, useCreateCampaign } from "@/hooks/useMarketMate";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
@@ -92,8 +92,24 @@ export function AdGeneratorDialog({
       { product_name: productName, playbook },
       {
         onSuccess: (response) => {
-          setImageUrl(response.image_url);
+          if (response.image_url) {
+            // Validate the image URL format
+            if (response.image_url.startsWith('data:image') || response.image_url.startsWith('http')) {
+              setImageUrl(response.image_url);
+              toast.success("Image generated successfully!");
+            } else {
+              toast.error("Invalid image format received");
+              console.error("Invalid image URL:", response.image_url.substring(0, 100));
+            }
+          } else {
+            toast.error("No image URL in response");
+          }
         },
+        onError: (error: any) => {
+          const errorMessage = error?.response?.data?.detail || error?.message || "Failed to generate image";
+          toast.error(`Image generation failed: ${errorMessage}`);
+          console.error("Image generation error:", error);
+        }
       }
     );
   };
@@ -255,12 +271,43 @@ export function AdGeneratorDialog({
           {/* Generated Image */}
           {imageUrl && (
             <Card className="glass-card p-4">
-              <Label className="text-sm font-semibold mb-2 block">Generated Image</Label>
-              <div className="relative aspect-square w-full max-w-md mx-auto rounded-lg overflow-hidden bg-muted">
+              <div className="flex items-center justify-between mb-2">
+                <Label className="text-sm font-semibold">Generated Image</Label>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    // Download image functionality
+                    try {
+                      // Create a temporary anchor element
+                      const link = document.createElement('a');
+                      link.href = imageUrl;
+                      link.download = `ad-image-${productName.replace(/\s+/g, '-')}-${Date.now()}.png`;
+                      document.body.appendChild(link);
+                      link.click();
+                      document.body.removeChild(link);
+                      toast.success("Image downloaded successfully!");
+                    } catch (error) {
+                      console.error("Error downloading image:", error);
+                      toast.error("Failed to download image");
+                    }
+                  }}
+                  className="gap-2"
+                >
+                  <Download className="h-4 w-4" />
+                  Download
+                </Button>
+              </div>
+              <div className="relative w-full max-w-md mx-auto rounded-lg overflow-hidden bg-muted border border-card-glass-border">
                 <img 
                   src={imageUrl} 
                   alt="Generated Ad" 
-                  className="w-full h-full object-cover"
+                  className="w-full h-auto object-contain"
+                  onError={(e) => {
+                    console.error("Image load error:", e);
+                    toast.error("Failed to load generated image");
+                    setImageUrl(null);
+                  }}
                 />
               </div>
             </Card>
