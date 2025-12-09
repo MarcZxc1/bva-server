@@ -55,7 +55,17 @@ export interface AtRiskResponse {
 
 export const analyticsService = {
   getDashboardStats: async (shopId: string): Promise<DashboardResponse> => {
-    return apiClient.get<DashboardResponse>(`/api/smart-shelf/${shopId}/dashboard`);
+    const response = await apiClient.get<DashboardResponse>(`/api/smart-shelf/${shopId}/dashboard`);
+    console.log("📊 Raw dashboard response from API:", {
+      hasResponse: !!response,
+      hasForecast: !!response?.forecast,
+      forecastType: typeof response?.forecast,
+      forecastValue: response?.forecast,
+      forecastKeys: response?.forecast ? Object.keys(response.forecast) : [],
+      forecastsArray: response?.forecast?.forecasts,
+      forecastsLength: response?.forecast?.forecasts?.length || 0
+    });
+    return response;
   },
 
   getAtRiskInventory: async (shopId: string): Promise<AtRiskResponse> => {

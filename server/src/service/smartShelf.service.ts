@@ -438,7 +438,23 @@ export async function getDashboardAnalytics(shopId: string) {
         forecast = null;
       }
 
-      return {
+      // Final validation: ensure forecast is either null or has valid structure
+      let finalForecast: any = null;
+      if (forecast) {
+        if (forecast.forecasts && Array.isArray(forecast.forecasts) && forecast.forecasts.length > 0) {
+          finalForecast = forecast;
+          console.log(`✅ Final forecast validated: ${forecast.forecasts.length} product forecasts`);
+        } else {
+          console.warn("⚠️  Invalid forecast structure, setting to null:", {
+            hasForecasts: !!forecast.forecasts,
+            isArray: Array.isArray(forecast.forecasts),
+            length: forecast.forecasts?.length || 0
+          });
+          finalForecast = null;
+        }
+      }
+
+      const response = {
         metrics: {
           totalRevenue,
           totalProfit,
@@ -447,13 +463,21 @@ export async function getDashboardAnalytics(shopId: string) {
           totalProducts: products.length,
           totalSales: totalOrders, // All-time total orders count
         },
-        forecast,
+        forecast: finalForecast, // Explicitly null or valid structure
         period: {
           start: sixtyDaysAgo.toISOString(),
           end: new Date().toISOString(),
           days: 60,
         },
       };
+
+      console.log(`📊 Dashboard response for shop ${shopId}:`, {
+        hasForecast: !!response.forecast,
+        forecastType: response.forecast ? typeof response.forecast : 'null',
+        forecastsCount: response.forecast?.forecasts?.length || 0
+      });
+
+      return response;
     },
     600 // 10 minutes cache TTL
   );
