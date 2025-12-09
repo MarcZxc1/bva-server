@@ -109,6 +109,32 @@ export const analyticsService = {
   },
 
   generatePromotionsForItem: async (shopId: string, item: PromotionRequest): Promise<PromotionResponse> => {
-    return apiClient.post<PromotionResponse>(`/api/smart-shelf/${shopId}/generate-promotions`, item);
+    console.log("📡 Calling promotion generation API:", {
+      url: `/api/smart-shelf/${shopId}/generate-promotions`,
+      item: {
+        product_id: item.product_id,
+        name: item.name,
+        quantity: item.quantity,
+        price: item.price,
+        days_to_expiry: item.days_to_expiry
+      }
+    });
+    
+    try {
+      const response = await apiClient.post<PromotionResponse>(`/api/smart-shelf/${shopId}/generate-promotions`, item);
+      console.log("📡 Promotion API response received:", {
+        hasResponse: !!response,
+        promotionsCount: response?.promotions?.length || 0
+      });
+      return response;
+    } catch (error: any) {
+      console.error("📡 Promotion API error:", {
+        error,
+        message: error?.message,
+        response: error?.response?.data,
+        status: error?.response?.status
+      });
+      throw error;
+    }
   },
 };
