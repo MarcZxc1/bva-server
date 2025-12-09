@@ -8,7 +8,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { Download, TrendingUp, Calendar, Loader2, AlertCircle, FileText, DollarSign, Package, BarChart3 } from "lucide-react";
+import { Download, TrendingUp, Calendar, Loader2, AlertCircle, FileText, DollarSign, Package, BarChart3, PackageOpen } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { reportsService, DateRange } from "@/services/reports.service";
 import {
@@ -26,15 +26,22 @@ import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
+import { useIntegration } from "@/hooks/useIntegration";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export default function Reports() {
   const { user } = useAuth();
+  const shopId = user?.shops?.[0]?.id;
+  const hasShop = !!shopId;
   const [dateRange, setDateRange] = useState<DateRange>("30d");
   const [activeReport, setActiveReport] = useState<"sales" | "profit" | "stock" | "platform" | null>(null);
   const reportContentRef = useRef<HTMLDivElement>(null);
   const pdfContentRef = useRef<HTMLDivElement>(null);
 
-  // Fetch dashboard metrics
+  // Check for active integration
+  const { hasActiveIntegration, isLoading: isLoadingIntegration } = useIntegration();
+
+  // Fetch dashboard metrics - only if integration is active
   const { 
     data: metrics, 
     isLoading: metricsLoading,
@@ -42,10 +49,11 @@ export default function Reports() {
   } = useQuery({
     queryKey: ["dashboardMetrics"],
     queryFn: () => reportsService.getMetrics(),
+    enabled: hasShop && hasActiveIntegration,
     retry: 2,
   });
 
-  // Fetch sales chart data with date range
+  // Fetch sales chart data with date range - only if integration is active
   const {
     data: salesChartData,
     isLoading: chartLoading,
@@ -54,11 +62,11 @@ export default function Reports() {
   } = useQuery({
     queryKey: ["salesChart", dateRange],
     queryFn: () => reportsService.getSalesChart(dateRange),
-    enabled: true,
+    enabled: hasShop && hasActiveIntegration,
     retry: 2,
   });
 
-  // Fetch platform stats (optional - don't block page if it fails)
+  // Fetch platform stats (optional - don't block page if it fails) - only if integration is active
   const { 
     data: platformStats, 
     isLoading: platformLoading,
@@ -90,6 +98,7 @@ export default function Reports() {
         endDate.toISOString().split("T")[0]
       );
     },
+    enabled: hasShop && hasActiveIntegration,
     retry: 1, // Only retry once for optional data
     retryOnMount: false, // Don't retry on mount if it failed
   });
@@ -125,14 +134,14 @@ export default function Reports() {
     };
   };
 
-  // Fetch reports data
+  // Fetch reports data - only if integration is active
   const { data: salesReportData, isLoading: salesReportLoading } = useQuery({
     queryKey: ["salesReport", dateRange],
     queryFn: () => {
       const { start, end } = getDateRange();
       return reportsService.getSalesChart(dateRange, start, end);
     },
-    enabled: activeReport === "sales",
+    enabled: hasShop && hasActiveIntegration && activeReport === "sales",
   });
 
   const { data: profitReportData, isLoading: profitReportLoading } = useQuery({
@@ -141,7 +150,7 @@ export default function Reports() {
       const { start, end } = getDateRange();
       return reportsService.getProfitAnalysis(start, end);
     },
-    enabled: activeReport === "profit",
+    enabled: hasShop && hasActiveIntegration && activeReport === "profit",
   });
 
   const { data: stockReportData, isLoading: stockReportLoading } = useQuery({
@@ -150,7 +159,7 @@ export default function Reports() {
       const { start, end } = getDateRange();
       return reportsService.getStockTurnoverReport(start, end);
     },
-    enabled: activeReport === "stock",
+    enabled: hasShop && hasActiveIntegration && activeReport === "stock",
   });
 
   const { data: platformReportData, isLoading: platformReportLoading } = useQuery({
@@ -159,7 +168,7 @@ export default function Reports() {
       const { start, end } = getDateRange();
       return reportsService.getPlatformStats(start, end);
     },
-    enabled: activeReport === "platform",
+    enabled: hasShop && hasActiveIntegration && activeReport === "platform",
   });
 
   const handleGenerateReport = (reportType: "sales" | "profit" | "stock" | "platform") => {
@@ -253,11 +262,112 @@ export default function Reports() {
     }, 1000);
   };
 
-  const isLoading = metricsLoading || chartLoading;
+  const isLoading = (metricsLoading || chartLoading || isLoadingIntegration) && hasShop;
   // Don't block page load on platform stats errors (it's optional data)
   const hasError = metricsError || chartError;
   const hasSalesData = salesChartData && salesChartData.length > 0;
   const totalSalesInPeriod = salesChartData?.reduce((sum, item) => sum + item.total, 0) || 0;
+
+  // Check for empty states
+  const hasNoShop = !hasShop;
+  const hasNoIntegration = !hasActiveIntegration;
+
+  // Show empty state if user has no shop
+  if (hasNoShop) {
+    return (
+      <div className="space-y-6">
+        <div className="glass-card p-8">
+          <div className="space-y-2">
+            <h1 className="text-4xl font-bold text-foreground">📊 Reports & Analytics</h1>
+            <p className="text-muted-foreground">Comprehensive business reports and insights</p>
+          </div>
+        </div>
+
+        <Card className="glass-card border-primary/20">
+          <CardContent className="py-12">
+            <div className="flex flex-col items-center justify-center text-center space-y-4">
+              <PackageOpen className="h-16 w-16 text-muted-foreground/50" />
+              <div className="space-y-2">
+                <h2 className="text-2xl font-bold text-foreground">No Shop Found</h2>
+                <p className="text-muted-foreground max-w-md">
+                  You don't have a shop yet. Sellers automatically get a shop created during registration.
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Show skeleton loading while checking integration
+  if (isLoadingIntegration) {
+    return (
+      <div className="space-y-6">
+        <div className="glass-card p-8">
+          <div className="space-y-2">
+            <h1 className="text-4xl font-bold text-foreground">📊 Reports & Analytics</h1>
+            <p className="text-muted-foreground">Comprehensive business reports and insights</p>
+          </div>
+        </div>
+
+        <Card className="glass-card border-primary/20">
+          <CardContent className="py-8">
+            <div className="space-y-4">
+              <Skeleton className="h-6 w-64" />
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-3/4" />
+              <Skeleton className="h-10 w-32" />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Show integration required message if not connected
+  if (!isLoadingIntegration && hasNoIntegration) {
+    return (
+      <div className="space-y-6">
+        <div className="glass-card p-8">
+          <div className="space-y-2">
+            <h1 className="text-4xl font-bold text-foreground">📊 Reports & Analytics</h1>
+            <p className="text-muted-foreground">Comprehensive business reports and insights</p>
+          </div>
+        </div>
+
+        <Card className="glass-card border-primary/20">
+          <CardHeader>
+            <CardTitle className="text-foreground flex items-center gap-2">
+              <AlertCircle className="h-5 w-5 text-warning" />
+              Integration Required
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                To view reports and analytics, you need to integrate with Shopee-Clone and accept the terms and conditions.
+              </p>
+              <ul className="text-sm text-muted-foreground space-y-2 ml-4">
+                <li>• Go to Settings → Integrations</li>
+                <li>• Connect your Shopee-Clone account</li>
+                <li>• Accept the terms and conditions</li>
+                <li>• Sync your data to see reports and analytics</li>
+              </ul>
+              <div className="pt-2">
+                <Button
+                  onClick={() => window.location.href = '/settings'}
+                  className="gap-2 bg-primary hover:bg-primary/90"
+                >
+                  Go to Settings
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   if (isLoading) {
     return (
