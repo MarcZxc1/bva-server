@@ -63,14 +63,32 @@ export default function MarketMate() {
     if (state?.promotion) {
       console.log("🎯 Received promotion from SmartShelf:", state.promotion);
       // Auto-create campaign from the promotion
-      handleUsePromotion(state.promotion).then(() => {
-        // Clear the state after processing
-        window.history.replaceState({}, document.title);
-        toast.success("Campaign created from SmartShelf promotion!");
-      }).catch((error) => {
-        console.error("Error creating campaign from promotion:", error);
-      });
+      const createCampaignFromPromotion = async () => {
+        try {
+          await createCampaignMutation.mutateAsync({
+            name: `${state.promotion.product_name} - ${state.promotion.event_title}`,
+            content: {
+              promo_copy: state.promotion.promo_copy,
+              playbook: "Flash Sale",
+              product_name: state.promotion.product_name,
+              discount: `${state.promotion.suggested_discount_pct}% OFF`,
+            },
+            status: "DRAFT",
+            platform: "SHOPEE",
+          });
+          queryClient.invalidateQueries({ queryKey: ["campaigns"] });
+          // Clear the state after processing
+          window.history.replaceState({}, document.title);
+          toast.success("Campaign created from SmartShelf promotion!");
+        } catch (error) {
+          console.error("Error creating campaign from promotion:", error);
+          // Clear state even on error to prevent re-processing
+          window.history.replaceState({}, document.title);
+        }
+      };
+      createCampaignFromPromotion();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.state]);
 
   const handleUsePromotion = async (promo: any) => {
