@@ -388,9 +388,28 @@ export default function SmartShelf() {
           </CardHeader>
           <CardContent>
             <div className="text-lg font-bold text-foreground">
-              {atRiskData?.meta?.analysis_date 
-                ? new Date(atRiskData.meta.analysis_date).toLocaleDateString()
-                : "N/A"}
+              {(() => {
+                const analysisDate = atRiskData?.meta?.analysis_date;
+                if (!analysisDate) return "N/A";
+                
+                // Handle "now" string or invalid dates
+                if (analysisDate === "now" || analysisDate === "NOW") {
+                  return new Date().toLocaleDateString();
+                }
+                
+                try {
+                  const date = new Date(analysisDate);
+                  // Check if date is valid
+                  if (isNaN(date.getTime())) {
+                    console.warn("Invalid analysis_date:", analysisDate);
+                    return new Date().toLocaleDateString(); // Fallback to current date
+                  }
+                  return date.toLocaleDateString();
+                } catch (error) {
+                  console.error("Error parsing analysis_date:", error, analysisDate);
+                  return new Date().toLocaleDateString(); // Fallback to current date
+                }
+              })()}
             </div>
             <p className="text-xs text-muted-foreground mt-1">Last updated</p>
           </CardContent>

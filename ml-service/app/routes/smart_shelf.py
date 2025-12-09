@@ -63,13 +63,14 @@ async def detect_at_risk_inventory(request: AtRiskRequest) -> AtRiskResponse:
         )
         
         # Build response
+        from datetime import datetime, timezone
         response = AtRiskResponse(
             at_risk=at_risk_items,
             meta={
                 "shop_id": request.shop_id,
                 "total_products": len(request.inventory),
                 "flagged_count": len(at_risk_items),
-                "analysis_date": "now",
+                "analysis_date": datetime.now(timezone.utc).isoformat(),
                 "thresholds_used": thresholds.dict()
             }
         )
