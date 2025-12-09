@@ -14,6 +14,49 @@ import {
  */
 import { hasActiveIntegration } from "../utils/integrationCheck";
 
+/**
+ * Generate a simple fallback forecast based on historical average daily sales
+ * Used when ML service is unavailable or insufficient data
+ */
+function generateFallbackForecast(avgDailySales: number, historicalDays: number) {
+  const today = new Date();
+  const forecasts = [];
+  
+  // Generate 14 days of predictions
+  for (let i = 1; i <= 14; i++) {
+    const forecastDate = new Date(today);
+    forecastDate.setDate(today.getDate() + i);
+    
+    // Use average with slight variation (±10%) for realism
+    const variation = 1 + (Math.random() * 0.2 - 0.1); // ±10% variation
+    const predictedQty = Math.max(0, Math.round(avgDailySales * variation));
+    
+    forecasts.push({
+      date: forecastDate.toISOString().split('T')[0],
+      predicted_qty: predictedQty,
+      lower_ci: Math.max(0, Math.round(predictedQty * 0.8)),
+      upper_ci: Math.round(predictedQty * 1.2),
+    });
+  }
+  
+  return {
+    forecasts: [{
+      product_id: "aggregated",
+      predictions: forecasts,
+      method: "moving_average",
+      model_version: "fallback-v1",
+    }],
+    meta: {
+      shop_id: "fallback",
+      forecast_date: today.toISOString(),
+      total_products: 1,
+      cache_hit: false,
+      method: "fallback_average",
+      historical_days: historicalDays,
+    }
+  };
+}
+
 export async function getAtRiskInventory(
   shopId: string
 ): Promise<AtRiskResponse> {
@@ -303,39 +346,55 @@ export async function getDashboardAnalytics(shopId: string) {
             } : null
           });
           
-          // Only call forecast if we have at least 14 days of data
+          // Calculate average daily sales for fallback forecast
+          const totalQty = salesRecords.reduce((sum: number, r: any) => sum + (r.qty || 0), 0);
+          const avgDailySales = uniqueDates.size > 0 ? totalQty / uniqueDates.size : 0;
+          
+          // Only call ML service if we have at least 14 days of data
           if (uniqueDates.size >= 14) {
             const productIds = products.slice(0, 10).map((p) => p.id); // Top 10 products
             
             console.log(`📊 Requesting forecast for shop ${shopId}: ${productIds.length} products, ${salesRecords.length} sales records, ${uniqueDates.size} unique days`);
             console.log(`📊 Sample sales data:`, salesRecords.slice(0, 3));
             
-            const forecastResponse = await mlClient.getDashboardForecast({
-              shop_id: shopId,
-              product_list: productIds,
-              sales: salesRecords,
-              periods: 14, // 14-day forecast as per documentation
-            });
-            
-            console.log(`✅ Forecast received from ML service:`, {
-              hasForecast: !!forecastResponse,
-              forecastsCount: forecastResponse?.forecasts?.length || 0,
-              firstForecast: forecastResponse?.forecasts?.[0] ? {
-                productId: forecastResponse.forecasts[0].product_id,
-                predictionsCount: forecastResponse.forecasts[0].predictions?.length || 0,
-                firstPrediction: forecastResponse.forecasts[0].predictions?.[0]
-              } : null
-            });
-            
-            // Ensure forecast is in the correct format
-            if (forecastResponse && forecastResponse.forecasts) {
-              forecast = forecastResponse;
-            } else {
-              console.warn("⚠️  Forecast response missing forecasts array:", forecastResponse);
+            try {
+              const forecastResponse = await mlClient.getDashboardForecast({
+                shop_id: shopId,
+                product_list: productIds,
+                sales: salesRecords,
+                periods: 14, // 14-day forecast as per documentation
+              });
+              
+              console.log(`✅ Forecast received from ML service:`, {
+                hasForecast: !!forecastResponse,
+                forecastsCount: forecastResponse?.forecasts?.length || 0,
+                firstForecast: forecastResponse?.forecasts?.[0] ? {
+                  productId: forecastResponse.forecasts[0].product_id,
+                  predictionsCount: forecastResponse.forecasts[0].predictions?.length || 0,
+                  firstPrediction: forecastResponse.forecasts[0].predictions?.[0]
+                } : null
+              });
+              
+              // Ensure forecast is in the correct format
+              if (forecastResponse && forecastResponse.forecasts && Array.isArray(forecastResponse.forecasts)) {
+                forecast = forecastResponse;
+              } else {
+                console.warn("⚠️  Forecast response missing forecasts array, using fallback:", forecastResponse);
+                // Use fallback forecast
+                forecast = generateFallbackForecast(avgDailySales, uniqueDates.size);
+              }
+            } catch (mlError: any) {
+              console.error("❌ ML service forecast failed, using fallback:", mlError?.message);
+              // Use fallback forecast based on historical average
+              forecast = generateFallbackForecast(avgDailySales, uniqueDates.size);
             }
+          } else if (uniqueDates.size >= 7) {
+            // If we have at least 7 days, use fallback forecast
+            console.log(`📊 Using fallback forecast (${uniqueDates.size} days of history, need 14 for ML service)`);
+            forecast = generateFallbackForecast(avgDailySales, uniqueDates.size);
           } else {
-            console.log(`⚠️  Insufficient historical data for forecast: ${uniqueDates.size} days (need at least 14)`);
-            console.log(`💡 Tip: Need at least 14 days of sales history. Current: ${uniqueDates.size} days`);
+            console.log(`⚠️  Insufficient historical data for forecast: ${uniqueDates.size} days (need at least 7 for fallback, 14 for ML)`);
+            console.log(`💡 Tip: Need at least 7 days of sales history for basic forecast. Current: ${uniqueDates.size} days`);
           }
         } catch (error: any) {
           console.error("❌ Failed to get forecast from ML service:", error?.message || error);
