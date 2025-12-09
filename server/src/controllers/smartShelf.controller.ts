@@ -1,7 +1,10 @@
 import { Request, Response } from "express";
 import prisma from "../lib/prisma";
 import { mlClient } from "../utils/mlClient";
-import { getDashboardAnalytics as getDashboardAnalyticsService } from "../service/smartShelf.service";
+import { 
+  getDashboardAnalytics as getDashboardAnalyticsService,
+  getAtRiskInventory as getAtRiskInventoryService
+} from "../service/smartShelf.service";
 import { 
   MLAtRiskRequest, 
   MLAtRiskResponse, 
@@ -180,6 +183,7 @@ export const getDashboardAnalytics = async (req: Request, res: Response) => {
 /**
  * GET /api/smart-shelf/at-risk/:shopId
  * Get only at-risk inventory items
+ * Uses the service layer for consistency and reliability
  */
 export const getAtRiskInventory = async (req: Request, res: Response) => {
   try {
@@ -192,9 +196,43 @@ export const getAtRiskInventory = async (req: Request, res: Response) => {
       });
     }
 
-    // 1. Fetch products and inventory
+    // Use service layer for at-risk detection (ensures consistency, error handling, and platform filtering)
+    const atRiskData = await getAtRiskInventoryService(shopId);
+
+    return res.json({
+      success: true,
+      data: atRiskData,
+    });
+  } catch (error: any) {
+    console.error("Error in getAtRiskInventory:", error);
+    return res.status(500).json({
+      success: false,
+      error: error.message || "Internal Server Error",
+    });
+  }
+};
+
+/**
+ * @deprecated This function is kept for backward compatibility but should use service layer
+ * Legacy endpoint handler - now redirects to service layer
+ */
+export const getAtRiskInventoryLegacy = async (req: Request, res: Response) => {
+  try {
+    const { shopId } = req.params;
+
+    if (!shopId) {
+      return res.status(400).json({
+        success: false,
+        error: "Shop ID is required",
+      });
+    }
+
+    // 1. Fetch products and inventory (only synced products)
     const products = await prisma.product.findMany({
-      where: { shopId },
+      where: { 
+        shopId,
+        externalId: { not: null }, // Only products synced from integrations
+      },
       include: { inventories: { take: 1 } },
     });
 
@@ -204,12 +242,14 @@ export const getAtRiskInventory = async (req: Request, res: Response) => {
     const sales = await prisma.sale.findMany({
       where: {
         shopId,
+        platform: 'SHOPEE', // Only get sales from Shopee-Clone platform
         createdAt: { gte: ninetyDaysAgo },
       },
       select: {
         items: true,
         createdAt: true,
         total: true,
+        platform: true,
       },
     });
 

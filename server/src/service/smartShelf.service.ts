@@ -13,6 +13,7 @@ import {
  * Uses Redis cache for optimization (5 min TTL for real-time inventory data)
  */
 import { hasActiveIntegration } from "../utils/integrationCheck";
+import { RiskReason } from "../types/smartShelf.types";
 
 /**
  * Generate a simple fallback forecast based on historical average daily sales
@@ -122,13 +123,14 @@ export async function getAtRiskInventory(
     categories: p.description ? [p.description] : [], // Using description as category for now
   }));
 
-  // 2. Fetch sales history (last 60 days)
+  // 2. Fetch sales history (last 60 days) - Only from SHOPEE platform
   const sixtyDaysAgo = new Date();
   sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
 
   const sales = await prisma.sale.findMany({
     where: {
       shopId,
+      platform: 'SHOPEE', // Only get sales from Shopee-Clone platform
       createdAt: {
         gte: sixtyDaysAgo,
       },
@@ -136,8 +138,11 @@ export async function getAtRiskInventory(
     select: {
       items: true,
       createdAt: true,
+      platform: true,
     },
   });
+
+  console.log(`📊 At-Risk Analysis for shop ${shopId}: ${products.length} products, ${sales.length} sales records from SHOPEE platform`);
 
   // Map to SalesRecord
   const salesRecords: SalesRecord[] = [];
@@ -148,31 +153,118 @@ export async function getAtRiskInventory(
     if (Array.isArray(items)) {
       items.forEach((item: any) => {
         if (item.productId) {
+          // Format date as YYYY-MM-DD (ML service expects date string)
+          const saleDate = new Date(sale.createdAt);
+          const isoString = saleDate.toISOString();
+          const dateStr = isoString.split('T')[0];
+          
+          if (!dateStr) {
+            console.warn(`⚠️  Invalid date format for sale ${sale.createdAt}, skipping`);
+            return;
+          }
+          
           salesRecords.push({
             product_id: item.productId,
-            date: sale.createdAt.toISOString(),
-            qty: item.quantity || 0,
-            revenue: (item.quantity || 0) * (item.price || 0),
+            date: dateStr,
+            qty: Math.max(0, item.quantity || 0),
+            revenue: Math.max(0, (item.quantity || 0) * (item.price || 0)),
           });
         }
       });
     }
   });
 
-  // 3. Construct Request
+  // 3. Define thresholds (matching ML service defaults)
+  const thresholds = {
+    low_stock: 10,
+    expiry_days: 7,
+    slow_moving_window: 30,
+    slow_moving_threshold: 0.5,
+  };
+
+  // 4. Construct Request with thresholds
   const request: AtRiskRequest = {
     shop_id: shopId,
     inventory: inventoryItems,
     sales: salesRecords,
+    thresholds: thresholds,
   };
 
-      // 4. Call ML Service
-      const response = await mlClient.post<AtRiskResponse>(
-        "/api/v1/smart-shelf/at-risk",
-        request
-      );
+  try {
+    // 5. Call ML Service
+    console.log(`📊 Calling ML service for at-risk detection: ${inventoryItems.length} items, ${salesRecords.length} sales records`);
+    
+    const response = await mlClient.post<AtRiskResponse>(
+      "/api/v1/smart-shelf/at-risk",
+      request
+    );
 
-      return response;
+    // Validate response structure
+    if (!response || !response.at_risk) {
+      console.warn("⚠️  Invalid ML service response structure, returning empty at-risk list");
+      return {
+        at_risk: [],
+        meta: {
+          shop_id: shopId,
+          total_products: products.length,
+          flagged_count: 0,
+          analysis_date: new Date().toISOString(),
+          thresholds_used: thresholds,
+        },
+      };
+    }
+
+    // Convert scores from 0-1 to 0-100 for frontend consistency
+    // Map reasons to RiskReason enum
+    const processedAtRisk = response.at_risk.map(item => ({
+      ...item,
+      score: Math.round((item.score || 0) * 100), // Convert 0-1 to 0-100
+      reasons: Array.isArray(item.reasons) 
+        ? item.reasons.map((r: any): RiskReason => {
+            const reasonStr = typeof r === 'string' ? r : String(r);
+            // Map to RiskReason enum
+            if (reasonStr === 'low_stock' || reasonStr === 'LOW_STOCK') return RiskReason.LOW_STOCK;
+            if (reasonStr === 'near_expiry' || reasonStr === 'NEAR_EXPIRY') return RiskReason.NEAR_EXPIRY;
+            if (reasonStr === 'slow_moving' || reasonStr === 'SLOW_MOVING') return RiskReason.SLOW_MOVING;
+            return RiskReason.LOW_STOCK; // Default fallback
+          })
+        : [],
+    }));
+
+    console.log(`✅ ML service returned ${processedAtRisk.length} at-risk items (${processedAtRisk.filter(i => i.score >= 80).length} critical)`);
+
+    return {
+      at_risk: processedAtRisk,
+      meta: {
+        ...response.meta,
+        shop_id: shopId,
+        total_products: products.length,
+        flagged_count: processedAtRisk.length,
+        analysis_date: response.meta?.analysis_date || new Date().toISOString(),
+        thresholds_used: thresholds,
+      },
+    };
+  } catch (error: any) {
+    console.error("❌ ML service error for at-risk detection:", error?.message || error);
+    console.error("Error details:", {
+      message: error?.message,
+      response: error?.response?.data,
+      status: error?.response?.status,
+    });
+    
+    // Return empty response instead of throwing - don't break the page
+    return {
+      at_risk: [],
+      meta: {
+        shop_id: shopId,
+        total_products: products.length,
+        flagged_count: 0,
+        analysis_date: new Date().toISOString(),
+        thresholds_used: thresholds,
+        error: "ML service unavailable",
+      },
+    };
+  }
     },
     300 // 5 minutes cache TTL for inventory data
   );
