@@ -496,8 +496,13 @@ export default function SmartShelf() {
                     <Button 
                       size="sm" 
                       className="bg-primary hover:bg-primary/90 text-primary-foreground"
-                      onClick={() => handleTakeAction(item)}
-                      disabled={isGeneratingPromotions}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        console.log("🔘 Take Action button clicked for:", item.name);
+                        handleTakeAction(item);
+                      }}
+                      disabled={isGeneratingPromotions && actionItem?.product_id === item.product_id}
                     >
                       {isGeneratingPromotions && actionItem?.product_id === item.product_id ? (
                         <>
