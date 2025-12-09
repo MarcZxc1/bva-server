@@ -43,24 +43,43 @@ export default function Settings() {
   const [confirmPassword, setConfirmPassword] = useState("");
 
   // Profile Update Mutation
+  const { refreshUser } = useAuth();
   const updateProfileMutation = useMutation({
     mutationFn: userApi.updateProfile,
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
       toast.success("Profile updated successfully");
-      // Update local user state if available
-      if (data && user) {
-        // The user context will be updated by the API response
-        // We can also manually update the form fields if needed
-        const updatedNameParts = data.name?.split(" ") || [];
-        setFirstName(updatedNameParts[0] || firstName);
-        setLastName(updatedNameParts.slice(1).join(" ") || lastName);
-        if (data.email) {
-          setEmail(data.email);
+      
+      // Refresh user data from server to get updated information
+      try {
+        if (refreshUser) {
+          await refreshUser();
+        }
+      } catch (error) {
+        console.error("Error refreshing user data:", error);
+      }
+      
+      // Update local form fields with the response data
+      if (data && data.data) {
+        const updatedUser = data.data;
+        if (updatedUser.firstName || updatedUser.lastName || updatedUser.name) {
+          const nameParts = updatedUser.name?.split(" ") || 
+                           (updatedUser.firstName && updatedUser.lastName 
+                             ? [`${updatedUser.firstName}`, updatedUser.lastName]
+                             : updatedUser.firstName 
+                               ? [updatedUser.firstName]
+                               : []);
+          setFirstName(nameParts[0] || updatedUser.firstName || "");
+          setLastName(nameParts.slice(1).join(" ") || updatedUser.lastName || "");
+        }
+        if (updatedUser.email) {
+          setEmail(updatedUser.email);
         }
       }
     },
     onError: (error: any) => {
-      toast.error(error.response?.data?.error || error.message || "Failed to update profile");
+      const errorMessage = error?.response?.data?.error || error?.message || "Failed to update profile";
+      toast.error(errorMessage);
+      console.error("Profile update error:", error);
     },
   });
 

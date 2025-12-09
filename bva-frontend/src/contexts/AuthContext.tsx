@@ -20,6 +20,7 @@ interface AuthContextType {
   register: (email: string, password: string, name?: string) => Promise<void>;
   logout: () => void;
   setToken: (token: string) => void;
+  refreshUser: () => Promise<void>;
   isAuthenticated: boolean;
   isLoading: boolean;
 }
@@ -206,6 +207,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }, 1000); // Delay to let navigation complete first
   };
 
+  // Public function to refresh user data (can be called from components)
+  const refreshUser = async () => {
+    if (token) {
+      await refreshUserData(token, false, false);
+    }
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -215,6 +223,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         register,
         logout,
         setToken: setAuthToken,
+        refreshUser,
         isAuthenticated: !!token && !!user,
         isLoading,
       }}

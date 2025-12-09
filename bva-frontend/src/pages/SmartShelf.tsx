@@ -335,11 +335,25 @@ export default function SmartShelf() {
             <p className="text-muted-foreground">AI-powered inventory risk detection and optimization</p>
           </div>
           <Button 
-            onClick={() => refetch()} 
+            onClick={() => {
+              refetch();
+              toast.info("Refreshing analysis...");
+            }} 
             variant="outline"
             className="gap-2"
+            disabled={isLoading}
           >
-            Refresh Analysis
+            {isLoading ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Refreshing...
+              </>
+            ) : (
+              <>
+                <RefreshCw className="h-4 w-4" />
+                Refresh Analysis
+              </>
+            )}
           </Button>
         </div>
       </div>
