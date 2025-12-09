@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { AlertTriangle, Package, TrendingDown, Calendar, Loader2, PackageOpen, Pencil, Sparkles, TrendingUp, Clock, Target } from "lucide-react";
+import { AlertTriangle, Package, TrendingDown, Calendar, Loader2, PackageOpen, Pencil, Sparkles, TrendingUp, Clock, Target, RefreshCw } from "lucide-react";
 import { useAtRiskInventory } from "@/hooks/useSmartShelf";
 import { useAuth } from "@/contexts/AuthContext";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
