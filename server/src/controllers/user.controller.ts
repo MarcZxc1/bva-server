@@ -245,7 +245,15 @@ export class UserController {
   // Update password
   async updatePassword(req: Request, res: Response) {
     try {
-      const userId = (req as any).user.id;
+      const decoded = (req as any).user;
+      const userId = decoded?.userId || decoded?.id;
+      
+      if (!userId) {
+        return res.status(401).json({
+          success: false,
+          error: "User ID not found in request. Please ensure you are authenticated.",
+        });
+      }
       const { currentPassword, newPassword } = req.body;
 
       if (!currentPassword || !newPassword) {
