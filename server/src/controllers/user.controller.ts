@@ -202,7 +202,16 @@ export class UserController {
   // Update user profile
   async updateProfile(req: Request, res: Response) {
     try {
-      const userId = (req as any).user.id;
+      // Try multiple ways to get userId (different middlewares set it differently)
+      const userId = (req as any).user?.id || (req as any).user?.userId || (req as any).userId;
+      
+      if (!userId) {
+        return res.status(401).json({
+          success: false,
+          error: "User ID not found in request. Please ensure you are authenticated.",
+        });
+      }
+
       const { firstName, lastName, email } = req.body;
 
       const updatedUser = await userService.updateProfile(userId, {
@@ -219,6 +228,7 @@ export class UserController {
         message: "Profile updated successfully",
       });
     } catch (error: any) {
+      console.error("Error updating profile:", error);
       res.status(400).json({
         success: false,
         error: error.message,

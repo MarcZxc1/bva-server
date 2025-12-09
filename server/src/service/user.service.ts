@@ -96,6 +96,11 @@ export class UserService {
   }
 
   async updateProfile(userId: string, data: { firstName?: string; lastName?: string; email?: string }) {
+    // Validate userId
+    if (!userId || typeof userId !== 'string') {
+      throw new Error("Invalid user ID");
+    }
+
     // If email is being updated, check if it's already taken by another user
     if (data.email) {
       const existingUser = await prisma.user.findUnique({
