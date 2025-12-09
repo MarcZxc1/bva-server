@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { RestockStrategyResponse } from "@/services/restock.service";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -44,6 +45,7 @@ export default function RestockPlanner() {
   
   const restockMutation = useRestock();
   const restockData = restockMutation.data;
+  const [savedRestockData, setSavedRestockData] = useState<RestockStrategyResponse | null>(null);
 
   // Enable real-time tracking for restock data
   useRealtimeDashboard({ 
@@ -57,6 +59,32 @@ export default function RestockPlanner() {
       setShopId(user.shops[0].id);
     }
   }, [user]);
+
+  // Load saved restock plan from localStorage on mount
+  useEffect(() => {
+    if (shopId) {
+      const saved = localStorage.getItem(`restock_plan_${shopId}`);
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved) as RestockStrategyResponse;
+          setSavedRestockData(parsed);
+        } catch (error) {
+          console.error("Failed to load saved restock plan:", error);
+        }
+      }
+    }
+  }, [shopId]);
+
+  // Save restock plan to localStorage when it's generated
+  useEffect(() => {
+    if (restockData && shopId) {
+      localStorage.setItem(`restock_plan_${shopId}`, JSON.stringify(restockData));
+      setSavedRestockData(restockData);
+    }
+  }, [restockData, shopId]);
+
+  // Use saved data if mutation data is not available
+  const displayRestockData = restockData || savedRestockData;
 
   const handleGeneratePlan = async () => {
     if (!hasActiveIntegration) {
@@ -84,7 +112,7 @@ export default function RestockPlanner() {
   };
 
   const handleApprove = () => {
-    if (!restockData || !restockData.recommendations || restockData.recommendations.length === 0) {
+    if (!displayRestockData || !displayRestockData.recommendations || displayRestockData.recommendations.length === 0) {
       toast.error("No restock recommendations available");
       return;
     }
@@ -130,7 +158,7 @@ export default function RestockPlanner() {
   };
 
   // Generate shopping list from recommendations
-  const shoppingList = restockData?.recommendations?.map((rec) => ({
+  const shoppingList = displayRestockData?.recommendations?.map((rec) => ({
     productName: rec.product_name,
     quantity: rec.recommended_qty,
     cost: rec.cost || 0,
@@ -142,14 +170,14 @@ export default function RestockPlanner() {
   const totalItems = shoppingList.reduce((sum, item) => sum + item.quantity, 0);
 
   // Prepare sales forecast chart data from historical sales
-  const salesForecastData = restockData?.salesForecast?.map(item => ({
+  const salesForecastData = displayRestockData?.salesForecast?.map(item => ({
     date: new Date(item.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
     revenue: item.revenue,
     quantity: item.quantity,
   })) || [];
 
   // Prepare restock recommendations chart data
-  const restockChartData = restockData?.recommendations?.slice(0, 8).map((rec, index) => ({
+  const restockChartData = displayRestockData?.recommendations?.slice(0, 8).map((rec, index) => ({
     name: rec.product_name.substring(0, 20) + (rec.product_name.length > 20 ? '...' : ''),
     recommended_qty: rec.recommended_qty,
     expected_revenue: rec.expected_revenue,
@@ -157,7 +185,7 @@ export default function RestockPlanner() {
   })) || [];
 
   // Check if recommendations exist
-  const hasRecommendations = restockData && restockData.recommendations && restockData.recommendations.length > 0;
+  const hasRecommendations = displayRestockData && displayRestockData.recommendations && displayRestockData.recommendations.length > 0;
 
   // Show empty state if no shop
   if (!hasShop) {
@@ -377,7 +405,7 @@ export default function RestockPlanner() {
         </Card>
       )}
 
-      {restockData && (
+      {displayRestockData && (
         <>
           {!hasRecommendations ? (
             <Card className="glass-card">
@@ -403,10 +431,10 @@ export default function RestockPlanner() {
                     <CardTitle className="text-sm font-medium text-muted-foreground">Predicted Demand</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold text-foreground">{restockData.summary.total_items} units</div>
+                    <div className="text-2xl font-bold text-foreground">{displayRestockData.summary.total_items} units</div>
                     <p className="text-xs text-success flex items-center mt-1">
                       <TrendingUp className="h-3 w-3 mr-1" />
-                      {(restockData.summary.roi || 0).toFixed(1)}% ROI
+                      {(displayRestockData.summary.roi || 0).toFixed(1)}% ROI
                     </p>
                   </CardContent>
                 </Card>
@@ -416,7 +444,7 @@ export default function RestockPlanner() {
                     <CardTitle className="text-sm font-medium text-muted-foreground">Restock Items</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold text-foreground">{restockData.recommendations.length}</div>
+                    <div className="text-2xl font-bold text-foreground">{displayRestockData.recommendations.length}</div>
                     <p className="text-xs text-muted-foreground mt-1">Products need restocking</p>
                   </CardContent>
                 </Card>
@@ -426,9 +454,9 @@ export default function RestockPlanner() {
                     <CardTitle className="text-sm font-medium text-muted-foreground">Est. Investment</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold text-foreground">₱{(restockData.summary.total_cost || 0).toLocaleString()}</div>
+                    <div className="text-2xl font-bold text-foreground">₱{(displayRestockData.summary.total_cost || 0).toLocaleString()}</div>
                     <p className="text-xs text-muted-foreground mt-1">
-                      {restockData.budget ? ((restockData.summary.total_cost / restockData.budget) * 100).toFixed(1) : "0.0"}% of budget
+                      {displayRestockData.budget ? ((displayRestockData.summary.total_cost / displayRestockData.budget) * 100).toFixed(1) : "0.0"}% of budget
                     </p>
                   </CardContent>
                 </Card>
@@ -438,7 +466,7 @@ export default function RestockPlanner() {
                     <CardTitle className="text-sm font-medium text-muted-foreground">Expected Profit</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold text-primary">₱{((restockData.summary.projected_revenue || 0) - (restockData.summary.total_cost || 0)).toLocaleString()}</div>
+                    <div className="text-2xl font-bold text-primary">₱{((displayRestockData.summary.projected_revenue || 0) - (displayRestockData.summary.total_cost || 0)).toLocaleString()}</div>
                     <p className="text-xs text-muted-foreground mt-1">AI prediction</p>
                   </CardContent>
                 </Card>
@@ -586,7 +614,7 @@ export default function RestockPlanner() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {restockData.recommendations.map((item, index) => (
+                      {displayRestockData.recommendations.map((item, index) => (
                         <TableRow key={index}>
                           <TableCell className="font-medium">{item.product_name}</TableCell>
                           <TableCell>
@@ -618,7 +646,7 @@ export default function RestockPlanner() {
               </Card>
 
               {/* Insights */}
-              {restockData.insights && restockData.insights.length > 0 && (
+              {displayRestockData.insights && displayRestockData.insights.length > 0 && (
                 <Card className="glass-card">
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2 text-foreground">
@@ -628,7 +656,7 @@ export default function RestockPlanner() {
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-2">
-                      {restockData.insights.map((insight, index) => (
+                      {displayRestockData.insights.map((insight, index) => (
                         <div key={index} className="p-3 glass-card-sm">
                           <div className="text-sm text-foreground">{insight}</div>
                         </div>
@@ -639,14 +667,14 @@ export default function RestockPlanner() {
               )}
 
               {/* Warnings */}
-              {restockData.warnings && restockData.warnings.length > 0 && (
+              {displayRestockData.warnings && displayRestockData.warnings.length > 0 && (
                 <Card className="glass-card border-warning">
                   <CardHeader>
                     <CardTitle className="text-warning">Warnings</CardTitle>
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-2">
-                      {restockData.warnings.map((warning, index) => (
+                      {displayRestockData.warnings.map((warning, index) => (
                         <div key={index} className="p-3 glass-card-sm border-warning/20">
                           <div className="text-sm text-warning">{warning}</div>
                         </div>
@@ -721,16 +749,16 @@ export default function RestockPlanner() {
               <span className="text-lg font-semibold text-black">Total Cost:</span>
               <span className="text-2xl font-bold text-black">₱{totalCost.toLocaleString()}</span>
             </div>
-            {restockData?.budget && (
+            {displayRestockData?.budget && (
               <>
                 <div className="flex justify-between items-center text-sm text-gray-700">
                   <span>Budget:</span>
-                  <span>₱{restockData.budget.toLocaleString()}</span>
+                  <span>₱{displayRestockData.budget.toLocaleString()}</span>
                 </div>
                 <div className="flex justify-between items-center text-sm text-gray-700">
                   <span>Remaining Budget:</span>
-                  <span className={restockData.budget - totalCost < 0 ? "text-red-600 font-semibold" : "text-green-600 font-semibold"}>
-                    ₱{(restockData.budget - totalCost).toLocaleString()}
+                  <span className={displayRestockData.budget - totalCost < 0 ? "text-red-600 font-semibold" : "text-green-600 font-semibold"}>
+                    ₱{(displayRestockData.budget - totalCost).toLocaleString()}
                   </span>
                 </div>
               </>
@@ -738,11 +766,11 @@ export default function RestockPlanner() {
           </div>
 
           {/* Notes Section */}
-          {restockData?.insights && restockData.insights.length > 0 && (
+          {displayRestockData?.insights && displayRestockData.insights.length > 0 && (
             <div className="border-t-2 border-gray-300 pt-4 mt-6">
               <h3 className="font-semibold text-lg text-black mb-2">Notes</h3>
               <ul className="space-y-1 text-sm text-gray-700">
-                {restockData.insights.slice(0, 3).map((insight, index) => (
+                {displayRestockData.insights.slice(0, 3).map((insight, index) => (
                   <li key={index} className="flex items-start gap-2">
                     <span className="mt-1">•</span>
                     <span>{insight}</span>
@@ -830,28 +858,28 @@ export default function RestockPlanner() {
                 <span className="text-lg font-semibold text-foreground">Total Cost:</span>
                 <span className="text-2xl font-bold text-primary">₱{totalCost.toLocaleString()}</span>
               </div>
-              {restockData?.budget && (
+              {displayRestockData?.budget && (
                 <div className="flex justify-between items-center text-sm text-muted-foreground">
                   <span>Budget:</span>
-                  <span>₱{restockData.budget.toLocaleString()}</span>
+                  <span>₱{displayRestockData.budget.toLocaleString()}</span>
                 </div>
               )}
-              {restockData?.budget && (
+              {displayRestockData?.budget && (
                 <div className="flex justify-between items-center text-sm text-muted-foreground">
                   <span>Remaining Budget:</span>
-                  <span className={restockData.budget - totalCost < 0 ? "text-destructive" : "text-success"}>
-                    ₱{(restockData.budget - totalCost).toLocaleString()}
+                  <span className={displayRestockData.budget - totalCost < 0 ? "text-destructive" : "text-success"}>
+                    ₱{(displayRestockData.budget - totalCost).toLocaleString()}
                   </span>
                 </div>
               )}
             </div>
 
             {/* Notes Section */}
-            {restockData?.insights && restockData.insights.length > 0 && (
+            {displayRestockData?.insights && displayRestockData.insights.length > 0 && (
               <div className="border-t pt-4">
                 <h3 className="font-semibold text-lg text-foreground mb-2">Notes</h3>
                 <ul className="space-y-1 text-sm text-muted-foreground">
-                  {restockData.insights.slice(0, 3).map((insight, index) => (
+                  {displayRestockData.insights.slice(0, 3).map((insight, index) => (
                     <li key={index} className="flex items-start gap-2">
                       <span className="mt-1">•</span>
                       <span>{insight}</span>

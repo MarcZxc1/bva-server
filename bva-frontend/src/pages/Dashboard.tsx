@@ -6,7 +6,7 @@ import { useAtRiskInventory, useDashboardAnalytics } from "@/hooks/useSmartShelf
 import { useRealtimeDashboard } from "@/hooks/useRealtimeDashboard";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIntegration } from "@/hooks/useIntegration";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { apiClient } from "@/lib/api-client";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -51,10 +51,37 @@ export default function Dashboard() {
   };
 
   // Prepare sales data from API response
-  const salesData = analyticsData?.forecast?.forecasts?.[0]?.predictions?.map((val, i) => ({
-    month: `Day ${i + 1}`,
-    sales: Math.round(val.predicted_qty),
-  })) || [];
+  // The forecast structure: forecast.forecasts[].predictions[]
+  // Aggregate all product forecasts into a single time series
+  const salesData = useMemo(() => {
+    if (!analyticsData?.forecast?.forecasts || analyticsData.forecast.forecasts.length === 0) {
+      return [];
+    }
+
+    // Aggregate predictions from all products
+    const aggregatedPredictions: { [key: string]: number } = {};
+    
+    analyticsData.forecast.forecasts.forEach((productForecast: any) => {
+      if (productForecast.predictions && Array.isArray(productForecast.predictions)) {
+        productForecast.predictions.forEach((prediction: any, index: number) => {
+          const dayKey = `Day ${index + 1}`;
+          if (!aggregatedPredictions[dayKey]) {
+            aggregatedPredictions[dayKey] = 0;
+          }
+          aggregatedPredictions[dayKey] += Math.round(prediction.predicted_qty || 0);
+        });
+      }
+    });
+
+    // Convert to array format for chart
+    return Object.entries(aggregatedPredictions)
+      .sort((a, b) => {
+        const dayA = parseInt(a[0].replace('Day ', ''));
+        const dayB = parseInt(b[0].replace('Day ', ''));
+        return dayA - dayB;
+      })
+      .map(([month, sales]) => ({ month, sales }));
+  }, [analyticsData?.forecast]);
 
   // Prepare stock alerts from at-risk data
   const stockAlerts = atRiskData?.at_risk?.slice(0, 5).map(item => ({
