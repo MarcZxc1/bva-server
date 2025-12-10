@@ -23,7 +23,7 @@ interface Product {
 }
 
 const MyProducts: React.FC = () => {
-  const { user, isLoading: authLoading } = useAuth();
+  const { user, isLoading: authLoading, updateUser } = useAuth();
   const shopId = user?.shops?.[0]?.id;
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -32,6 +32,52 @@ const MyProducts: React.FC = () => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [refreshingShop, setRefreshingShop] = useState(false);
+  const [hasCheckedShop, setHasCheckedShop] = useState(false);
+
+  // Auto-refresh user data if SELLER doesn't have a shop (only once)
+  useEffect(() => {
+    const refreshShopData = async () => {
+      // Only run once per mount, when auth is loaded, user is SELLER, no shop, and not already refreshing
+      if (!authLoading && user?.role === 'SELLER' && !shopId && !refreshingShop && !hasCheckedShop) {
+        console.log('🔄 SELLER user has no shop, refreshing user data to trigger shop creation...');
+        setRefreshingShop(true);
+        setHasCheckedShop(true); // Mark as checked to prevent re-running
+        try {
+          const userData = await apiClient.getMe();
+          console.log('📋 getMe API response (full):', userData);
+          console.log('📋 getMe shops array:', userData?.shops);
+          console.log('📋 getMe response summary:', { 
+            hasUserData: !!userData, 
+            hasShops: !!userData?.shops, 
+            shopsCount: userData?.shops?.length || 0,
+            userRole: userData?.role,
+            userId: userData?.id 
+          });
+          
+          if (userData?.shops && userData.shops.length > 0) {
+            updateUser({ shops: userData.shops });
+            console.log('✅ Shop found after refresh:', userData.shops[0]);
+          } else {
+            console.warn('⚠️ Shop still not found after refresh. User data:', {
+              role: userData?.role,
+              userId: userData?.id,
+              shops: userData?.shops,
+            });
+            console.warn('   This may indicate a backend issue. Check server logs for shop creation errors.');
+          }
+        } catch (err: any) {
+          console.error('❌ Failed to refresh user data:', err);
+          console.error('   Error details:', err.message, err.stack);
+        } finally {
+          setRefreshingShop(false);
+        }
+      }
+    };
+    refreshShopData();
+    // Only depend on authLoading, user?.role, and shopId - not updateUser or refreshingShop
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authLoading, user?.role, shopId]);
 
   const fetchProducts = useCallback(async () => {
     if (!shopId) return;
@@ -171,8 +217,57 @@ const MyProducts: React.FC = () => {
     );
   }
 
-  // Show error if user doesn't have a shop
+  // Show loading or error if user doesn't have a shop
   if (!authLoading && !shopId) {
+    // If we're refreshing shop data, show loading
+    if (refreshingShop) {
+      return (
+        <SellerLayout>
+          <Breadcrumb />
+          <div className="my-products-container">
+            <div className="error-state">
+              <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-shopee-orange mb-4"></div>
+              <p>Creating your shop...</p>
+            </div>
+          </div>
+        </SellerLayout>
+      );
+    }
+    
+    // If user is a SELLER but has no shop after refresh attempt
+    if (user?.role === 'SELLER') {
+      return (
+        <SellerLayout>
+          <Breadcrumb />
+          <div className="my-products-container">
+            <div className="error-state">
+              <Package size={48} />
+              <h2>No Shop Found</h2>
+              <p>We're creating your shop automatically. Please wait a moment and refresh the page.</p>
+              <button 
+                onClick={async () => {
+                  try {
+                    const userData = await apiClient.getMe();
+                    if (userData?.shops && userData.shops.length > 0) {
+                      updateUser({ shops: userData.shops });
+                      window.location.reload();
+                    } else {
+                      window.location.reload();
+                    }
+                  } catch (err) {
+                    window.location.reload();
+                  }
+                }} 
+                className="btn-retry"
+              >
+                Refresh Page
+              </button>
+            </div>
+          </div>
+        </SellerLayout>
+      );
+    }
+    
     return (
       <SellerLayout>
         <Breadcrumb />

@@ -28,7 +28,7 @@ export async function createOrder(data: {
       shopId: true, 
       stock: true,
       cost: true,
-      shop: { select: { name: true } } 
+      Shop: { select: { name: true } } 
     },
   });
 
@@ -47,7 +47,7 @@ export async function createOrder(data: {
         shopId: true, 
         stock: true,
         cost: true,
-        shop: { select: { name: true } } 
+        Shop: { select: { name: true } } 
       },
     });
     
@@ -277,7 +277,7 @@ export async function createOrder(data: {
 
     createdOrders.push({
       ...order,
-      shopName: product?.shop.name,
+      shopName: product?.Shop.name,
     });
   }
 
@@ -288,7 +288,7 @@ export async function getMyOrders(userId: string) {
   // Get user's shops
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    include: { shops: true },
+    include: { Shop: true },
   });
 
   if (!user) {
@@ -333,7 +333,7 @@ export async function getMyOrders(userId: string) {
         customerEmail: userId, // Using userId as identifier
       },
       include: {
-        shop: {
+        Shop: {
           select: {
             id: true,
             name: true,
@@ -368,7 +368,7 @@ export async function getMyOrders(userId: string) {
         return {
           id: order.id,
           shopId: order.shopId,
-          shopName: order.shop.name,
+          shopName: order.Shop.name,
           items: enrichedItems,
           total: order.total,
           status: order.status,
@@ -380,13 +380,13 @@ export async function getMyOrders(userId: string) {
     return enrichedOrders;
   } else {
     // Seller: get orders from their shops
-    const shopIds = user.shops.map(shop => shop.id);
+    const shopIds = user.Shop.map(shop => shop.id);
     const orders = await prisma.sale.findMany({
       where: {
         shopId: { in: shopIds },
       },
       include: {
-        shop: {
+        Shop: {
           select: {
             id: true,
             name: true,
@@ -423,7 +423,7 @@ export async function getMyOrders(userId: string) {
         return {
           id: order.id,
           shopId: order.shopId,
-          shopName: order.shop.name,
+          shopName: order.Shop.name,
           items: enrichedItems,
           total: order.total,
           revenue: order.revenue,
@@ -468,7 +468,7 @@ export async function getSellerOrders(
   const orders = await prisma.sale.findMany({
     where,
     include: {
-      shop: {
+      Shop: {
         select: {
           id: true,
           name: true,
@@ -534,7 +534,7 @@ export async function getSellerOrders(
       return {
         id: order.id,
         shopId: order.shopId,
-        shopName: order.shop.name,
+        shopName: order.Shop.name,
         items: enrichedItems,
         total: order.total,
         revenue: order.revenue,
@@ -657,7 +657,7 @@ export async function getOrderById(orderId: string) {
   const order = await prisma.sale.findUnique({
     where: { id: orderId },
     include: {
-      shop: {
+      Shop: {
         select: {
           id: true,
           name: true,
@@ -673,7 +673,7 @@ export async function getOrderById(orderId: string) {
   return {
     id: order.id,
     shopId: order.shopId,
-    shopName: order.shop.name,
+    shopName: order.Shop.name,
     items: order.items,
     total: order.total,
     revenue: order.revenue,

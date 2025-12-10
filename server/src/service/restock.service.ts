@@ -45,7 +45,7 @@ async function fetchProductsForRestock(
       externalId: { not: null }, // Only products synced from integrations
     },
     include: {
-      inventories: {
+      Inventory: {
         take: 1,
       },
     },
@@ -112,7 +112,7 @@ async function fetchProductsForRestock(
         name: product.name,
         price: product.price,
         cost: product.cost || 0,
-        stock: product.inventories[0]?.quantity || 0,
+        stock: product.Inventory[0]?.quantity || 0,
         category: product.description?.split("-")[1]?.trim() || "General",
         avg_daily_sales: avgDailySales,
         profit_margin: profitMargin,
@@ -158,7 +158,7 @@ export async function calculateRestockStrategy(
     shop_id: shopId,
     budget,
     goal,
-    products,
+    products: products,
     restock_days: restockDays,
   };
 

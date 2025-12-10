@@ -140,7 +140,7 @@ export class AdService {
         },
       },
       include: {
-        inventories: { take: 1 },
+        Inventory: { take: 1 },
       },
     });
 
@@ -148,7 +148,7 @@ export class AdService {
       product_id: p.id,
       name: p.name,
       expiry_date: p.expiryDate!.toISOString(),
-      quantity: p.inventories[0]?.quantity || 0,
+      quantity: p.Inventory[0]?.quantity || 0,
       price: p.price,
       categories: p.description ? [p.description] : [],
     }));

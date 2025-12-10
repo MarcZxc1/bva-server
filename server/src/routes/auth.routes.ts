@@ -11,9 +11,12 @@ const router = Router();
 // Allowed frontend URLs for redirection
 const ALLOWED_FRONTENDS = [
   "http://localhost:5173", // Shopee Clone
+  "http://localhost:5174", // TikTok Seller Clone (Vite default alternate port)
+  "http://localhost:5175", // TikTok Seller Clone (if 5174 is taken)
   "http://localhost:8080", // BVA Frontend
   "https://bva-frontend.vercel.app",
-  "https://shopee-clone.vercel.app"
+  "https://shopee-clone.vercel.app",
+  "https://tiktokseller-clone.vercel.app" // TikTok Seller Clone production
 ];
 
 // Get frontend URL from environment or default
@@ -80,13 +83,14 @@ router.get("/google", (req: Request, res: Response, next) => {
     }
     
     const isShopeeClone = redirectUrl.includes('5173') || redirectUrl.includes('shopee') || redirectUrl.includes('localhost:5173');
-    const errorPath = (role === 'SELLER' ? (isShopeeClone ? '/login' : '/login') : (isShopeeClone ? '/buyer-login' : '/login'));
+    const isTikTokSellerClone = redirectUrl.includes('5174') || redirectUrl.includes('5175') || redirectUrl.includes('tiktokseller') || redirectUrl.includes('tiktok');
+    const errorPath = (role === 'SELLER' ? (isShopeeClone ? '/login' : isTikTokSellerClone ? '/login' : '/login') : (isShopeeClone ? '/buyer-login' : '/login'));
     return res.redirect(`${redirectUrl}${errorPath}?error=google_auth_failed&details=${encodeURIComponent('Google OAuth is not configured on the server')}`);
   }
   
   const { state, role } = req.query;
   
-  let stateData: { redirectUrl: string; role?: string } = { redirectUrl: FRONTEND_URL };
+  let stateData: { redirectUrl: string; role?: string; platform?: string } = { redirectUrl: FRONTEND_URL };
   
   // Parse state if provided
   if (state && typeof state === "string") {
@@ -94,14 +98,31 @@ router.get("/google", (req: Request, res: Response, next) => {
       const decoded = JSON.parse(decodeURIComponent(state));
       stateData.redirectUrl = decoded.redirectUrl || FRONTEND_URL;
       stateData.role = decoded.role || role as string || 'BUYER';
+      stateData.platform = decoded.platform || 'BVA'; // Extract platform from state
     } catch (e) {
       // If state is not JSON, treat it as redirectUrl
       stateData.redirectUrl = state;
       stateData.role = (role as string) || 'BUYER';
+      // Detect platform from redirectUrl
+      if (stateData.redirectUrl.includes('5173') || stateData.redirectUrl.includes('shopee')) {
+        stateData.platform = 'SHOPEE_CLONE';
+      } else if (stateData.redirectUrl.includes('5174') || stateData.redirectUrl.includes('5175') || stateData.redirectUrl.includes('tiktokseller')) {
+        stateData.platform = 'TIKTOK_CLONE';
+      } else {
+        stateData.platform = 'BVA';
+      }
     }
   } else {
     // Use role from query if state not provided
     stateData.role = (role as string) || 'BUYER';
+    // Detect platform from redirectUrl
+    if (stateData.redirectUrl.includes('5173') || stateData.redirectUrl.includes('shopee')) {
+      stateData.platform = 'SHOPEE_CLONE';
+    } else if (stateData.redirectUrl.includes('5174') || stateData.redirectUrl.includes('5175') || stateData.redirectUrl.includes('tiktokseller')) {
+      stateData.platform = 'TIKTOK_CLONE';
+    } else {
+      stateData.platform = 'BVA';
+    }
   }
   
   // Validate role
@@ -119,8 +140,9 @@ router.get("/google", (req: Request, res: Response, next) => {
   if (!googleStrategy) {
     console.error("❌ Google OAuth strategy not found. Make sure GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET are set.");
     const isShopeeClone = stateData.redirectUrl.includes('5173') || stateData.redirectUrl.includes('shopee') || stateData.redirectUrl.includes('localhost:5173');
+    const isTikTokSellerClone = stateData.redirectUrl.includes('5174') || stateData.redirectUrl.includes('5175') || stateData.redirectUrl.includes('tiktokseller') || stateData.redirectUrl.includes('tiktok');
     const errorPath = stateData.role === 'SELLER' 
-      ? (isShopeeClone ? '/login' : '/login')
+      ? (isShopeeClone ? '/login' : isTikTokSellerClone ? '/login' : '/login')
       : (isShopeeClone ? '/buyer-login' : '/login');
     return res.redirect(`${stateData.redirectUrl}${errorPath}?error=google_auth_failed&details=${encodeURIComponent('Google OAuth strategy not configured')}`);
   }
@@ -154,7 +176,8 @@ router.get("/google/callback", (req, res, next) => {
   const state = req.query.state as string;
   let redirectUrl = FRONTEND_URL;
   let role: string = 'BUYER';
-  let decodedState: { redirectUrl: string; role?: string } | null = null;
+  let platform: string = 'BVA'; // Initialize platform variable
+  let decodedState: { redirectUrl: string; role?: string; platform?: string } | null = null;
 
   try {
     if (state) {
@@ -162,9 +185,10 @@ router.get("/google/callback", (req, res, next) => {
       if (decodedState) {
         if (decodedState.redirectUrl) {
           // Validate redirect URL is in allowed list
-          // IMPORTANT: Ensure shopee-clone users stay in shopee-clone, never redirect to bva-frontend
+          // IMPORTANT: Ensure frontend users stay in their respective frontends, never redirect to wrong frontend
           const requestedUrl = decodedState.redirectUrl;
           const isShopeeCloneRequest = requestedUrl.includes('5173') || requestedUrl.includes('shopee') || requestedUrl.includes('localhost:5173');
+          const isTikTokSellerCloneRequest = requestedUrl.includes('5174') || requestedUrl.includes('5175') || requestedUrl.includes('tiktokseller') || requestedUrl.includes('tiktok') && requestedUrl.includes('seller');
           
           // Extract base URL (without path) for validation
           let baseUrl: string;
@@ -181,6 +205,18 @@ router.get("/google/callback", (req, res, next) => {
             if (isShopeeCloneRequest) {
               // Use the base URL from allowed list, but preserve the path if it's a shopee-clone path
               redirectUrl = baseUrl.includes('5173') ? baseUrl : 'http://localhost:5173';
+            } else if (isTikTokSellerCloneRequest) {
+              // If request came from tiktokseller-clone, ensure we redirect back to tiktokseller-clone
+              // Try to preserve the original port, otherwise default to 5174
+              if (baseUrl.includes('5174')) {
+                redirectUrl = 'http://localhost:5174';
+              } else if (baseUrl.includes('5175')) {
+                redirectUrl = 'http://localhost:5175';
+              } else if (baseUrl.includes('tiktokseller-clone.vercel.app')) {
+                redirectUrl = 'https://tiktokseller-clone.vercel.app';
+              } else {
+                redirectUrl = 'http://localhost:5174'; // Default to 5174
+              }
             } else {
               redirectUrl = baseUrl;
             }
@@ -189,21 +225,28 @@ router.get("/google/callback", (req, res, next) => {
             // If request came from shopee-clone but URL not in allowed list, default to shopee-clone
             if (isShopeeCloneRequest) {
               redirectUrl = 'http://localhost:5173';
+            } else if (isTikTokSellerCloneRequest) {
+              // Default to tiktokseller-clone
+              redirectUrl = 'http://localhost:5174';
             }
           }
         }
         if (decodedState.role) {
           role = decodedState.role;
         }
+        if (decodedState.platform) {
+          platform = decodedState.platform;
+        }
       }
     }
   } catch (e) {
     console.error("Invalid state parameter:", e);
-    // On error, check if the request might be from shopee-clone by checking referer or default to shopee-clone
-    // IMPORTANT: Default to shopee-clone to prevent accidental redirects to bva-frontend
+    // On error, check if the request might be from a specific frontend by checking referer
     const referer = req.get('referer') || '';
     if (referer.includes('5173') || referer.includes('shopee')) {
       redirectUrl = 'http://localhost:5173';
+    } else if (referer.includes('5174') || referer.includes('5175') || referer.includes('tiktokseller') || referer.includes('tiktok')) {
+      redirectUrl = referer.includes('5175') ? 'http://localhost:5175' : 'http://localhost:5174';
     } else {
       // Default to shopee-clone (port 5173) instead of bva-frontend
       redirectUrl = FRONTEND_URL.includes('5173') ? FRONTEND_URL : 'http://localhost:5173';
@@ -211,17 +254,18 @@ router.get("/google/callback", (req, res, next) => {
   }
   
   // Determine failure redirect based on role and frontend
-  // IMPORTANT: Shopee-clone users should NEVER redirect to bva-frontend
+  // IMPORTANT: Frontend users should NEVER redirect to wrong frontend
   const isShopeeClone = redirectUrl.includes('5173') || redirectUrl.includes('shopee') || redirectUrl.includes('localhost:5173');
+  const isTikTokSellerClone = redirectUrl.includes('5174') || redirectUrl.includes('5175') || redirectUrl.includes('tiktokseller') || redirectUrl.includes('tiktok');
   const failurePath = role === 'SELLER' 
-    ? (isShopeeClone ? '/login' : '/login?error=google_auth_failed')
+    ? (isShopeeClone ? '/login' : isTikTokSellerClone ? '/login' : '/login?error=google_auth_failed')
     : (isShopeeClone ? '/buyer-login' : '/login?error=google_auth_failed');
   const failureRedirect = `${redirectUrl}${failurePath}`;
 
   passport.authenticate("google", {
     session: false,
     failureRedirect: failureRedirect,
-  }) (req, res, (err: any) => {
+  }) (req, res, async (err: any) => {
     if (err) {
       console.error("❌ Google OAuth authentication error:", err);
       console.error("Error details:", {
@@ -230,10 +274,11 @@ router.get("/google/callback", (req, res, next) => {
         name: err.name,
         code: err.code
       });
-      // IMPORTANT: Shopee-clone users should NEVER redirect to bva-frontend
+      // IMPORTANT: Frontend users should NEVER redirect to wrong frontend
       const isShopeeClone = redirectUrl.includes('5173') || redirectUrl.includes('shopee') || redirectUrl.includes('localhost:5173');
+      const isTikTokSellerClone = redirectUrl.includes('5174') || redirectUrl.includes('5175') || redirectUrl.includes('tiktokseller') || redirectUrl.includes('tiktok');
       const errorPath = role === 'SELLER' 
-        ? (isShopeeClone ? '/login' : '/login')
+        ? (isShopeeClone ? '/login' : isTikTokSellerClone ? '/login' : '/login')
         : (isShopeeClone ? '/buyer-login' : '/login');
       const errorMessage = err.message || err.toString() || 'Authentication failed';
       console.error(`Redirecting to error page: ${redirectUrl}${errorPath}?error=google_auth_failed&details=${encodeURIComponent(errorMessage)}`);
@@ -244,8 +289,9 @@ router.get("/google/callback", (req, res, next) => {
     if (!req.user) {
       console.error("❌ Google OAuth: No user in request after authentication");
       const isShopeeClone = redirectUrl.includes('5173') || redirectUrl.includes('shopee') || redirectUrl.includes('localhost:5173');
+      const isTikTokSellerClone = redirectUrl.includes('5174') || redirectUrl.includes('5175') || redirectUrl.includes('tiktokseller') || redirectUrl.includes('tiktok');
       const errorPath = role === 'SELLER' 
-        ? (isShopeeClone ? '/login' : '/login')
+        ? (isShopeeClone ? '/login' : isTikTokSellerClone ? '/login' : '/login')
         : (isShopeeClone ? '/buyer-login' : '/login');
       return res.redirect(`${redirectUrl}${errorPath}?error=google_auth_failed&details=${encodeURIComponent('No user returned from Google OAuth')}`);
     }
@@ -255,136 +301,181 @@ router.get("/google/callback", (req, res, next) => {
 
       if (!user) {
         console.error("No user returned from Google OAuth");
-        // IMPORTANT: Shopee-clone users should NEVER redirect to bva-frontend
+        // IMPORTANT: Frontend users should NEVER redirect to wrong frontend
         const isShopeeClone = redirectUrl.includes('5173') || redirectUrl.includes('shopee') || redirectUrl.includes('localhost:5173');
+        const isTikTokSellerClone = redirectUrl.includes('5174') || redirectUrl.includes('5175') || redirectUrl.includes('tiktokseller') || redirectUrl.includes('tiktok');
         const errorPath = role === 'SELLER' 
-          ? (isShopeeClone ? '/login' : '/login')
+          ? (isShopeeClone ? '/login' : isTikTokSellerClone ? '/login' : '/login')
           : (isShopeeClone ? '/buyer-login' : '/login');
         return res.redirect(`${redirectUrl}${errorPath}?error=no_user`);
       }
 
-      // Update user role if state indicates different role and create shop if needed
-      // This handles the case where a new user signs up as SELLER via Google OAuth
-      // Also handles existing users who are SELLERs but don't have a shop
-      const updateUserRoleAndCreateShop = async () => {
-        // Check if user has shops
+      // CRITICAL: Platform isolation - Check if user exists for THIS platform
+      // If user from passport strategy exists but for different platform, create new user for this platform
+      const userPlatform = (platform as "SHOPEE_CLONE" | "TIKTOK_CLONE" | "BVA") || "BVA";
+      
+      // Find user for this specific platform
+      let platformUser = await prisma.user.findUnique({
+        where: {
+          email_platform: {
+            email: user.email,
+            platform: userPlatform,
+          }
+        },
+      });
+
+      // If user doesn't exist for this platform, create new user for this platform
+      if (!platformUser) {
+        console.log(`🔄 Creating new user for platform ${userPlatform} with email ${user.email}`);
+        
+        // Create new user with platform isolation
+        platformUser = await prisma.user.create({
+          data: {
+            email: user.email,
+            password: null,
+            googleId: user.googleId || null,
+            name: user.name || user.firstName || null,
+            firstName: user.firstName || null,
+            lastName: user.lastName || null,
+            role: role === 'SELLER' ? 'SELLER' : 'BUYER',
+            platform: userPlatform,
+          },
+        });
+
+        // Create shop if seller - MUST be created in transaction
+        if (platformUser.role === 'SELLER') {
+          console.log(`🛍️ Creating shop for new SELLER user ${platformUser.id} on platform ${userPlatform}`);
+          try {
+            await prisma.shop.create({
+              data: {
+                name: `${platformUser.name || platformUser.firstName || platformUser.email?.split("@")[0] || "My"}'s Shop`,
+                ownerId: platformUser.id,
+              },
+            });
+            console.log(`✅ Shop created successfully for user ${platformUser.id}`);
+          } catch (shopError: any) {
+            console.error(`❌ Failed to create shop for user ${platformUser.id}:`, shopError);
+            // Re-throw to prevent user creation without shop
+            throw new Error(`Failed to create shop: ${shopError.message}`);
+          }
+        }
+      } else {
+        // User exists for this platform - update role if needed
+        if (role === 'SELLER' && platformUser.role === 'BUYER') {
+          platformUser = await prisma.user.update({
+            where: { id: platformUser.id },
+            data: { role: 'SELLER' },
+          });
+        }
+        
+        // Create shop if seller and doesn't have one
         const existingShops = await prisma.shop.findMany({
-          where: { ownerId: user.id },
+          where: { ownerId: platformUser.id },
           select: { id: true, name: true },
         });
         
-        // If role should be SELLER but user is BUYER, update role
-        if (role === 'SELLER' && user.role === 'BUYER') {
+        if (platformUser.role === 'SELLER' && existingShops.length === 0) {
+          console.log(`🛍️ Creating shop for existing SELLER user ${platformUser.id} who doesn't have one`);
           try {
-            user = await prisma.user.update({
-              where: { id: user.id },
-              data: { role: 'SELLER' },
-            });
-            console.log(`✅ Updated user role to SELLER for Google OAuth user: ${user.email}`);
-          } catch (updateError) {
-            console.error("Error updating user role:", updateError);
-            // Continue with original role if update fails
-          }
-        }
-        
-        // If user is SELLER (either was already or just updated) and has no shop, create one
-        // This handles both new users and existing users who are SELLERs but don't have a shop
-        if (user.role === 'SELLER' && existingShops.length === 0) {
-          try {
-            const newShop = await prisma.shop.create({
+            await prisma.shop.create({
               data: {
-                name: `${user.name || user.firstName || user.email?.split("@")[0] || "My"}'s Shop`,
-                ownerId: user.id,
+                name: `${platformUser.name || platformUser.firstName || platformUser.email?.split("@")[0] || "My"}'s Shop`,
+                ownerId: platformUser.id,
               },
             });
-            console.log(`✅ Created shop for SELLER user: ${user.email}, Shop ID: ${newShop.id}`);
-            return [{ id: newShop.id, name: newShop.name }];
-          } catch (shopError) {
-            console.error("Error creating shop for SELLER:", shopError);
-            // Continue even if shop creation fails
-            return [];
+            console.log(`✅ Shop created successfully for user ${platformUser.id}`);
+          } catch (shopError: any) {
+            console.error(`❌ Failed to create shop for user ${platformUser.id}:`, shopError);
+            throw new Error(`Failed to create shop: ${shopError.message}`);
           }
         }
-        
-        return existingShops;
-      };
+      }
 
-      // Update role and create shop if needed, then get shops
-      updateUserRoleAndCreateShop().then(shops => {
-        const token = jwt.sign(
-          { 
-            userId: user.id, 
-            role: user.role,
-            email: user.email,
-            name: user.name || user.firstName || 'User',
-            shops: shops.map(s => ({ id: s.id, name: s.name }))
-          },
-          JWT_SECRET,
-          { expiresIn: JWT_EXPIRATION } as jwt.SignOptions
-        );
+      // Ensure shop exists for SELLER (final safety check)
+      if (platformUser.role === 'SELLER') {
+        const existingShops = await prisma.shop.findMany({
+          where: { ownerId: platformUser.id },
+          select: { id: true, name: true },
+        });
         
-        // Determine destination based on role and frontend
-        // IMPORTANT: Shopee-clone users should NEVER redirect to bva-frontend
-        const isShopeeClone = redirectUrl.includes('5173') || redirectUrl.includes('shopee') || redirectUrl.includes('localhost:5173');
-        let destination = '/';
-        
-        if (isShopeeClone) {
-          // Shopee clone: redirect based on role - ALWAYS stay in shopee-clone
-          if (user.role === 'SELLER') {
-            destination = '/login?token=' + token;
-          } else {
-            // For buyers, redirect to landing page with token - frontend will handle it
-            destination = '/?token=' + token;
+        if (existingShops.length === 0) {
+          console.log(`⚠️ Final safety check: No shop found for SELLER ${platformUser.id}, creating one...`);
+          try {
+            await prisma.shop.create({
+              data: {
+                name: `${platformUser.name || platformUser.firstName || platformUser.email?.split("@")[0] || "My"}'s Shop`,
+                ownerId: platformUser.id,
+              },
+            });
+            console.log(`✅ Shop created in final safety check for user ${platformUser.id}`);
+          } catch (shopError: any) {
+            console.error(`❌ CRITICAL: Failed to create shop in final safety check for user ${platformUser.id}:`, shopError);
+            // This is critical - user cannot proceed without shop
+            throw new Error(`Critical error: Failed to create shop for seller account. Please contact support.`);
           }
-          console.log(`✅ Google OAuth success (Shopee-Clone) - Redirecting ${user.role} to: ${redirectUrl}${destination}`);
-        } else {
-          // BVA frontend: always use /login
-          destination = '/login?token=' + token;
-          console.log(`✅ Google OAuth success (BVA Frontend) - Redirecting to: ${redirectUrl}${destination}`);
         }
-        
-        res.redirect(`${redirectUrl}${destination}`);
-      }).catch(shopError => {
-        console.error("Error fetching user shops:", shopError);
-        // Still generate token even if shops fetch fails
-        const token = jwt.sign(
-          { 
-            userId: user.id, 
-            role: user.role,
-            email: user.email,
-            name: user.name || user.firstName || 'User'
-          },
-          JWT_SECRET,
-          { expiresIn: JWT_EXPIRATION } as jwt.SignOptions
-        );
-        
-        // IMPORTANT: Shopee-clone users should NEVER redirect to bva-frontend
-        const isShopeeClone = redirectUrl.includes('5173') || redirectUrl.includes('shopee') || redirectUrl.includes('localhost:5173');
-        let destination = '/';
-        
-        if (isShopeeClone) {
-          // Shopee clone: redirect based on role - ALWAYS stay in shopee-clone
-          if (user.role === 'SELLER') {
-            destination = '/login?token=' + token;
-          } else {
-            // For buyers, redirect to landing page with token - frontend will handle it
-            destination = '/?token=' + token;
-          }
-        } else {
-          // BVA frontend: always use /login
-          destination = '/login?token=' + token;
-        }
-        
-        res.redirect(`${redirectUrl}${destination}`);
+      }
+
+      // Get shops for the platform user (should always have at least one if SELLER)
+      const shops = await prisma.shop.findMany({
+        where: { ownerId: platformUser.id },
+        select: { id: true, name: true },
       });
+
+      // Final verification - if SELLER and no shops, this is a critical error
+      if (platformUser.role === 'SELLER' && shops.length === 0) {
+        console.error(`❌ CRITICAL ERROR: SELLER user ${platformUser.id} has no shops after all checks!`);
+        throw new Error(`Critical error: Seller account has no shop. Please contact support.`);
+      }
+
+      // Generate token with shops
+      const token = jwt.sign(
+        { 
+          userId: platformUser.id, 
+          role: platformUser.role,
+          email: platformUser.email,
+          name: platformUser.name || platformUser.firstName || 'User',
+          Shop: shops.map((s: { id: string; name: string }) => ({ id: s.id, name: s.name }))
+        },
+        JWT_SECRET,
+        { expiresIn: JWT_EXPIRATION } as jwt.SignOptions
+      );
+      
+      // Determine destination based on role and frontend
+      // IMPORTANT: Frontend users should NEVER redirect to wrong frontend
+      const isShopeeClone = redirectUrl.includes('5173') || redirectUrl.includes('shopee') || redirectUrl.includes('localhost:5173');
+      const isTikTokSellerClone = redirectUrl.includes('5174') || redirectUrl.includes('5175') || redirectUrl.includes('tiktokseller') || redirectUrl.includes('tiktok');
+      let destination = '/';
+      
+      if (isShopeeClone) {
+        // Shopee clone: redirect based on role - ALWAYS stay in shopee-clone
+        if (platformUser.role === 'SELLER') {
+          destination = '/login?token=' + token;
+        } else {
+          // For buyers, redirect to landing page with token - frontend will handle it
+          destination = '/?token=' + token;
+        }
+        console.log(`✅ Google OAuth success (Shopee-Clone) - Redirecting ${platformUser.role} to: ${redirectUrl}${destination}`);
+      } else if (isTikTokSellerClone) {
+        // TikTok Seller Clone: always redirect to /login for sellers
+        destination = '/login?token=' + token;
+        console.log(`✅ Google OAuth success (TikTok-Seller-Clone) - Redirecting ${platformUser.role} to: ${redirectUrl}${destination}`);
+      } else {
+        // BVA frontend: always use /login
+        destination = '/login?token=' + token;
+        console.log(`✅ Google OAuth success (BVA Frontend) - Redirecting to: ${redirectUrl}${destination}`);
+      }
+      
+      res.redirect(`${redirectUrl}${destination}`);
 
     } catch (error: any) {
       console.error("Google callback error:", error);
       const errorMessage = error?.message || 'Token generation failed';
-      // IMPORTANT: Shopee-clone users should NEVER redirect to bva-frontend
+      // IMPORTANT: Frontend users should NEVER redirect to wrong frontend
       const isShopeeClone = redirectUrl.includes('5173') || redirectUrl.includes('shopee') || redirectUrl.includes('localhost:5173');
+      const isTikTokSellerClone = redirectUrl.includes('5174') || redirectUrl.includes('5175') || redirectUrl.includes('tiktokseller') || redirectUrl.includes('tiktok');
       const errorPath = role === 'SELLER' 
-        ? (isShopeeClone ? '/login' : '/login')
+        ? (isShopeeClone ? '/login' : isTikTokSellerClone ? '/login' : '/login')
         : (isShopeeClone ? '/buyer-login' : '/login');
       res.redirect(`${redirectUrl}${errorPath}?error=token_generation_failed&details=${encodeURIComponent(errorMessage)}`);
     }
@@ -394,50 +485,6 @@ router.get("/google/callback", (req, res, next) => {
 // ==========================================
 // Standard Auth Routes
 // ==========================================
-
-/**
- * @route   GET /api/auth/me
- * @desc    Get current user info
- * @access  Private
- */
-router.get("/me", authMiddleware, async (req: Request, res: Response) => {
-  try {
-    const userId = (req as any).userId;
-    const user = await authService.getUserById(userId);
-    
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: "User not found",
-      });
-    }
-
-    // Get user's shops
-    const shops = await authService.getUserShops(userId);
-
-    return res.status(200).json({
-      success: true,
-      data: {
-        id: user.id,
-        email: user.email,
-        name: user.name || user.firstName || 'User',
-        firstName: user.firstName,
-        lastName: user.lastName,
-        role: user.role,
-        shops: shops.map(shop => ({
-          id: shop.id,
-          name: shop.name,
-        })),
-      },
-    });
-  } catch (error) {
-    console.error("Get user error:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Failed to get user information",
-    });
-  }
-});
 
 /**
  * @route   POST /api/auth/register
@@ -661,12 +708,12 @@ router.delete("/facebook/delete-user", async (req: Request, res: Response) => {
 
     console.log(`🗑️  Processing deletion request for Facebook user: ${facebookUserId}`);
 
-    // Find user by Facebook ID
-    const user = await prisma.user.findUnique({
+    // Find user by Facebook ID (try all platforms)
+    const user = await prisma.user.findFirst({
       where: { facebookId: facebookUserId },
       include: {
-        shops: true,
-        socialMediaAccounts: true,
+        Shop: true,
+        SocialMediaAccount: true,
       },
     });
 
@@ -686,8 +733,8 @@ router.delete("/facebook/delete-user", async (req: Request, res: Response) => {
 
     // Delete all shops and related data (if exists)
     // A user can have multiple shops, so we delete all of them
-    if (user.shops && user.shops.length > 0) {
-      for (const shop of user.shops) {
+    if (user.Shop && user.Shop.length > 0) {
+      for (const shop of user.Shop) {
         // Delete shop products, orders, etc. (cascade should handle this)
         await prisma.shop.delete({
           where: { id: shop.id },

@@ -155,6 +155,7 @@ class ApiClient {
       email: data.email,
       password: data.password,
       role: data.role || 'BUYER',
+      platform: 'SHOPEE_CLONE', // Platform isolation
     };
     
     if (data.name) {
@@ -163,9 +164,9 @@ class ApiClient {
       payload.name = data.username;
     }
     
-    // The request method already handles { success: true, data: { user, token } } structure
-    // and extracts the data, so we get { user, token } directly
-    return this.request<{ user: any; token: string }>('/api/auth/register', {
+    // The request method already handles { success: true, data: { user, token, shops } } structure
+    // and extracts the data, so we get { user, token, shops } directly
+    return this.request<{ user: any; token: string; shops?: Array<{ id: string; name: string }> }>('/api/auth/register', {
       method: 'POST',
       body: JSON.stringify(payload),
     });
@@ -173,9 +174,13 @@ class ApiClient {
 
   async login(email: string, password: string) {
     // Server expects email and password (not identifier)
-    return this.request<{ user: any; token: string }>('/api/auth/login', {
+    return this.request<{ user: any; token: string; shops?: Array<{ id: string; name: string }> }>('/api/auth/login', {
       method: 'POST',
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ 
+        email, 
+        password,
+        platform: 'SHOPEE_CLONE' // Platform isolation
+      }),
     });
   }
 

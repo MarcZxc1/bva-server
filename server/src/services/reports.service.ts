@@ -534,13 +534,13 @@ export class ReportsService {
     // Only include products synced from integrations
     const inventory = await prisma.inventory.findMany({
       where: {
-        product: {
+        Product: {
           shopId,
           externalId: { not: null }, // Only products synced from integrations
         },
       },
       include: {
-        product: {
+        Product: {
           select: {
             cost: true,
           },
@@ -549,7 +549,7 @@ export class ReportsService {
     });
 
     const currentInventoryValue = inventory.reduce((acc, inv) => {
-      return acc + ((inv.product?.cost || 0) * inv.quantity);
+      return acc + ((inv.Product?.cost || 0) * inv.quantity);
     }, 0);
 
     // Use total cost from profit analysis as COGS
@@ -580,7 +580,7 @@ export class ReportsService {
     stockTurnover: number;
     inventoryValue: number;
     cogs: number;
-    products: Array<{
+    Product: Array<{
       productId: string;
       productName: string;
       sku: string;
@@ -603,7 +603,7 @@ export class ReportsService {
         stockTurnover: 0,
         inventoryValue: 0,
         cogs: 0,
-        products: [],
+        Product: [],
         period: {
           start: start.toISOString().split("T")[0]!,
           end: end.toISOString().split("T")[0]!,
@@ -624,7 +624,7 @@ export class ReportsService {
         externalId: { not: null }, // Only products synced from integrations
       },
       include: {
-        inventories: {
+        Inventory: {
           take: 1,
           orderBy: { updatedAt: "desc" },
         },
@@ -633,7 +633,7 @@ export class ReportsService {
 
     // Calculate inventory value and turnover per product
     const productReports = products.map((product) => {
-      const quantity = product.inventories[0]?.quantity || product.stock || 0;
+      const quantity = product.Inventory[0]?.quantity || product.stock || 0;
       const cost = product.cost || 0;
       const inventoryValue = cost * quantity;
       
@@ -665,7 +665,7 @@ export class ReportsService {
       stockTurnover: Math.round(overallTurnover * 100) / 100,
       inventoryValue: totalInventoryValue,
       cogs: profitAnalysis.totalCost,
-      products: productReports.sort((a, b) => b.turnoverRate - a.turnoverRate),
+      Product: productReports.sort((a, b) => b.turnoverRate - a.turnoverRate),
       period: {
         start: start.toISOString().split("T")[0]!,
         end: end.toISOString().split("T")[0]!,

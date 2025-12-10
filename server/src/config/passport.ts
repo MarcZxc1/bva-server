@@ -49,16 +49,24 @@ export const initializeGoogleStrategy = () => {
           // The role will be determined from the state in the callback route
           let defaultRole: "BUYER" | "SELLER" = "BUYER";
 
-          // Check if user exists (by email first, then by googleId if column exists)
-          let user = await prisma.user.findUnique({
-            where: { email },
+          // Check if user exists (by email and BVA platform first, then by googleId and BVA)
+          // Note: Platform-specific lookup happens in callback route
+          // Passport strategy just needs to find/create a temporary user for OAuth flow
+          let user = await prisma.user.findFirst({
+            where: { 
+              email,
+              platform: "BVA", // Default platform for passport strategy
+            },
           });
 
-          // If user not found by email, try by googleId (if column exists)
+          // If user not found by email, try by googleId with BVA platform
           if (!user && profile.id) {
             try {
-              user = await prisma.user.findUnique({
-                where: { googleId: profile.id },
+              user = await prisma.user.findFirst({
+                where: { 
+                  googleId: profile.id,
+                  platform: "BVA",
+                },
               });
             } catch (error: any) {
               // If googleId column doesn't exist yet (migration not run), ignore the error
@@ -107,12 +115,17 @@ export const initializeGoogleStrategy = () => {
                 firstName: profile.name?.givenName || null,
                 lastName: profile.name?.familyName || null,
                 role: "BUYER", // Default to BUYER, can be updated in callback if state indicates SELLER
+                platform: "BVA", // Default to BVA, callback route will create platform-specific user
               },
             }).catch(async (error: any) => {
               // Handle race condition - if email already exists, fetch the user
+              // Try to find by email and platform BVA (default)
               if (error.code === 'P2002' && error.meta?.target?.includes('email')) {
-                const existingUser = await prisma.user.findUnique({
-                  where: { email },
+                const existingUser = await prisma.user.findFirst({
+                  where: { 
+                    email,
+                    platform: "BVA",
+                  },
                 });
                 if (existingUser) {
                   // Update googleId if missing
@@ -207,16 +220,23 @@ export const initializeFacebookStrategy = () => {
             return done(new Error("No email or Facebook ID found in profile"), null);
           }
 
-          // Check if user exists (by email first, then by facebookId)
-          let user = email ? await prisma.user.findUnique({
-            where: { email },
+          // Check if user exists (by email and BVA platform first, then by facebookId and BVA)
+          // Note: Platform-specific lookup happens in callback route
+          let user = email ? await prisma.user.findFirst({
+            where: { 
+              email,
+              platform: "BVA", // Default platform for passport strategy
+            },
           }) : null;
 
-          // If user not found by email, try by facebookId
+          // If user not found by email, try by facebookId with BVA platform
           if (!user && facebookId) {
             try {
-              user = await prisma.user.findUnique({
-                where: { facebookId },
+              user = await prisma.user.findFirst({
+                where: { 
+                  facebookId,
+                  platform: "BVA",
+                },
               });
             } catch (error: any) {
               // If facebookId column doesn't exist yet (migration not run), ignore the error
@@ -261,12 +281,16 @@ export const initializeFacebookStrategy = () => {
                 firstName: profile.name?.givenName || null,
                 lastName: profile.name?.familyName || null,
                 role: "SELLER",
+                platform: "BVA", // Default to BVA, callback route will create platform-specific user
               },
             }).catch(async (error: any) => {
               // Handle race condition - if email already exists, fetch the user
               if (error.code === 'P2002' && error.meta?.target?.includes('email')) {
-                const existingUser = await prisma.user.findUnique({
-                  where: { email: email || `facebook_${facebookId}@facebook.com` },
+                const existingUser = await prisma.user.findFirst({
+                  where: { 
+                    email: email || `facebook_${facebookId}@facebook.com`,
+                    platform: "BVA",
+                  },
                 });
                 if (existingUser) {
                   // Update facebookId if missing

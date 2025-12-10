@@ -14,10 +14,13 @@ export class UserService {
     });
   }
 
-  async findByEmail(email: string) {
+  async findByEmail(email: string, platform: "SHOPEE_CLONE" | "TIKTOK_CLONE" | "BVA" = "BVA") {
     return await prisma.user.findUnique({
       where: {
-        email: email,
+        email_platform: {
+          email: email,
+          platform: platform as any,
+        },
       },
     });
   }
@@ -25,14 +28,15 @@ export class UserService {
   async list() {
     return await prisma.user.findMany({
       include: {
-        shops: true,
+        Shop: true,
       },
     });
   }
 
-  async login(email: string, password: string) {
+  async login(email: string, password: string, platform: "SHOPEE_CLONE" | "TIKTOK_CLONE" | "BVA" = "BVA") {
     // Check if account is locked
-    const lockStatus = await LoginAttemptService.isLocked(email);
+    const lockKey = `${email}:${platform}`;
+    const lockStatus = await LoginAttemptService.isLocked(lockKey);
     if (lockStatus.locked) {
       const minutes = Math.floor((lockStatus.remainingSeconds || 0) / 60);
       const seconds = (lockStatus.remainingSeconds || 0) % 60;
@@ -42,9 +46,14 @@ export class UserService {
     }
 
     const user = await prisma.user.findUnique({
-      where: { email },
+      where: { 
+        email_platform: {
+          email,
+          platform: platform as any,
+        }
+      },
       include: {
-        shops: {
+        Shop: {
           select: {
             id: true,
             name: true,
@@ -55,13 +64,13 @@ export class UserService {
 
     // Record failed attempt if user doesn't exist (don't reveal if email exists)
     if (!user) {
-      await LoginAttemptService.recordFailedAttempt(email);
+      await LoginAttemptService.recordFailedAttempt(lockKey);
       throw new Error("Invalid email or password");
     }
 
     // Check if user has a password (not a Google OAuth user)
     if (!user.password) {
-      await LoginAttemptService.recordFailedAttempt(email);
+      await LoginAttemptService.recordFailedAttempt(lockKey);
       throw new Error("This account uses Google OAuth. Please sign in with Google.");
     }
 
@@ -69,7 +78,7 @@ export class UserService {
 
     if (!isPasswordValid) {
       // Record failed attempt
-      const attemptResult = await LoginAttemptService.recordFailedAttempt(email);
+      const attemptResult = await LoginAttemptService.recordFailedAttempt(lockKey);
       
       // If account is now locked, throw lockout error
       if (attemptResult.locked) {
@@ -81,7 +90,7 @@ export class UserService {
       }
 
       // Get remaining attempts for error message
-      const remainingAttempts = await LoginAttemptService.getRemainingAttempts(email);
+      const remainingAttempts = await LoginAttemptService.getRemainingAttempts(lockKey);
       throw new Error(
         remainingAttempts > 0
           ? `Invalid email or password. ${remainingAttempts} attempt${remainingAttempts > 1 ? 's' : ''} remaining.`
@@ -90,7 +99,7 @@ export class UserService {
     }
 
     // Successful login - clear all attempts
-    await LoginAttemptService.clearAttempts(email);
+    await LoginAttemptService.clearAttempts(lockKey);
 
     return user;
   }
@@ -101,10 +110,21 @@ export class UserService {
       throw new Error("Invalid user ID");
     }
 
-    // If email is being updated, check if it's already taken by another user
+    // If email is being updated, check if it's already taken by another user on the same platform
     if (data.email) {
+      // Get current user to check their platform
+      const currentUser = await prisma.user.findUnique({ where: { id: userId } });
+      if (!currentUser) {
+        throw new Error("User not found");
+      }
+      
       const existingUser = await prisma.user.findUnique({
-        where: { email: data.email },
+        where: { 
+          email_platform: {
+            email: data.email,
+            platform: currentUser.platform as any,
+          }
+        },
       });
       
       if (existingUser && existingUser.id !== userId) {
@@ -193,10 +213,16 @@ export class UserService {
     password?: string;
   }) {
     const { email, name, role, shopeeId, password } = payload;
+    const platform = "SHOPEE_CLONE" as const; // Shopee users are always SHOPEE_CLONE platform
 
-    // Check if user already exists by email
+    // Check if user already exists by email and platform
     let user = await prisma.user.findUnique({
-      where: { email },
+      where: { 
+        email_platform: {
+          email,
+          platform: platform as any,
+        }
+      },
     });
 
     if (user) {
@@ -240,13 +266,19 @@ export class UserService {
           shopeeId,
           name: name || null,
           role: role === "SELLER" ? Role.SELLER : Role.BUYER,
+          platform: platform as any,
         },
       });
     } catch (error: any) {
       // If email already exists (race condition), fetch the existing user
-      if (error.code === 'P2002' && error.meta?.target?.includes('email')) {
+      if (error.code === 'P2002' && (error.meta?.target?.includes('email') || error.meta?.target?.includes('email_platform'))) {
         user = await prisma.user.findUnique({
-          where: { email },
+          where: { 
+            email_platform: {
+              email,
+              platform: platform as any,
+            }
+          },
         });
         if (!user) {
           throw new Error("Failed to create user: email conflict");

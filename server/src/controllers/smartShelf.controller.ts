@@ -55,8 +55,8 @@ function detectAtRiskBasic(
     }
   });
   
-  products.forEach((product) => {
-    const quantity = Math.max(0, product.inventories[0]?.quantity ?? product.stock ?? 0);
+  products.forEach((product: any) => {
+    const quantity = Math.max(0, product.Inventory[0]?.quantity ?? product.stock ?? 0);
     const reasons: string[] = [];
     let score = 0;
     let daysToExpiry: number | undefined;
@@ -236,7 +236,7 @@ export const getAtRiskInventoryLegacy = async (req: Request, res: Response) => {
         shopId,
         externalId: { not: null }, // Only products synced from integrations
       },
-      include: { inventories: { take: 1 } },
+      include: { Inventory: { take: 1 } },
     });
 
     const ninetyDaysAgo = new Date();
@@ -259,7 +259,7 @@ export const getAtRiskInventoryLegacy = async (req: Request, res: Response) => {
     // 2. Prepare Data for ML Service
     const inventoryItems: MLInventoryItem[] = products.map(p => {
       // Get quantity from inventory or product stock, ensure it's never negative
-      let quantity = p.inventories[0]?.quantity ?? p.stock ?? 0;
+      let quantity = p.Inventory[0]?.quantity ?? p.stock ?? 0;
       // Clamp negative values to 0 (ML service requires quantity >= 0)
       if (quantity < 0) {
         quantity = 0;
@@ -358,7 +358,7 @@ export const getAtRiskInventoryLegacy = async (req: Request, res: Response) => {
           at_risk: atRiskItems,
           meta: {
             shop_id: shopId,
-            total_products: products.length,
+            total_Product: products.length,
             flagged_count: atRiskItems.length,
             analysis_date: new Date().toISOString(),
           ml_analysis_available: mlAnalysisAvailable,

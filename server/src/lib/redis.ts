@@ -96,17 +96,17 @@ export class CacheService {
    * Invalidate cache for a shop
    */
   static async invalidateShop(shopId: string): Promise<void> {
-    console.log(`🔄 Invalidating cache for shop: ${shopId}`);
+    console.log(`🔄 Invalidating cache for Shop: ${shopId}`);
     await Promise.all([
-      this.delPattern(`shop:${shopId}:*`),
+      this.delPattern(`Shop:${shopId}:*`),
       this.del(`dashboard:${shopId}`),
       this.del(`dashboard-analytics:${shopId}`), // Dashboard analytics cache
       this.del(`at-risk:${shopId}`), // At-risk inventory cache
-      this.del(`products:${shopId}`),
+      this.del(`Product:${shopId}`),
       this.delPattern(`sales:${shopId}:*`),
       this.delPattern(`reports:${shopId}:*`), // Reports cache
     ]);
-    console.log(`✅ Cache invalidated for shop: ${shopId}`);
+    console.log(`✅ Cache invalidated for Shop: ${shopId}`);
   }
 
   /**

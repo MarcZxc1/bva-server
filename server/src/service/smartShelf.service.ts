@@ -50,7 +50,7 @@ function generateFallbackForecast(avgDailySales: number, historicalDays: number)
     meta: {
       shop_id: "fallback",
       forecast_date: today.toISOString(),
-      total_products: 1,
+      total_Product: 1,
       cache_hit: false,
       method: "fallback_average",
       historical_days: historicalDays,
@@ -71,7 +71,7 @@ export async function getAtRiskInventory(
       at_risk: [],
       meta: {
         shop_id: shopId,
-        total_products: 0,
+        total_Product: 0,
         flagged_count: 0,
         analysis_date: new Date().toISOString(),
         thresholds_used: {},
@@ -92,7 +92,7 @@ export async function getAtRiskInventory(
       externalId: { not: null }, // Only products synced from integrations
     },
     include: {
-      inventories: {
+      Inventory: {
         take: 1,
       },
     },
@@ -104,7 +104,7 @@ export async function getAtRiskInventory(
       at_risk: [],
       meta: {
         shop_id: shopId,
-        total_products: 0,
+        total_Product: 0,
         flagged_count: 0,
         analysis_date: new Date().toISOString(),
         thresholds_used: {},
@@ -117,7 +117,7 @@ export async function getAtRiskInventory(
     product_id: p.id,
     sku: p.sku,
     name: p.name,
-    quantity: p.inventories[0]?.quantity || 0,
+    quantity: p.Inventory[0]?.quantity || 0,
     expiry_date: p.expiryDate ? p.expiryDate.toISOString() : undefined,
     price: p.price,
     categories: p.description ? [p.description] : [], // Using description as category for now
@@ -206,7 +206,7 @@ export async function getAtRiskInventory(
         at_risk: [],
         meta: {
           shop_id: shopId,
-          total_products: products.length,
+          total_Product: products.length,
           flagged_count: 0,
           analysis_date: new Date().toISOString(),
           thresholds_used: thresholds,
@@ -238,7 +238,7 @@ export async function getAtRiskInventory(
       meta: {
         ...response.meta,
         shop_id: shopId,
-        total_products: products.length,
+        total_Product: products.length,
         flagged_count: processedAtRisk.length,
         analysis_date: response.meta?.analysis_date || new Date().toISOString(),
         thresholds_used: thresholds,
@@ -257,7 +257,7 @@ export async function getAtRiskInventory(
       at_risk: [],
       meta: {
         shop_id: shopId,
-        total_products: products.length,
+        total_Product: products.length,
         flagged_count: 0,
         analysis_date: new Date().toISOString(),
         thresholds_used: thresholds,
@@ -319,7 +319,7 @@ export async function getDashboardAnalytics(shopId: string) {
           externalId: { not: null }, // Only products synced from integrations
         },
         include: {
-          inventories: { take: 1 },
+          Inventory: { take: 1 },
         },
       });
 
@@ -431,7 +431,7 @@ export async function getDashboardAnalytics(shopId: string) {
           const uniqueDates = new Set(salesRecords.map((r: any) => r.date));
           
           console.log(`📊 Forecast preparation for shop ${shopId}:`, {
-            products: products.length,
+            Product: products.length,
             salesRecords: salesRecords.length,
             uniqueDates: uniqueDates.size,
             dateRange: uniqueDates.size > 0 ? {

@@ -4,6 +4,7 @@ import { generateToken } from "../utils/jwt";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import prisma from "../lib/prisma";
+import { shopSeedService } from "../service/shopSeed.service";
 
 const userService = new UserService();
 
@@ -38,9 +39,17 @@ export class UserController {
         });
       }
       
-      // Check if email already exists
+      // Extract platform from request body, default to BVA
+      const userPlatform = (req.body.platform || "BVA") as "SHOPEE_CLONE" | "TIKTOK_CLONE" | "BVA";
+      
+      // Check if email already exists for this platform
       const existingUser = await prisma.user.findUnique({
-        where: { email }
+        where: { 
+          email_platform: {
+            email,
+            platform: userPlatform as any,
+          }
+        }
       });
 
       if (existingUser) {
@@ -60,15 +69,25 @@ export class UserController {
 
       // Use transaction to ensure shop creation happens with user
       const result = await prisma.$transaction(async (tx) => {
-        // Double-check email doesn't exist (race condition protection)
+        // Double-check email doesn't exist for this platform (race condition protection)
         const existingUserInTx = await tx.user.findUnique({
-          where: { email }
+          where: { 
+            email_platform: {
+              email,
+              platform: userPlatform as any,
+            }
+          }
         });
 
         if (existingUserInTx) {
           throw new Error("EMAIL_EXISTS");
         }
 
+        // Get role from request body, default to SELLER for seller registration
+        const role = (req.body.role === "BUYER" || req.body.role === "SELLER") 
+          ? req.body.role 
+          : "SELLER"; // Default to SELLER for this endpoint
+        
         // Create user
         // Password is already hashed by hashPasswordMiddleware, so use it directly
         let user;
@@ -78,7 +97,8 @@ export class UserController {
               email,
               password: password, // Already hashed by middleware
               name: name ?? null,
-              role: "SELLER" // Default role
+              role: role,
+              platform: userPlatform as any, // Platform isolation
             }
           });
         } catch (error: any) {
@@ -89,31 +109,42 @@ export class UserController {
           throw error;
         }
 
-        // Create shop for SELLER
-        const shop = await tx.shop.create({
-          data: {
-            name: `${name || email.split("@")[0]}'s Shop`,
-            ownerId: user.id,
-          }
-        });
+        // Shop creation will be handled by shopSeedService after transaction
+        // to ensure platform-specific shop creation
 
-        return { user, shop };
+        return { user };
       });
 
       const { password: _, ...userWithoutPassword } = result.user;
+      
+      // Create platform-specific shop if SELLER
+      let shopId: string | undefined;
+      let shops: Array<{ id: string; name: string }> = [];
+      if (result.user.role === "SELLER") {
+        try {
+          const shop = await shopSeedService.getOrCreateShopForUser(result.user.id, userPlatform);
+          shops = [{ id: shop.id, name: shop.name }];
+          shopId = shop.id;
+          console.log(`✅ Platform-specific shop created for user ${result.user.id} on ${userPlatform}: ${shop.id}`);
+        } catch (shopError: any) {
+          console.error(`❌ Failed to create platform-specific shop:`, shopError);
+          // Don't fail registration, but log the error
+        }
+      }
       const token = generateToken(
         result.user.id, 
         result.user.email, 
         result.user.name || undefined, 
         result.user.role, 
-        result.shop.id
+        shopId || undefined
       );
 
       res.status(201).json({
         success: true,
         data: {
           ...userWithoutPassword,
-          shops: [{ id: result.shop.id, name: result.shop.name }]
+          shops, // Return as 'shops' array for frontend compatibility
+          Shop: shops, // Also include 'Shop' for backward compatibility
         },
         token,
         message: "User registered successfully",
@@ -138,7 +169,8 @@ export class UserController {
   // Login
   async login(req: Request, res: Response) {
     try {
-      const { email, password } = req.body;
+      const { email, password, platform } = req.body;
+      const userPlatform = (platform || "BVA") as "SHOPEE_CLONE" | "TIKTOK_CLONE" | "BVA";
 
       // Validate input
       if (!email || !password) {
@@ -148,14 +180,28 @@ export class UserController {
         });
       }
 
-      const user = await userService.login(email, password);
+      const user = await userService.login(email, password, userPlatform);
 
-      // Fetch user's shop if they're a seller
-      const userShops = await prisma.shop.findMany({
+      // Fetch user's platform-specific shop if they're a seller
+      let userShops: Array<{ id: string; name: string }> = [];
+      let shopId: string | undefined;
+      
+      if (user.role === "SELLER") {
+        try {
+          const shop = await shopSeedService.getOrCreateShopForUser(user.id, userPlatform);
+          userShops = [{ id: shop.id, name: shop.name }];
+          shopId = shop.id;
+        } catch (shopError: any) {
+          console.error(`❌ Failed to get/create platform-specific shop during login:`, shopError);
+          // Fallback: query existing shops
+          const fallbackShops = await prisma.shop.findMany({
         where: { ownerId: user.id },
         select: { id: true, name: true }
       });
-      const shopId = userShops[0]?.id;
+          userShops = fallbackShops;
+          shopId = fallbackShops[0]?.id;
+        }
+      }
 
       const { password: _, ...userWithoutPassword } = user;
       const token = generateToken(user.id, user.email, user.name || undefined, user.role, shopId);
@@ -164,7 +210,7 @@ export class UserController {
         success: true,
         data: {
           ...userWithoutPassword,
-          shops: userShops
+          Shop: userShops
         },
         token,
         message: "Login successful",

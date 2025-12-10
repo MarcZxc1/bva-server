@@ -59,7 +59,7 @@ export interface AtRiskResponse {
   at_risk: AtRiskItem[];
   meta: {
     shop_id: string;
-    total_products: number;
+    total_Product: number;
     flagged_count: number;
     analysis_date: string;
     thresholds_used: any;

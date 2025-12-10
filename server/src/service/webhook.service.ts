@@ -373,7 +373,7 @@ class WebhookService {
     }
 
     return {
-      products: productsCount,
+      Product: productsCount,
       orders: ordersCount,
     };
   }

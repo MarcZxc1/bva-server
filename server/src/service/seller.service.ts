@@ -8,7 +8,7 @@ export async function getSellerDashboard(shopId: string) {
   if (!hasIntegration) {
     // Return empty/default data if no active integration
     return {
-      shop: {
+      Shop: {
         id: shopId,
         name: "Your Shop",
       },
@@ -36,7 +36,7 @@ export async function getSellerDashboard(shopId: string) {
   const shop = await prisma.shop.findUnique({
     where: { id: shopId },
     include: {
-      products: {
+      Product: {
         where: {
           externalId: { not: null }, // Only products synced from integrations
         },
@@ -94,7 +94,7 @@ export async function getSellerDashboard(shopId: string) {
       OR: [
         { stock: { lte: 10 } },
         {
-          inventories: {
+          Inventory: {
             some: {
               quantity: { lte: 10 },
             },
@@ -106,12 +106,12 @@ export async function getSellerDashboard(shopId: string) {
   });
 
   return {
-    shop: {
+    Shop: {
       id: shop.id,
       name: shop.name,
     },
     metrics: {
-      totalProducts: shop.products.length,
+      totalProducts: shop.Product.length,
       totalOrders: allSales.length,
       totalRevenue,
       monthlyRevenue,

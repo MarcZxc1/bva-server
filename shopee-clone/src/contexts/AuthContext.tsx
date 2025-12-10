@@ -110,6 +110,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setIsLoading(true);
       setError(null);
       const userData = await apiClient.getMe();
+      
       // Normalize user data structure
       const normalizedUser: User = {
         id: userData.id || userData.userId?.toString() || '',
@@ -215,23 +216,26 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setToken(response.token);
       apiClient.setToken(response.token);
       
-      // Fetch full user data including shops
-      const userData = await apiClient.getMe();
-      
-      if (!userData) {
-        throw new Error('Failed to fetch user data after login');
+      // Use shops from login response if available, otherwise fetch from /api/auth/me
+      let shops = response.shops || [];
+      if (shops.length === 0) {
+        // Fetch full user data including shops if not in response
+        const userData = await apiClient.getMe();
+        if (userData?.shops) {
+          shops = userData.shops;
+        }
       }
       
       // Normalize user data
       const normalizedUser: User = {
-        id: userData.id || userData.userId?.toString() || '',
-        userId: userData.userId || userData.id,
-        email: userData.email,
-        username: userData.username,
-        name: userData.name || userData.firstName,
-        role: userData.role,
-        shops: userData.shops || [],
-        phoneNumber: userData.phoneNumber,
+        id: response.user?.id || response.user?.userId?.toString() || '',
+        userId: response.user?.userId || response.user?.id,
+        email: response.user?.email || '',
+        username: response.user?.username,
+        name: response.user?.name || response.user?.firstName,
+        role: response.user?.role || 'BUYER',
+        shops: shops,
+        phoneNumber: response.user?.phoneNumber,
       };
       setUser(normalizedUser);
       
@@ -280,23 +284,26 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setToken(response.token);
       apiClient.setToken(response.token);
       
-      // Fetch full user data including shops
-      const userData = await apiClient.getMe();
-      
-      if (!userData) {
-        throw new Error('Failed to fetch user data after registration');
+      // Use shops from register response if available, otherwise fetch from /api/auth/me
+      let shops = response.shops || [];
+      if (shops.length === 0) {
+        // Fetch full user data including shops if not in response
+        const userData = await apiClient.getMe();
+        if (userData?.shops) {
+          shops = userData.shops;
+        }
       }
       
       // Normalize user data
       const normalizedUser: User = {
-        id: userData.id || userData.userId?.toString() || '',
-        userId: userData.userId || userData.id,
-        email: userData.email,
-        username: userData.username,
-        name: userData.name || userData.firstName,
-        role: userData.role,
-        shops: userData.shops || [],
-        phoneNumber: userData.phoneNumber,
+        id: response.user?.id || response.user?.userId?.toString() || '',
+        userId: response.user?.userId || response.user?.id,
+        email: response.user?.email || '',
+        username: response.user?.username,
+        name: response.user?.name || response.user?.firstName,
+        role: response.user?.role || data.role || 'BUYER',
+        shops: shops,
+        phoneNumber: response.user?.phoneNumber,
       };
       setUser(normalizedUser);
       
@@ -338,11 +345,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const baseUrl = window.location.origin;
     const state = encodeURIComponent(JSON.stringify({ 
       redirectUrl: baseUrl,
-      role 
+      role,
+      platform: 'SHOPEE_CLONE' // Platform isolation
     }));
     // Use /api/auth/google endpoint (mounted at /api/auth in server)
     const googleAuthUrl = `${API_BASE_URL}/api/auth/google?state=${state}&role=${role}`;
-    console.log('🔵 Initiating Google OAuth, redirecting to:', googleAuthUrl);
+    console.log('🔵 Initiating Google OAuth for SHOPEE_CLONE, redirecting to:', googleAuthUrl);
     // Clear any existing tokens to prevent reuse issues
     localStorage.removeItem('auth_token');
     apiClient.setToken(null);

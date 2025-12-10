@@ -28,13 +28,16 @@ import webhookRoutes from "./routes/webhook.routes";
 
 const app: Application = express();
 
-// Configure CORS to allow both frontends
+// Configure CORS to allow all frontends
 app.use(cors({
   origin: [
     "http://localhost:5173", // Shopee Clone
+    "http://localhost:5174", // TikTok Seller Clone (Vite default alternate port)
+    "http://localhost:5175", // TikTok Seller Clone (if 5174 is taken)
     "http://localhost:8080", // BVA Frontend
     "https://bva-frontend.vercel.app",
-    "https://shopee-clone.vercel.app"
+    "https://shopee-clone.vercel.app",
+    "https://tiktokseller-clone.vercel.app" // TikTok Seller Clone production
   ],
   credentials: true,
   methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
@@ -58,7 +61,7 @@ app.get("/", (req: Request, res: Response) => {
     endpoints: {
       health: "/health",
       auth: "/api/auth",
-      products: "/api/products",
+      Product: "/api/products",
       users: "/api/users",
       ads: "/api/v1/ads",
       restock: "/api/ai/restock",

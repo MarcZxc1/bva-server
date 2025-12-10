@@ -5,8 +5,13 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
   server: {
+    port: 5174, // TikTok Seller Clone uses port 5174
+    host: true,
     proxy: {
-      '/api': 'http://localhost:4000',
+      '/api': {
+        target: 'http://localhost:3000', // Proxy to main BVA server
+        changeOrigin: true,
+      },
     },
   },
 })

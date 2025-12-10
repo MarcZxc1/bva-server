@@ -60,7 +60,7 @@ class IntegrationService {
     return prisma.integration.findMany({
       where: { shopId },
       include: {
-        shop: {
+        Shop: {
           select: {
             id: true,
             name: true,
@@ -77,11 +77,12 @@ class IntegrationService {
     return prisma.integration.findUnique({
       where: { id },
       include: {
-        shop: {
+        Shop: {
           select: {
             id: true,
             name: true,
-            owner: {
+            ownerId: true,
+            User: {
               select: {
                 id: true,
                 email: true,
@@ -183,7 +184,7 @@ class IntegrationService {
       throw new Error("Integration is not active or terms have not been accepted. Please accept the terms and conditions first.");
     }
 
-    const userId = integration.shop.owner.id;
+    const userId = integration.Shop.ownerId;
 
     // Sync based on platform
     switch (integration.platform) {

@@ -1,6 +1,8 @@
 // src/controllers/auth.controller.ts
 import { Request, Response } from "express";
 import { authService, RegisterInput, LoginInput, ShopeeSSOInput } from "../service/auth.service";
+import prisma from "../lib/prisma";
+import { shopSeedService } from "../service/shopSeed.service";
 
 export class AuthController {
   /**
@@ -35,10 +37,23 @@ export class AuthController {
 
       const result = await authService.register(data);
 
+      // Ensure shops are always included in response
+      const responseData = {
+        user: result.user,
+        shops: result.shops,// Always include shops array
+        token: result.token,
+      };
+
+      console.log(`📤 Register response for user ${result.user?.id}:`, {
+        role: result.user?.role,
+        shopsCount: responseData.shops.length,
+        shopIds: responseData.shops.map(s => s.id),
+      });
+
       return res.status(201).json({
         success: true,
         message: "User registered successfully",
-        data: result,
+        data: responseData,
       });
     } catch (error) {
       if (error instanceof Error) {
@@ -75,10 +90,23 @@ export class AuthController {
 
       const result = await authService.login(data);
 
+      // Ensure shops are always included in response
+      const responseData = {
+        user: result.user,
+        shops: result.shops || [], // Always include shops array
+        token: result.token,
+      };
+
+      console.log(`📤 Login response for user ${result.user?.id}:`, {
+        role: result.user?.role,
+        shopsCount: responseData.shops.length,
+        shopIds: responseData.shops.map(s => s.id),
+      });
+
       return res.status(200).json({
         success: true,
         message: "Login successful",
-        data: result,
+        data: responseData,
       });
     } catch (error) {
       if (error instanceof Error) {
@@ -120,20 +148,104 @@ export class AuthController {
       }
 
       const user = await authService.getUserById(userId);
-      const shops = await authService.getUserShops(userId);
+      console.log(`🔍 getMe: Retrieved user ${userId}, role: ${user.role}, platform: ${(user as any).platform}`);
+      
+      let shops: Array<{ id: string; name: string }> = [];
+      try {
+        // Pass user's platform to getUserShops to get platform-specific shop
+        const userPlatform = (user as any).platform || "BVA";
+        shops = await authService.getUserShops(userId, userPlatform);
+        console.log(`🔍 getMe: getUserShops returned ${shops.length} shops for user ${userId} on platform ${userPlatform}`);
+      console.log(`🔍 getMe: Raw shops array:`, JSON.stringify(shops, null, 2));
+      } catch (shopError: any) {
+        console.error(`❌ getMe: Error in getUserShops for user ${userId}:`, shopError);
+        console.error(`   Error details:`, shopError.message, shopError.stack);
+        
+        // If shop creation failed, try to create it directly as a fallback
+        if (user.role === "SELLER") {
+          try {
+            const userPlatform = (user as any).platform || "BVA";
+            console.log(`🔄 Attempting direct shop creation for user ${userId} on platform ${userPlatform}...`);
+            const shop = await shopSeedService.getOrCreateShopForUser(userId, userPlatform);
+            if (shop && shop.id && shop.name) {
+              shops = [{ id: shop.id, name: shop.name }];
+              console.log(`✅ Direct shop creation succeeded: ${shop.id}`);
+            } else {
+              console.error(`❌ Direct shop creation returned invalid shop object`);
+              shops = [];
+            }
+          } catch (directShopError: any) {
+            console.error(`❌ Direct shop creation also failed:`, directShopError);
+            console.error(`   Direct shop error details:`, directShopError.message, directShopError.stack);
+            shops = [];
+          }
+        } else {
+          shops = [];
+        }
+      }
+
+      console.log(`📋 GET /api/auth/me for user ${userId} (role: ${user.role}), shops count: ${shops.length}`);
+      if (shops.length > 0) {
+        console.log(`   Shop IDs: ${shops.map(s => s.id).join(', ')}`);
+        console.log(`   Shop names: ${shops.map(s => s.name).join(', ')}`);
+      } else if (user.role === "SELLER") {
+        console.warn(`⚠️ WARNING: SELLER user ${userId} has no shops after getUserShops call!`);
+        // Double-check by querying database directly with platform filter
+        const userPlatform = (user as any).platform || "BVA";
+        let shopPlatform: "SHOPEE" | "TIKTOK" | "LAZADA" | "OTHER" = "SHOPEE";
+        if (userPlatform === "SHOPEE_CLONE" || userPlatform === "SHOPEE" || userPlatform === "BVA") {
+          shopPlatform = "SHOPEE";
+        } else if (userPlatform === "TIKTOK_CLONE" || userPlatform === "TIKTOK") {
+          shopPlatform = "TIKTOK";
+        } else if (userPlatform === "LAZADA") {
+          shopPlatform = "LAZADA";
+        }
+        const directShops = await prisma.shop.findMany({
+          where: { 
+            ownerId: userId,
+            platform: shopPlatform,
+          },
+          select: { id: true, name: true },
+        });
+        if (directShops.length > 0) {
+          console.log(`   ⚠️ Found ${directShops.length} ${shopPlatform} shop(s) via direct query! Using these instead.`);
+          shops = directShops;
+        } else {
+          console.warn(`   ⚠️ Direct query also found no ${shopPlatform} shops for SELLER ${userId}`);
+        }
+      }
+
+      // Ensure shops is always an array in the response
+      // Create responseData without spreading user first to avoid any property conflicts
+      const shopsArray = Array.isArray(shops) ? shops : [];
+      const responseData = {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        role: user.role,
+        shopeeId: (user as any).shopeeId,
+        googleId: (user as any).googleId,
+        platform: (user as any).platform,
+        createdAt: user.createdAt,
+        shops: shopsArray, // Explicitly set shops last to ensure it's not overridden
+      };
+
+      console.log(`📤 Sending /api/auth/me response:`, JSON.stringify(responseData, null, 2));
 
       return res.status(200).json({
         success: true,
-        data: {
-          ...user,
-          shops,
-        },
+        data: responseData,
       });
     } catch (error) {
       console.error("GetMe error:", error);
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      const errorStack = error instanceof Error ? error.stack : undefined;
+      console.error("GetMe error details:", { message: errorMessage, stack: errorStack });
       return res.status(500).json({
         success: false,
-        message: "Internal server error",
+        message: errorMessage.includes("shop") ? errorMessage : "Internal server error",
       });
     }
   }

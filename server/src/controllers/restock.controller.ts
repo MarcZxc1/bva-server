@@ -60,7 +60,7 @@ export async function getRestockStrategy(
     const products = await prisma.product.findMany({
       where: { shopId },
       include: {
-        inventories: { take: 1 },
+        Inventory: { take: 1 },
       },
     });
 
@@ -139,8 +139,8 @@ export async function getRestockStrategy(
 
         // Ensure stock is an integer >= 0
         let stock = 0;
-        if (p.inventories && p.inventories.length > 0 && p.inventories[0]) {
-          stock = Math.max(0, Math.floor(Number(p.inventories[0].quantity) || 0));
+        if (p.Inventory && p.Inventory.length > 0 && p.Inventory[0]) {
+          stock = Math.max(0, Math.floor(Number(p.Inventory[0].quantity) || 0));
         }
 
         // Ensure avg_daily_sales is a float >= 0
@@ -171,7 +171,7 @@ export async function getRestockStrategy(
                        Number.isInteger(p.min_order_qty) && p.min_order_qty >= 1;
         
         if (!isValid) {
-          console.warn(`⚠️  Filtered out invalid product: ${p.name}`, {
+          console.warn(`⚠️  Filtered out invalid Product: ${p.name}`, {
             price: p.price,
             cost: p.cost,
             profit_margin: p.profit_margin,
@@ -187,7 +187,7 @@ export async function getRestockStrategy(
 
     console.log(`Prepared ${validProducts.length} valid products out of ${products.length} total`);
     if (validProducts.length > 0) {
-      console.log(`Sample product:`, JSON.stringify(validProducts[0], null, 2));
+      console.log(`Sample Product:`, JSON.stringify(validProducts[0], null, 2));
     }
 
     if (validProducts.length === 0) {
@@ -232,7 +232,7 @@ export async function getRestockStrategy(
       shop_id: String(shopId),
       budget: budgetFloat, // float > 0
       goal: sanitizedGoal, // 'profit' | 'volume' | 'balanced'
-      products: validProducts, // Array with min_length=1
+      Product: validProducts, // Array with min_length=1
       restock_days: restockDaysInt, // int between 1 and 90
       weather_condition: sanitizedWeather as 'sunny' | 'rainy' | 'storm' | null,
       is_payday: sanitizedIsPayday,
@@ -345,7 +345,7 @@ export async function getRestockStrategy(
             return {
                 product_id: String(item.product_id),
                 product_name: item.name || "Unknown Product",
-                current_stock: product?.inventories?.[0]?.quantity || 0,
+                current_stock: product?.Inventory?.[0]?.quantity || 0,
                 recommended_qty: item.qty || 0,
                 cost: item.total_cost || 0, 
                 expected_revenue: item.expected_revenue || 0,

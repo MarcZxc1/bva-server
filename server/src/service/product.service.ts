@@ -4,13 +4,13 @@ import { hasActiveIntegration } from "../utils/integrationCheck";
 export async function getAllProducts() {
   const products = await prisma.product.findMany({
     include: {
-      shop: {
+      Shop: {
         select: {
           id: true,
           name: true,
         },
       },
-      inventories: {
+      Inventory: {
         take: 1,
         orderBy: {
           updatedAt: "desc",
@@ -30,12 +30,12 @@ export async function getAllProducts() {
     price: product.price,
     cost: product.cost,
     stock: product.stock,
-    quantity: product.inventories[0]?.quantity || product.stock || 0,
+    quantity: product.Inventory[0]?.quantity || product.stock || 0,
     expiryDate: product.expiryDate,
     category: product.category,
     imageUrl: product.imageUrl,
     shopId: product.shopId,
-    shopName: product.shop.name,
+    shopName: product.Shop.name,
     createdAt: product.createdAt,
     updatedAt: product.updatedAt,
   }));
@@ -63,7 +63,7 @@ export async function getProductsByShop(shopId: string) {
       // No filter - show all products regardless of externalId
     },
     include: {
-      inventories: {
+      Inventory: {
         take: 1,
         orderBy: {
           updatedAt: "desc",
@@ -130,7 +130,7 @@ export async function getProductsByShop(shopId: string) {
       price: product.price,
       cost: product.cost,
       stock: product.stock,
-      quantity: product.inventories[0]?.quantity || product.stock || 0,
+      quantity: product.Inventory[0]?.quantity || product.stock || 0,
       expiryDate: product.expiryDate ? product.expiryDate.toISOString() : null,
       category: product.category,
       imageUrl: product.imageUrl,
@@ -145,13 +145,13 @@ export async function getProductById(productId: string) {
   const product = await prisma.product.findUnique({
     where: { id: productId },
     include: {
-      shop: {
+      Shop: {
         select: {
           id: true,
           name: true,
         },
       },
-      inventories: {
+      Inventory: {
         take: 1,
         orderBy: {
           updatedAt: "desc",
@@ -172,12 +172,12 @@ export async function getProductById(productId: string) {
     price: product.price,
     cost: product.cost,
     stock: product.stock,
-    quantity: product.inventories[0]?.quantity || product.stock || 0,
+    quantity: product.Inventory[0]?.quantity || product.stock || 0,
     expiryDate: product.expiryDate,
     category: product.category,
     imageUrl: product.imageUrl,
     shopId: product.shopId,
-    shopName: product.shop.name,
+    shopName: product.Shop.name,
     createdAt: product.createdAt,
     updatedAt: product.updatedAt,
   };
@@ -298,17 +298,17 @@ export async function updateProduct(
 
 export async function deleteProduct(productId: string) {
   // Delete inventory logs first
-  const inventories = await prisma.inventory.findMany({
+  const Inventory = await prisma.inventory.findMany({
     where: { productId },
   });
 
-  for (const inventory of inventories) {
+  for (const inventory of Inventory) {
     await prisma.inventoryLog.deleteMany({
       where: { inventoryId: inventory.id },
     });
   }
 
-  // Delete inventories
+  // Delete Inventory
   await prisma.inventory.deleteMany({
     where: { productId },
   });
