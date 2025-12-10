@@ -128,6 +128,7 @@ class WebhookService {
         body: JSON.stringify({
           id: order.id,
           orderId: order.id,
+          shopId: order.shopId, // Include shopId from order
           items: order.items || [],
           total: order.total || order.totalPrice,
           totalPrice: order.total || order.totalPrice,

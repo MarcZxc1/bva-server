@@ -123,9 +123,11 @@ export class UserController {
       if (result.user.role === "SELLER") {
         try {
           const shop = await shopSeedService.getOrCreateShopForUser(result.user.id, userPlatform);
-          shops = [{ id: shop.id, name: shop.name }];
-          shopId = shop.id;
-          console.log(`✅ Platform-specific shop created for user ${result.user.id} on ${userPlatform}: ${shop.id}`);
+          if (shop) {
+            shops = [{ id: shop.id, name: shop.name }];
+            shopId = shop.id;
+            console.log(`✅ Platform-specific shop created for user ${result.user.id} on ${userPlatform}: ${shop.id}`);
+          }
         } catch (shopError: any) {
           console.error(`❌ Failed to create platform-specific shop:`, shopError);
           // Don't fail registration, but log the error
@@ -189,8 +191,10 @@ export class UserController {
       if (user.role === "SELLER") {
         try {
           const shop = await shopSeedService.getOrCreateShopForUser(user.id, userPlatform);
-          userShops = [{ id: shop.id, name: shop.name }];
-          shopId = shop.id;
+          if (shop) {
+            userShops = [{ id: shop.id, name: shop.name }];
+            shopId = shop.id;
+          }
         } catch (shopError: any) {
           console.error(`❌ Failed to get/create platform-specific shop during login:`, shopError);
           // Fallback: query existing shops

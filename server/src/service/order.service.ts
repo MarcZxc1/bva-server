@@ -1,6 +1,6 @@
 import prisma from "../lib/prisma";
 import { Platform } from "../generated/prisma";
-import { notifyNewOrder, notifyLowStock, notifyInventoryUpdate, notifyForecastUpdate, OrderNotificationData } from "../services/socket.service";
+import { notifyNewOrder, notifyLowStock, notifyInventoryUpdate, notifyForecastUpdate, OrderNotificationData, getSocketIO } from "../services/socket.service";
 import { CacheService } from "../lib/redis";
 
 export async function createOrder(data: {
@@ -14,6 +14,16 @@ export async function createOrder(data: {
   shippingAddress?: string;
   paymentMethod?: string;
 }) {
+  // Get user email for customerEmail field
+  const user = await prisma.user.findUnique({
+    where: { id: data.userId },
+    select: { email: true, name: true },
+  });
+
+  if (!user) {
+    throw new Error('User not found');
+  }
+
   // Get shop IDs from products
   // Product IDs from shopee-clone might be external IDs, so we need to search by both id and externalId
   const productIds = data.items.map(item => item.productId);
@@ -129,7 +139,8 @@ export async function createOrder(data: {
           total: shopTotal,
           revenue: shopTotal,
           profit,
-          customerEmail: data.userId,
+          customerEmail: user.email, // Use actual user email, not userId
+          customerName: user.name || null,
           status: "to-pay", // Initial status: buyer needs to confirm payment
         },
       });
@@ -330,7 +341,7 @@ export async function getMyOrders(userId: string) {
   if (user.role === "BUYER") {
     const orders = await prisma.sale.findMany({
       where: {
-        customerEmail: userId, // Using userId as identifier
+        customerEmail: user.email, // Use user's email to match orders
       },
       include: {
         Shop: {
@@ -647,10 +658,49 @@ export async function updateOrderStatus(orderId: string, status: string) {
     });
   }
 
-  return prisma.sale.update({
+  const updatedOrder = await prisma.sale.update({
     where: { id: orderId },
     data: { status },
+    include: {
+      Shop: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
+    },
   });
+
+  // Emit socket notification for order status change
+  setImmediate(() => {
+    try {
+      const io = getSocketIO();
+      if (io) {
+        // Emit to shop room (for sellers)
+        io.to(`shop_${updatedOrder.shopId}`).emit("dashboard_update", {
+          type: "order_status_changed",
+          data: {
+            orderId: updatedOrder.id,
+            status: updatedOrder.status,
+            shopId: updatedOrder.shopId,
+          },
+        });
+        // Also emit globally (for buyers to receive updates)
+        io.emit("order_status_changed", {
+          type: "order_status_changed",
+          orderId: updatedOrder.id,
+          status: updatedOrder.status,
+          sale: updatedOrder,
+        });
+        console.log(`📢 Notified shop ${updatedOrder.shopId} about order status change: ${orderId} -> ${status}`);
+      }
+    } catch (error) {
+      // Socket.IO not initialized, skip notification (non-critical)
+      console.warn('⚠️  Socket.IO not available for order status notification:', error);
+    }
+  });
+
+  return updatedOrder;
 }
 
 export async function getOrderById(orderId: string) {

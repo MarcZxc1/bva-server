@@ -161,18 +161,26 @@ const BuyerCheckout: React.FC = () => {
             paymentMethod: paymentMethod === 'Cash on Delivery' ? 'cash' : 'online',
           });
 
-          createdOrders.push(orderResponse);
+          // Backend returns an array of orders (one per shop), but we're calling it per shop
+          // So we should get an array with one element, or handle it as a single order
+          const orders = Array.isArray(orderResponse) ? orderResponse : [orderResponse];
+          createdOrders.push(...orders);
 
-          // Send webhook to BVA server
+          // Send webhook to BVA server for each order
           try {
             const { webhookService } = await import('../../services/webhook.service');
+            for (const order of orders) {
             await webhookService.sendOrderCreated({
-              ...orderResponse,
+                ...order,
+                id: order.id,
+                orderId: order.id,
+                shopId: order.shopId, // Include shopId from order response
               items: orderItems.map((item: any) => ({
                 ...item,
                 productName: items.find((i: any) => String(i.productId) === String(item.productId))?.name || 'Unknown Product',
               })),
             });
+            }
           } catch (webhookError) {
             console.error('Webhook error (non-critical):', webhookError);
             // Don't fail the order creation if webhook fails
@@ -204,7 +212,7 @@ const BuyerCheckout: React.FC = () => {
 
       if (createdOrders.length > 0) {
         removeSelectedItems();
-        navigate('/purchase');
+        navigate('/purchase', { state: { activeTab: 'to-pay' } });
       } else {
         setError('Failed to create any orders. Please try again.');
       }

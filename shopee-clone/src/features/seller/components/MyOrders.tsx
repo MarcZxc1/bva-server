@@ -178,13 +178,13 @@ const MyOrders = () => {
       let statusFilter: string | undefined;
       switch (activeTab) {
         case 'unpaid':
-          statusFilter = 'pending';
+          statusFilter = 'to-pay';
           break;
         case 'toship':
-          statusFilter = 'pending';
+          statusFilter = 'to-ship';
           break;
         case 'shipping':
-          statusFilter = 'shipping';
+          statusFilter = 'to-receive';
           break;
         case 'completed':
           statusFilter = 'completed';

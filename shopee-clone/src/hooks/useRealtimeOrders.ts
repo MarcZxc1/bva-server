@@ -33,7 +33,7 @@ export function useRealtimeOrders({
   const socketRef = useRef<Socket | null>(null);
 
   useEffect(() => {
-    if (!enabled || !shopId) {
+    if (!enabled) {
       return;
     }
 
@@ -47,23 +47,35 @@ export function useRealtimeOrders({
 
     socketRef.current = socket;
 
-    // Join shop room
-    socket.emit("join_shop", shopId);
+    // Join shop room if shopId is provided (for sellers)
+    if (shopId) {
+      socket.emit("join_shop", shopId);
+    }
 
     // Listen for order updates
     socket.on("dashboard_update", (update: any) => {
-      if (update.type === "new_order") {
-        console.log("📦 New order received:", update);
+      if (update.type === "new_order" || update.type === "order_status_changed" || update.type === "order_updated") {
+        console.log("📦 Order update received:", update);
         if (onOrderUpdate) {
           onOrderUpdate();
         }
       }
     });
 
+    // Also listen to global order updates (for buyers without shopId)
+    socket.on("order_status_changed", (data: any) => {
+      console.log("📦 Global order status changed:", data);
+      if (onOrderUpdate) {
+        onOrderUpdate();
+      }
+    });
+
     // Handle connection events
     socket.on("connect", () => {
       console.log("🔌 Connected to real-time orders");
-      socket.emit("join_shop", shopId);
+      if (shopId) {
+        socket.emit("join_shop", shopId);
+      }
     });
 
     socket.on("disconnect", () => {

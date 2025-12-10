@@ -5,6 +5,7 @@ import { Request, Response } from "express";
 import { webhookService } from "../service/webhook.service";
 import { CacheService } from "../lib/redis";
 import { getSocketIO } from "../services/socket.service";
+import prisma from "../lib/prisma";
 
 export class WebhookController {
   /**
@@ -138,11 +139,43 @@ export class WebhookController {
    */
   async handleOrderCreated(req: Request, res: Response) {
     try {
-      const shopId = (req as any).shopId;
+      // Try to get shopId from token first (for sellers)
+      let shopId = (req as any).shopId;
+      
+      // If not in token, try to extract from order data (for buyers)
+      if (!shopId && req.body) {
+        shopId = req.body.shopId;
+      }
+      
+      // If still not found, try to get it from the first product in items
+      if (!shopId && req.body?.items && Array.isArray(req.body.items) && req.body.items.length > 0) {
+        // We need to look up the product to get its shopId
+        // This is a fallback - ideally shopId should be in the payload
+        const firstItem = req.body.items[0];
+        if (firstItem.productId) {
+          try {
+            const product = await prisma.product.findFirst({
+              where: {
+                OR: [
+                  { id: firstItem.productId },
+                  { externalId: firstItem.productId },
+                ],
+              },
+              select: { shopId: true },
+            });
+            if (product) {
+              shopId = product.shopId;
+            }
+          } catch (err) {
+            console.error('Error looking up product for shopId:', err);
+          }
+        }
+      }
+      
       if (!shopId) {
         return res.status(400).json({
           success: false,
-          error: "Shop ID is required",
+          error: "Shop ID is required. Please include shopId in the request body or ensure the user has a shop.",
         });
       }
 
@@ -222,7 +255,28 @@ export class WebhookController {
    */
   async handleOrderStatusChanged(req: Request, res: Response) {
     try {
-      const shopId = (req as any).shopId;
+      let shopId = (req as any).shopId;
+      
+      // If shopId is not in token, try to get it from the order
+      if (!shopId) {
+        const orderId = req.body.orderId || req.body.id;
+        if (orderId) {
+          const sale = await prisma.sale.findFirst({
+            where: {
+              OR: [
+                { id: orderId },
+                { externalId: orderId },
+                { platformOrderId: orderId },
+              ],
+            },
+            select: { shopId: true },
+          });
+          if (sale) {
+            shopId = sale.shopId;
+          }
+        }
+      }
+      
       if (!shopId) {
         return res.status(400).json({
           success: false,
@@ -238,8 +292,16 @@ export class WebhookController {
       // Emit real-time update
       const io = getSocketIO();
       if (io) {
+        // Emit to shop room (for sellers)
         io.to(`shop_${shopId}`).emit("dashboard_update", {
           type: "order_status_changed",
+          sale,
+        });
+        // Also emit globally (for buyers to receive updates)
+        io.emit("order_status_changed", {
+          type: "order_status_changed",
+          orderId: sale.id,
+          status: sale.status,
           sale,
         });
       }

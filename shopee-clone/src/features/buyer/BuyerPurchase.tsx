@@ -1,17 +1,21 @@
 import React, { useState, useEffect } from 'react';
 import { Package, Truck, CheckCircle, XCircle, RotateCw, User, MessageCircle, Store, Bell, Gift, Coins } from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import BuyerNavbar from './components/BuyerNavbar';
 import BuyerFooter from './components/BuyerFooter';
 import { useOrders, OrderStatus, Order } from '../../contexts/OrderContext';
 import { useAuth } from '../../contexts/AuthContext';
 import apiClient from '../../services/api';
+import { useRealtimeOrders } from '../../hooks/useRealtimeOrders';
 
 const BuyerPurchase: React.FC = () => {
   const { updateOrderStatus } = useOrders();
   const { isAuthenticated, user } = useAuth();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<OrderStatus>('all');
+  const location = useLocation();
+  const [activeTab, setActiveTab] = useState<OrderStatus>(
+    (location.state as any)?.activeTab || 'all'
+  );
   const [orders, setOrders] = useState<Order[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
@@ -20,51 +24,62 @@ const BuyerPurchase: React.FC = () => {
   
   const userName = user?.name || user?.username || user?.email || 'Guest User';
 
+  // Fetch orders function
+  const fetchOrders = React.useCallback(async () => {
+    if (!isAuthenticated) return;
+    
+    try {
+      setIsLoading(true);
+      const apiOrders = await apiClient.getMyOrders();
+      // Transform API orders to OrderContext format
+      if (apiOrders && Array.isArray(apiOrders)) {
+        const transformedOrders: Order[] = apiOrders.map((apiOrder: any) => {
+          const items = Array.isArray(apiOrder.items) ? apiOrder.items : [];
+          const firstItem = items[0] || {};
+          // Get image from first item, fallback to emoji if not available
+          const productImage = firstItem.imageUrl || firstItem.image || '📦';
+          return {
+            id: apiOrder.id,
+            product: {
+              name: firstItem.productName || 'Product',
+              fullName: firstItem.productName || 'Product',
+              image: productImage,
+            },
+            status: (apiOrder.status || 'to-pay') as OrderStatus,
+            price: firstItem.price || apiOrder.total || 0,
+            quantity: firstItem.quantity || 1,
+            totalPrice: apiOrder.total || 0,
+            date: new Date(apiOrder.createdAt).toISOString().split('T')[0],
+            shopName: apiOrder.shopName || 'Shop',
+            variations: '',
+            unitPrice: firstItem.price || apiOrder.total || 0,
+            paymentMethod: 'cash',
+          };
+        });
+        setOrders(transformedOrders);
+      }
+    } catch (error) {
+      console.error('Failed to fetch orders:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [isAuthenticated]);
+
   useEffect(() => {
     if (!isAuthenticated) {
       navigate('/buyer-login');
       return;
     }
-    // Fetch orders from API and sync with context
-    const fetchOrders = async () => {
-      try {
-        setIsLoading(true);
-        const apiOrders = await apiClient.getMyOrders();
-        // Transform API orders to OrderContext format
-        if (apiOrders && Array.isArray(apiOrders)) {
-          const transformedOrders: Order[] = apiOrders.map((apiOrder: any) => {
-            const items = Array.isArray(apiOrder.items) ? apiOrder.items : [];
-            const firstItem = items[0] || {};
-            // Get image from first item, fallback to emoji if not available
-            const productImage = firstItem.imageUrl || firstItem.image || '📦';
-            return {
-              id: apiOrder.id,
-              product: {
-                name: firstItem.productName || 'Product',
-                fullName: firstItem.productName || 'Product',
-                image: productImage,
-              },
-              status: (apiOrder.status || 'to-pay') as OrderStatus,
-              price: firstItem.price || apiOrder.total || 0,
-              quantity: firstItem.quantity || 1,
-              totalPrice: apiOrder.total || 0,
-              date: new Date(apiOrder.createdAt).toISOString().split('T')[0],
-              shopName: apiOrder.shopName || 'Shop',
-              variations: '',
-              unitPrice: firstItem.price || apiOrder.total || 0,
-              paymentMethod: 'cash',
-            };
-          });
-          setOrders(transformedOrders);
-        }
-      } catch (error) {
-        console.error('Failed to fetch orders:', error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
     fetchOrders();
-  }, [isAuthenticated, navigate]);
+  }, [isAuthenticated, navigate, fetchOrders]);
+
+  // Real-time updates for buyers - listen to order status changes
+  // Note: Buyers don't have a shopId, but we can still listen to global updates
+  const { isConnected } = useRealtimeOrders({
+    shopId: undefined, // Buyers don't have shopId, but we can still listen to global updates
+    enabled: isAuthenticated,
+    onOrderUpdate: fetchOrders,
+  });
 
   React.useEffect(() => {
     // Add style to make navbar static on this page
@@ -114,15 +129,12 @@ const BuyerPurchase: React.FC = () => {
     try {
       await apiClient.updateOrderStatus(selectedOrderId, 'to-ship');
       updateOrderStatus(selectedOrderId, 'to-ship');
-      setOrders(prevOrders =>
-        prevOrders.map(order =>
-          order.id === selectedOrderId ? { ...order, status: 'to-ship', paymentMethod: selectedPaymentMethod } : order
-        )
-      );
+      // Refresh orders to get latest status
+      await fetchOrders();
       setShowPaymentModal(false);
       setSelectedOrderId(null);
       setSelectedPaymentMethod(null);
-      alert('Payment confirmed! Your order is now being processed.');
+      alert('Payment confirmed! Your order is now being processed. The seller will be notified.');
     } catch (err: any) {
       alert(err.message || 'Failed to process payment');
     }

@@ -65,46 +65,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Handle OAuth callback and check for existing sessions
-  useEffect(() => {
-    const handleOAuthCallback = async () => {
-      const urlParams = new URLSearchParams(location.search);
-      const tokenParam = urlParams.get('token');
-      const errorParam = urlParams.get('error');
-      const errorDetails = urlParams.get('details');
-
-      if (tokenParam) {
-        console.log('🔵 Processing OAuth token from URL...');
-        await handleGoogleCallbackToken(tokenParam);
-        // Clean up URL - remove token parameter
-        const newUrl = new URL(window.location.href);
-        newUrl.searchParams.delete('token');
-        window.history.replaceState({}, '', newUrl.pathname + newUrl.search);
-      } else if (errorParam) {
-        // Get detailed error message if available
-        const errorMessage = errorParam === 'google_auth_failed' 
-          ? (errorDetails ? `Google authentication failed: ${decodeURIComponent(errorDetails)}` : 'Google authentication failed. Please try again.')
-          : (errorDetails ? `${errorParam}: ${decodeURIComponent(errorDetails)}` : errorParam);
-        console.error('❌ Google OAuth error:', errorParam, errorDetails);
-        setError(errorMessage);
-        setIsLoading(false);
-        window.history.replaceState({}, '', location.pathname);
-      } else {
-        // Check for existing token
-        const storedToken = localStorage.getItem('auth_token');
-        if (storedToken) {
-          setToken(storedToken);
-          apiClient.setToken(storedToken);
-          fetchUser();
-        } else {
-          setIsLoading(false);
-        }
-      }
-    };
-
-    handleOAuthCallback();
-  }, [location]);
-
   const fetchUser = useCallback(async () => {
     try {
       setIsLoading(true);
@@ -178,13 +138,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       
       console.log('✅ OAuth user set with role:', normalizedUser.role);
       
-      // Redirect based on role - different pages for buyer vs seller
+      // Redirect based on role - SELLER goes to dashboard, BUYER goes to landing page
       if (normalizedUser.role === 'SELLER') {
-        console.log('🚀 Redirecting SELLER to /dashboard');
+        console.log('🚀 [OAuth] Redirecting SELLER to /dashboard');
         navigate('/dashboard');
-      } else {
-        console.log('🚀 Redirecting BUYER to landing page (/)');
+      } else if (normalizedUser.role === 'BUYER') {
+        console.log('🚀 [OAuth] Redirecting BUYER to landing page (/)');
         navigate('/'); // Buyer landing page
+      } else {
+        console.log('🚀 [OAuth] Unknown role, redirecting to buyer landing page');
+        navigate('/'); // Default to buyer landing page for unknown roles
       }
     } catch (error: any) {
       console.error('❌ Failed to process Google OAuth token:', error);
@@ -198,6 +161,46 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       // Don't throw - let the error be displayed to the user
     }
   }, [navigate]);
+
+  // Handle OAuth callback and check for existing sessions
+  useEffect(() => {
+    const handleOAuthCallback = async () => {
+      const urlParams = new URLSearchParams(location.search);
+      const tokenParam = urlParams.get('token');
+      const errorParam = urlParams.get('error');
+      const errorDetails = urlParams.get('details');
+
+      if (tokenParam) {
+        console.log('🔵 Processing OAuth token from URL...');
+        await handleGoogleCallbackToken(tokenParam);
+        // Clean up URL - remove token parameter
+        const newUrl = new URL(window.location.href);
+        newUrl.searchParams.delete('token');
+        window.history.replaceState({}, '', newUrl.pathname + newUrl.search);
+      } else if (errorParam) {
+        // Get detailed error message if available
+        const errorMessage = errorParam === 'google_auth_failed' 
+          ? (errorDetails ? `Google authentication failed: ${decodeURIComponent(errorDetails)}` : 'Google authentication failed. Please try again.')
+          : (errorDetails ? `${errorParam}: ${decodeURIComponent(errorDetails)}` : errorParam);
+        console.error('❌ Google OAuth error:', errorParam, errorDetails);
+        setError(errorMessage);
+        setIsLoading(false);
+        window.history.replaceState({}, '', location.pathname);
+      } else {
+        // Check for existing token
+        const storedToken = localStorage.getItem('auth_token');
+        if (storedToken) {
+          setToken(storedToken);
+          apiClient.setToken(storedToken);
+          fetchUser();
+        } else {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    handleOAuthCallback();
+  }, [location, handleGoogleCallbackToken, fetchUser]);
 
   const login = useCallback(async (identifier: string, password: string) => {
     try {
@@ -241,13 +244,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       
       console.log('✅ Login successful, user role:', normalizedUser.role);
       
-      // Redirect based on role - buyers go to landing page, sellers go to dashboard
+      // Redirect based on role - SELLER goes to dashboard, BUYER goes to landing page
       if (normalizedUser.role === 'SELLER') {
-        console.log('🚀 Redirecting SELLER to /dashboard');
+        console.log('🚀 [Login] Redirecting SELLER to /dashboard');
         navigate('/dashboard');
+      } else if (normalizedUser.role === 'BUYER') {
+        console.log('🚀 [Login] Redirecting BUYER to landing page (/)');
+        navigate('/'); // Buyer landing page
       } else {
-        console.log('🚀 Redirecting BUYER to landing page (/)');
-        navigate('/');
+        console.log('🚀 [Login] Unknown role, redirecting to buyer landing page');
+        navigate('/'); // Default to buyer landing page for unknown roles
       }
     } catch (error: any) {
       console.error('❌ Login error:', error);
@@ -309,13 +315,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       
       console.log('✅ Registration successful, user role:', normalizedUser.role);
       
-      // Redirect based on role - buyers go to landing page (/), sellers go to dashboard
+      // Redirect based on role - SELLER goes to dashboard, BUYER goes to landing page
       if (normalizedUser.role === 'SELLER') {
-        console.log('🚀 Redirecting SELLER to /dashboard');
+        console.log('🚀 [Register] Redirecting SELLER to /dashboard');
         navigate('/dashboard');
+      } else if (normalizedUser.role === 'BUYER') {
+        console.log('🚀 [Register] Redirecting BUYER to landing page (/)');
+        navigate('/'); // Buyer landing page
       } else {
-        console.log('🚀 Redirecting BUYER to landing page (/)');
-        navigate('/');
+        console.log('🚀 [Register] Unknown role, redirecting to buyer landing page');
+        navigate('/'); // Default to buyer landing page for unknown roles
       }
     } catch (error: any) {
       console.error('❌ Registration error:', error);

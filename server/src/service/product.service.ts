@@ -142,7 +142,8 @@ export async function getProductsByShop(shopId: string) {
 }
 
 export async function getProductById(productId: string) {
-  const product = await prisma.product.findUnique({
+  // First, try to find product by internal ID
+  let product = await prisma.product.findUnique({
     where: { id: productId },
     include: {
       Shop: {
@@ -159,6 +160,27 @@ export async function getProductById(productId: string) {
       },
     },
   });
+
+  // If not found by internal ID, try to find by externalId
+  if (!product) {
+    product = await prisma.product.findFirst({
+      where: { externalId: productId },
+      include: {
+        Shop: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        Inventory: {
+          take: 1,
+          orderBy: {
+            updatedAt: "desc",
+          },
+        },
+      },
+    });
+  }
 
   if (!product) {
     throw new Error("Product not found");

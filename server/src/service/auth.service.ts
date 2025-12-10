@@ -124,9 +124,9 @@ class AuthService {
         } else {
           throw new Error("Shop creation returned invalid shop object");
         }
-      } catch (shopError: any) {
+          } catch (shopError: any) {
         console.error(`❌ CRITICAL: Failed to create platform-specific shop:`, shopError);
-        throw new Error(`Critical error: Failed to create shop for seller account. Please contact support.`);
+            throw new Error(`Critical error: Failed to create shop for seller account. Please contact support.`);
       }
       
       // Final verification
@@ -226,9 +226,9 @@ class AuthService {
         } else {
           throw new Error("Shop creation returned invalid shop object");
         }
-      } catch (shopError: any) {
+        } catch (shopError: any) {
         console.error(`❌ Failed to get/create platform-specific shop during login:`, shopError);
-        throw new Error(`Critical error: Failed to create shop for seller account. Please contact support.`);
+          throw new Error(`Critical error: Failed to create shop for seller account. Please contact support.`);
       }
     }
 

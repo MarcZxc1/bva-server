@@ -174,7 +174,11 @@ router.get("/google", (req: Request, res: Response, next) => {
 router.get("/google/callback", (req, res, next) => {
   // Extract state and validate it
   const state = req.query.state as string;
-  let redirectUrl = FRONTEND_URL;
+  // Default to TikTok seller clone (port 5174) for TikTok clone requests
+  // Check referer first to detect TikTok clone
+  const referer = req.get('referer') || '';
+  const isTikTokReferer = referer.includes('5174') || referer.includes('5175') || referer.includes('tiktokseller') || referer.includes('tiktok');
+  let redirectUrl = isTikTokReferer ? 'http://localhost:5174' : FRONTEND_URL;
   let role: string = 'BUYER';
   let platform: string = 'BVA'; // Initialize platform variable
   let decodedState: { redirectUrl: string; role?: string; platform?: string } | null = null;
@@ -226,8 +230,13 @@ router.get("/google/callback", (req, res, next) => {
             if (isShopeeCloneRequest) {
               redirectUrl = 'http://localhost:5173';
             } else if (isTikTokSellerCloneRequest) {
-              // Default to tiktokseller-clone
+              // ALWAYS default to tiktokseller-clone port 5174
               redirectUrl = 'http://localhost:5174';
+              console.log(`🔧 TikTok clone request detected, forcing redirectUrl to port 5174: ${redirectUrl}`);
+            } else if (platform === 'TIKTOK_CLONE') {
+              // If platform is TIKTOK_CLONE, force port 5174
+              redirectUrl = 'http://localhost:5174';
+              console.log(`🔧 Platform TIKTOK_CLONE detected, forcing redirectUrl to port 5174: ${redirectUrl}`);
             }
           }
         }
@@ -236,6 +245,11 @@ router.get("/google/callback", (req, res, next) => {
         }
         if (decodedState.platform) {
           platform = decodedState.platform;
+          // If platform is TIKTOK_CLONE, ensure redirectUrl is port 5174
+          if (platform === 'TIKTOK_CLONE' && !redirectUrl.includes('5174') && !redirectUrl.includes('5175') && !redirectUrl.includes('tiktokseller-clone.vercel.app')) {
+            redirectUrl = 'http://localhost:5174';
+            console.log(`🔧 Platform TIKTOK_CLONE detected, setting redirectUrl to port 5174: ${redirectUrl}`);
+          }
         }
       }
     }
@@ -247,6 +261,9 @@ router.get("/google/callback", (req, res, next) => {
       redirectUrl = 'http://localhost:5173';
     } else if (referer.includes('5174') || referer.includes('5175') || referer.includes('tiktokseller') || referer.includes('tiktok')) {
       redirectUrl = referer.includes('5175') ? 'http://localhost:5175' : 'http://localhost:5174';
+    } else if (platform === 'TIKTOK_CLONE') {
+      // If platform is explicitly TIKTOK_CLONE, always use port 5174
+      redirectUrl = 'http://localhost:5174';
     } else {
       // Default to shopee-clone (port 5173) instead of bva-frontend
       redirectUrl = FRONTEND_URL.includes('5173') ? FRONTEND_URL : 'http://localhost:5173';
@@ -360,22 +377,27 @@ router.get("/google/callback", (req, res, next) => {
           }
         }
       } else {
-        // User exists for this platform - update role if needed
-        if (role === 'SELLER' && platformUser.role === 'BUYER') {
+        // User exists for this platform - update role based on WHERE they logged in
+        // Role is determined by the login page (seller page = SELLER, buyer page = BUYER)
+        const requestedRole = role === 'SELLER' ? 'SELLER' : 'BUYER';
+        
+        if (platformUser.role !== requestedRole) {
+          console.log(`🔄 Updating user ${platformUser.id} role from ${platformUser.role} to ${requestedRole} (based on login page)`);
           platformUser = await prisma.user.update({
             where: { id: platformUser.id },
-            data: { role: 'SELLER' },
+            data: { role: requestedRole },
           });
         }
         
         // Create shop if seller and doesn't have one
+        // Note: We don't delete shops when user logs in as BUYER - shop remains for when they log in as SELLER again
         const existingShops = await prisma.shop.findMany({
           where: { ownerId: platformUser.id },
           select: { id: true, name: true },
         });
         
         if (platformUser.role === 'SELLER' && existingShops.length === 0) {
-          console.log(`🛍️ Creating shop for existing SELLER user ${platformUser.id} who doesn't have one`);
+          console.log(`🛍️ Creating shop for SELLER user ${platformUser.id} who doesn't have one`);
           try {
             await prisma.shop.create({
               data: {
@@ -456,10 +478,16 @@ router.get("/google/callback", (req, res, next) => {
           destination = '/?token=' + token;
         }
         console.log(`✅ Google OAuth success (Shopee-Clone) - Redirecting ${platformUser.role} to: ${redirectUrl}${destination}`);
-      } else if (isTikTokSellerClone) {
-        // TikTok Seller Clone: always redirect to /login for sellers
-        destination = '/login?token=' + token;
-        console.log(`✅ Google OAuth success (TikTok-Seller-Clone) - Redirecting ${platformUser.role} to: ${redirectUrl}${destination}`);
+      } else if (isTikTokSellerClone || platform === 'TIKTOK_CLONE') {
+        // TikTok Seller Clone: ALWAYS use port 5174, ALWAYS redirect to seller dashboard
+        // Force redirectUrl to port 5174 to prevent redirecting to wrong port
+        redirectUrl = 'http://localhost:5174'; // ALWAYS force port 5174
+        console.log(`🔧 Forcing redirectUrl to port 5174 for TikTok Seller Clone: ${redirectUrl}`);
+        
+        // For tiktokseller-clone, ALL users should go to seller dashboard
+        // User requirement: "login or register account in tiktokseller-clone should only redirected on sellers page"
+        destination = '/login?token=' + token; // Always redirect to /login, frontend will show dashboard
+        console.log(`✅ Google OAuth success (TikTok-Seller-Clone) - Redirecting ${platformUser.role} to seller dashboard: ${redirectUrl}${destination}`);
       } else {
         // BVA frontend: always use /login
         destination = '/login?token=' + token;

@@ -88,7 +88,7 @@ export class ShopSeedService {
         },
         take: 1,
       });
-      if (existingShops.length > 0) {
+      if (existingShops.length > 0 && existingShops[0]) {
         console.log(
           `✅ Shop found via alternative query for user ${userId} on platform ${shopPlatform}: ${existingShops[0].id}`
         );
@@ -139,7 +139,7 @@ export class ShopSeedService {
           },
           take: 1,
         });
-        if (existingShops.length > 0) {
+        if (existingShops.length > 0 && existingShops[0]) {
           console.log(`✅ Found existing shop after constraint error: ${existingShops[0].id}`);
           return existingShops[0];
         }
