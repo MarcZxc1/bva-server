@@ -9,7 +9,7 @@
 import prisma from "../lib/prisma";
 import { CacheService } from "../lib/redis";
 import type { Prisma } from "../generated/prisma";
-import { hasActiveIntegration } from "../utils/integrationCheck";
+// Removed hasActiveIntegration import - reports now work with all shops (no integration requirement)
 
 export interface SalesOverTimeData {
   date: string;
@@ -49,31 +49,17 @@ export class ReportsService {
     endDate: Date,
     interval: "day" | "month" = "day"
   ): Promise<SalesOverTimeData[]> {
-    // Check if shop has active integration
-    const isActive = await hasActiveIntegration(shopId);
-    if (!isActive) {
-      // Return empty array if no active integration
-      return [];
-    }
-
     const cacheKey = `sales:${shopId}:${startDate.toISOString()}:${endDate.toISOString()}:${interval}`;
     
     // Try cache first (15 min TTL for sales data)
     return CacheService.getOrSet(
       cacheKey,
       async () => {
-        // Get active integrations to filter by platform
-        const integrations = await prisma.integration.findMany({
-          where: { shopId },
-          select: { platform: true },
-        });
-        const integrationPlatforms = integrations.map(i => i.platform);
-
-        // Fetch sales in the date range - ALWAYS filtered by shopId and platform
+        // Fetch sales in the date range - ALL sales for the shop (synced and local)
         const sales = await prisma.sale.findMany({
       where: {
         shopId, // Critical: ensures user-specific data only
-        ...(integrationPlatforms.length > 0 && { platform: { in: integrationPlatforms } }), // Only sales from integrated platforms
+        // Removed platform filter - show all sales for the shop
         createdAt: {
           gte: startDate,
           lte: endDate,
@@ -257,39 +243,15 @@ export class ReportsService {
     startDate?: Date,
     endDate?: Date
   ): Promise<ProfitAnalysisData> {
-    // Check if shop has active integration
-    const isActive = await hasActiveIntegration(shopId);
-    if (!isActive) {
-      // Return empty/default data if no active integration
-      const now = new Date();
-      return {
-        totalRevenue: 0,
-        totalCost: 0,
-        totalProfit: 0,
-        profitMargin: 0,
-        period: {
-          start: startDate || now,
-          end: endDate || now,
-        },
-      };
-    }
-
     const cacheKey = `profit:${shopId}:${startDate?.toISOString() || 'all'}:${endDate?.toISOString() || 'all'}`;
     
     // Try cache first (15 min TTL)
     return CacheService.getOrSet(
       cacheKey,
       async () => {
-        // Get active integrations to filter by platform
-        const integrations = await prisma.integration.findMany({
-          where: { shopId },
-          select: { platform: true },
-        });
-        const integrationPlatforms = integrations.map(i => i.platform);
-
         const whereClause: Prisma.SaleWhereInput = {
       shopId, // Always filter by shopId - ensures user-specific data
-      ...(integrationPlatforms.length > 0 && { platform: { in: integrationPlatforms } }), // Only sales from integrated platforms
+      // Removed platform filter - show all sales for the shop
       status: "completed",
     };
 
@@ -399,12 +361,6 @@ export class ReportsService {
     startDate?: Date,
     endDate?: Date
   ): Promise<PlatformComparisonData[]> {
-    // Check if shop has active integration
-    const isActive = await hasActiveIntegration(shopId);
-    if (!isActive) {
-      // Return empty array if no active integration
-      return [];
-    }
     const cacheKey = `platform:${shopId}:${startDate?.toISOString() || 'all'}:${endDate?.toISOString() || 'all'}`;
     
     // Try cache first (15 min TTL)
@@ -531,12 +487,12 @@ export class ReportsService {
 
     // Calculate stock turnover
     // Stock Turnover = COGS / Average Inventory Value
-    // Only include products synced from integrations
+    // Include ALL products for the shop (synced and local)
     const inventory = await prisma.inventory.findMany({
       where: {
         Product: {
           shopId,
-          externalId: { not: null }, // Only products synced from integrations
+          // Removed externalId filter - show all products for the shop
         },
       },
       include: {
@@ -593,23 +549,6 @@ export class ReportsService {
       end: string;
     };
   }> {
-    // Check if shop has active integration
-    const isActive = await hasActiveIntegration(shopId);
-    if (!isActive) {
-      // Return empty/default data if no active integration
-      const end = endDate || new Date();
-      const start = startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-      return {
-        stockTurnover: 0,
-        inventoryValue: 0,
-        cogs: 0,
-        Product: [],
-        period: {
-          start: start.toISOString().split("T")[0]!,
-          end: end.toISOString().split("T")[0]!,
-        },
-      };
-    }
 
     const end = endDate || new Date();
     const start = startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000); // Default to 30 days
@@ -617,11 +556,11 @@ export class ReportsService {
     // Get profit analysis for the period to get COGS
     const profitAnalysis = await this.getProfitAnalysis(shopId, start, end);
 
-    // Get all products with inventory (only synced products from integrations)
+    // Get all products with inventory (ALL products for the shop)
     const products = await prisma.product.findMany({
       where: { 
         shopId,
-        externalId: { not: null }, // Only products synced from integrations
+        // Removed externalId filter - show all products for the shop
       },
       include: {
         Inventory: {

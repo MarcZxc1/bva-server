@@ -38,10 +38,10 @@ export default function Reports() {
   const reportContentRef = useRef<HTMLDivElement>(null);
   const pdfContentRef = useRef<HTMLDivElement>(null);
 
-  // Check for active integration
-  const { hasActiveIntegration, isLoading: isLoadingIntegration } = useIntegration();
+  // Check for platform connection (integration or linked shops)
+  const { isPlatformConnected, isLoading: isLoadingIntegration } = useIntegration();
 
-  // Fetch dashboard metrics - only if integration is active
+  // Fetch dashboard metrics - enabled if shop exists and platform is connected
   const { 
     data: metrics, 
     isLoading: metricsLoading,
@@ -49,7 +49,7 @@ export default function Reports() {
   } = useQuery({
     queryKey: ["dashboardMetrics"],
     queryFn: () => reportsService.getMetrics(),
-    enabled: hasShop && hasActiveIntegration,
+    enabled: hasShop && isPlatformConnected,
     retry: 2,
   });
 
@@ -62,7 +62,7 @@ export default function Reports() {
   } = useQuery({
     queryKey: ["salesChart", dateRange],
     queryFn: () => reportsService.getSalesChart(dateRange),
-    enabled: hasShop && hasActiveIntegration,
+    enabled: hasShop && isPlatformConnected,
     retry: 2,
   });
 
@@ -98,7 +98,7 @@ export default function Reports() {
         endDate.toISOString().split("T")[0]
       );
     },
-    enabled: hasShop && hasActiveIntegration,
+    enabled: hasShop && isPlatformConnected,
     retry: 1, // Only retry once for optional data
     retryOnMount: false, // Don't retry on mount if it failed
   });
@@ -141,7 +141,7 @@ export default function Reports() {
       const { start, end } = getDateRange();
       return reportsService.getSalesChart(dateRange, start, end);
     },
-    enabled: hasShop && hasActiveIntegration && activeReport === "sales",
+    enabled: hasShop && isPlatformConnected && activeReport === "sales",
   });
 
   const { data: profitReportData, isLoading: profitReportLoading } = useQuery({
@@ -150,7 +150,7 @@ export default function Reports() {
       const { start, end } = getDateRange();
       return reportsService.getProfitAnalysis(start, end);
     },
-    enabled: hasShop && hasActiveIntegration && activeReport === "profit",
+    enabled: hasShop && isPlatformConnected && activeReport === "profit",
   });
 
   const { data: stockReportData, isLoading: stockReportLoading } = useQuery({
@@ -159,7 +159,7 @@ export default function Reports() {
       const { start, end } = getDateRange();
       return reportsService.getStockTurnoverReport(start, end);
     },
-    enabled: hasShop && hasActiveIntegration && activeReport === "stock",
+    enabled: hasShop && isPlatformConnected && activeReport === "stock",
   });
 
   const { data: platformReportData, isLoading: platformReportLoading } = useQuery({
@@ -168,7 +168,7 @@ export default function Reports() {
       const { start, end } = getDateRange();
       return reportsService.getPlatformStats(start, end);
     },
-    enabled: hasShop && hasActiveIntegration && activeReport === "platform",
+    enabled: hasShop && isPlatformConnected && activeReport === "platform",
   });
 
   const handleGenerateReport = (reportType: "sales" | "profit" | "stock" | "platform") => {
@@ -270,7 +270,7 @@ export default function Reports() {
 
   // Check for empty states
   const hasNoShop = !hasShop;
-  const hasNoIntegration = !hasActiveIntegration;
+  const hasNoIntegration = !isPlatformConnected;
 
   // Show empty state if user has no shop
   if (hasNoShop) {
