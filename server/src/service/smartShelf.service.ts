@@ -85,11 +85,14 @@ export async function getAtRiskInventory(
   return CacheService.getOrSet(
     cacheKey,
     async () => {
-      // 1. Fetch products with inventory (only synced products from integrations)
+      // 1. Fetch products with inventory (ALL products for the shop)
+      // Products with externalId are synced from Shopee-Clone
+      // Products without externalId are created directly in BVA
       const products = await prisma.product.findMany({
     where: { 
       shopId,
-      externalId: { not: null }, // Only products synced from integrations
+      // Removed externalId filter - show all products for the shop
+      // This ensures BVA can display data even if sync hasn't completed yet
     },
     include: {
       Inventory: {
@@ -289,19 +292,24 @@ export async function getDashboardAnalytics(shopId: string) {
   const settings = integration?.settings as any;
   const isActive = integration && (settings?.isActive !== false && (settings?.termsAccepted === true || settings?.connectedAt));
 
-  // If no active integration, return empty/default data
+  // If no active integration, return empty/default data in the same format as active integration
   if (!isActive) {
     console.log(`⚠️  No active Shopee integration for shop ${shopId}, returning empty dashboard data`);
     return {
-      totalRevenue: 0,
-      totalProfit: 0,
-      totalSales: 0,
-      totalProducts: 0,
-      recentSales: [],
-      topProducts: [],
-      salesForecast: [],
-      insights: ["Please integrate with Shopee-Clone to see your analytics data."],
-      hasIntegration: false,
+      metrics: {
+        totalRevenue: 0,
+        totalProfit: 0,
+        profitMargin: 0,
+        totalItems: 0,
+        totalProducts: 0,
+        totalSales: 0,
+      },
+      forecast: null,
+      period: {
+        start: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString(), // 60 days ago
+        end: new Date().toISOString(),
+        days: 60,
+      },
     };
   }
 
@@ -312,23 +320,31 @@ export async function getDashboardAnalytics(shopId: string) {
     cacheKey,
     async () => {
       // 1. Calculate basic metrics from database
-      // Only get products that have externalId (synced from Shopee-Clone)
+      // Get ALL products for the shop (synced from Shopee-Clone + locally created)
+      // Products with externalId are synced from Shopee-Clone
       const products = await prisma.product.findMany({
         where: { 
           shopId,
-          externalId: { not: null }, // Only products synced from integrations
+          // Removed externalId filter - show all products for the shop
+          // This ensures BVA can display data even if sync hasn't completed yet
         },
         include: {
           Inventory: { take: 1 },
         },
       });
 
+      console.log(`📊 Dashboard Analytics: Found ${products.length} total products for shop ${shopId}`);
+      const syncedProducts = products.filter(p => p.externalId !== null);
+      console.log(`   ${syncedProducts.length} synced from Shopee-Clone, ${products.length - syncedProducts.length} locally created`);
+
       // 2. Get ALL sales for lifetime metrics (total revenue, total orders)
-      // Filter by SHOPEE platform since we're using Shopee-Clone integration
+      // Get sales from all platforms (SHOPEE, LAZADA, TIKTOK, etc.)
+      // This ensures we show data even if platform filter is too restrictive
       const allSales = await prisma.sale.findMany({
         where: {
           shopId,
-          platform: 'SHOPEE', // Only get sales from Shopee-Clone platform
+          // Removed platform filter - show all sales for the shop
+          // This ensures BVA can display data from all sources
         },
         select: {
           items: true,
@@ -343,6 +359,8 @@ export async function getDashboardAnalytics(shopId: string) {
 
       // Debug logging
       console.log(`📊 Dashboard Analytics for shop ${shopId}: Found ${allSales.length} total sales`);
+      const shopeeSales = allSales.filter(s => s.platform === 'SHOPEE');
+      console.log(`   ${shopeeSales.length} from SHOPEE platform, ${allSales.length - shopeeSales.length} from other platforms`);
 
       // 3. Get sales data for the last 60 days (for forecast/trends)
       // We need at least 14 days of history for accurate forecasting
@@ -564,9 +582,12 @@ export async function getDashboardAnalytics(shopId: string) {
       };
 
       console.log(`📊 Dashboard response for shop ${shopId}:`, {
+        metrics: response.metrics,
         hasForecast: !!response.forecast,
         forecastType: response.forecast ? typeof response.forecast : 'null',
-        forecastsCount: response.forecast?.forecasts?.length || 0
+        forecastsCount: response.forecast?.forecasts?.length || 0,
+        productsCount: products.length,
+        salesCount: allSales.length
       });
 
       return response;

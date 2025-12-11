@@ -25,6 +25,7 @@ import sellerRoutes from "./routes/seller.routes";
 import integrationRoutes from "./routes/integration.routes";
 import externalRoutes from "./routes/external.routes";
 import webhookRoutes from "./routes/webhook.routes";
+import shopRoutes from "./routes/shop.routes";
 
 const app: Application = express();
 
@@ -285,6 +286,9 @@ app.use("/api/seller", sellerRoutes);
 
 // Register Integration Router
 app.use("/api/integrations", integrationRoutes);
+
+// Register Shop Router (for shop linking)
+app.use("/api/shops", shopRoutes);
 
 // Register External API Router (for Shopee-Clone to expose data to BVA)
 app.use("/api/external", externalRoutes);

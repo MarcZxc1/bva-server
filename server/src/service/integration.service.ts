@@ -7,6 +7,7 @@ interface CreateIntegrationInput {
   shopId: string;
   platform: Platform;
   settings?: Record<string, any>;
+  shopeeToken?: string; // Shopee-Clone JWT token for authentication
 }
 
 interface UpdateIntegrationInput {
@@ -17,7 +18,8 @@ interface UpdateIntegrationInput {
 
 class IntegrationService {
   /**
-   * Create a new platform integration
+   * Create a new platform integration or update existing one
+   * Returns existing integration if it already exists (idempotent)
    */
   async createIntegration(data: CreateIntegrationInput) {
     // Check if integration already exists
@@ -31,22 +33,52 @@ class IntegrationService {
     });
 
     if (existing) {
-      throw new Error("Integration already exists for this platform");
+      // Update existing integration with new token if provided
+      const settings = existing.settings as any;
+      const updatedSettings: Record<string, any> = {
+        ...settings,
+        // Update connection timestamp
+        lastConnectedAt: new Date().toISOString(),
+        // Ensure it's active
+        isActive: true,
+        termsAccepted: true,
+        ...data.settings,
+      };
+
+      // Update Shopee-Clone token if provided
+      if (data.shopeeToken && data.platform === Platform.SHOPEE) {
+        updatedSettings.shopeeToken = data.shopeeToken;
+      }
+
+      // Update the existing integration
+      const updated = await prisma.integration.update({
+        where: { id: existing.id },
+        data: { settings: updatedSettings },
+      });
+
+      return updated;
     }
 
-    // Create integration (no API key needed - uses JWT token)
+    // Create new integration (no API key needed - uses JWT token)
     // Set isActive to true in settings when integration is created (user has accepted terms)
+    const settings: Record<string, any> = {
+      connectedAt: new Date().toISOString(),
+      termsAccepted: true,
+      termsAcceptedAt: new Date().toISOString(),
+      isActive: true, // Active by default when created (user accepted terms)
+      ...data.settings,
+    };
+
+    // Store Shopee-Clone token in settings if provided
+    if (data.shopeeToken && data.platform === Platform.SHOPEE) {
+      settings.shopeeToken = data.shopeeToken;
+    }
+
     const integration = await prisma.integration.create({
       data: {
         shopId: data.shopId,
         platform: data.platform,
-        settings: {
-          connectedAt: new Date().toISOString(),
-          termsAccepted: true,
-          termsAcceptedAt: new Date().toISOString(),
-          isActive: true, // Active by default when created (user accepted terms)
-          ...data.settings,
-        },
+        settings,
       },
     });
 
@@ -168,7 +200,7 @@ class IntegrationService {
    * Uses JWT token for authentication
    * Only syncs if integration is active and terms are accepted
    */
-  async syncIntegration(integrationId: string, token: string) {
+  async syncIntegration(integrationId: string, token?: string) {
     const integration = await this.getIntegrationById(integrationId);
     
     if (!integration) {
@@ -184,12 +216,19 @@ class IntegrationService {
       throw new Error("Integration is not active or terms have not been accepted. Please accept the terms and conditions first.");
     }
 
-    const userId = integration.Shop.ownerId;
+    // Use the integration's shopId (this can be a linked shop)
+    const shopId = integration.shopId;
 
     // Sync based on platform
     switch (integration.platform) {
       case Platform.SHOPEE:
-        const result = await shopeeIntegrationService.syncAllData(userId, token);
+        // Use Shopee-Clone token from settings if available, otherwise fallback to provided token
+        const shopeeToken = settings?.shopeeToken || token;
+        if (!shopeeToken) {
+          throw new Error("Shopee-Clone authentication token is required. Please reconnect the integration.");
+        }
+        // Pass shopId instead of userId - syncAllData now accepts shopId directly
+        const result = await shopeeIntegrationService.syncAllData(shopId, shopeeToken);
         return {
           success: true,
           message: "Sync completed",

@@ -450,18 +450,22 @@ router.get("/google/callback", (req, res, next) => {
         throw new Error(`Critical error: Seller account has no shop. Please contact support.`);
       }
 
-      // Generate token with shops
+      // Generate token with shops and shopId
+      const shopId = shops.length > 0 && shops[0] ? shops[0].id : null;
       const token = jwt.sign(
         { 
           userId: platformUser.id, 
           role: platformUser.role,
           email: platformUser.email,
           name: platformUser.name || platformUser.firstName || 'User',
+          shopId: shopId, // Include shopId for compatibility
           Shop: shops.map((s: { id: string; name: string }) => ({ id: s.id, name: s.name }))
         },
         JWT_SECRET,
         { expiresIn: JWT_EXPIRATION } as jwt.SignOptions
       );
+      
+      console.log(`🔑 Generated OAuth token for user ${platformUser.id} with ${shops.length} shop(s), shopId: ${shopId}`);
       
       // Determine destination based on role and frontend
       // IMPORTANT: Frontend users should NEVER redirect to wrong frontend

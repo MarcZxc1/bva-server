@@ -169,6 +169,13 @@ export const getDashboardAnalytics = async (req: Request, res: Response) => {
     // Use service layer for dashboard analytics
     const dashboardData = await getDashboardAnalyticsService(shopId);
 
+    console.log(`📊 getDashboardAnalytics controller: Returning data for shop ${shopId}`, {
+      hasMetrics: !!dashboardData.metrics,
+      hasForecast: !!dashboardData.forecast,
+      metrics: dashboardData.metrics,
+      forecastCount: dashboardData.forecast?.forecasts?.length || 0,
+    });
+
     res.json({
       success: true,
       data: dashboardData,

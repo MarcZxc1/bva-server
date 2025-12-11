@@ -111,10 +111,23 @@ export class AdService {
     product_name: string;
     playbook: string;
     style?: string;
+    product_image_url?: string; // Optional: Product image URL to use as context for ad generation
   }): Promise<{ image_url: string }> {
     try {
+      console.log(`🎨 Generating ad image for product: ${request.product_name}`, {
+        hasProductImage: !!request.product_image_url,
+        playbook: request.playbook,
+        style: request.style,
+      });
+      
       // ML service returns AdImageResponse directly: { image_url }
-      const result = await mlClient.generateAdImage(request);
+      // Pass product_image_url to ML service so it can use the product image as context
+      const result = await mlClient.generateAdImage({
+        product_name: request.product_name,
+        playbook: request.playbook,
+        style: request.style,
+        product_image_url: request.product_image_url, // Include product image URL
+      });
       
       return {
         image_url: result.image_url || ""

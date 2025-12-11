@@ -22,6 +22,8 @@ interface AdGeneratorDialogProps {
   onAdGenerated?: (adData: any) => void;
   initialProductName?: string;
   initialPlaybook?: "Flash Sale" | "New Arrival" | "Best Seller Spotlight" | "Bundle Up!";
+  initialProductId?: string; // Optional: Product ID to fetch image from
+  initialProductImageUrl?: string; // Optional: Direct product image URL to use as context
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
 }
@@ -31,6 +33,8 @@ export function AdGeneratorDialog({
   onAdGenerated, 
   initialProductName = "", 
   initialPlaybook = "Flash Sale",
+  initialProductId,
+  initialProductImageUrl,
   open: controlledOpen,
   onOpenChange: setControlledOpen
 }: AdGeneratorDialogProps) {
@@ -51,6 +55,8 @@ export function AdGeneratorDialog({
     if (open) {
       if (initialProductName) setProductName(initialProductName);
       if (initialPlaybook) setPlaybook(initialPlaybook);
+      // Note: productId and productImageUrl are used directly in handleGenerateImage
+      // They don't need to be stored in state
     }
   }, [open, initialProductName, initialPlaybook]);
 
@@ -88,8 +94,23 @@ export function AdGeneratorDialog({
       return;
     }
 
+    // Use product image URL if available (from props or state)
+    const productImageUrl = initialProductImageUrl;
+    
+    console.log("🎨 Generating ad image with product context:", {
+      productName,
+      playbook,
+      hasProductId: !!initialProductId,
+      hasProductImage: !!productImageUrl,
+    });
+
     generateImageMutation.mutate(
-      { product_name: productName, playbook },
+      { 
+        product_name: productName, 
+        playbook,
+        productId: initialProductId, // Pass product ID so backend can fetch image
+        product_image_url: productImageUrl, // Pass product image URL directly
+      },
       {
         onSuccess: (response) => {
           if (response.image_url) {
@@ -156,6 +177,27 @@ export function AdGeneratorDialog({
         <div className="grid gap-6 py-4">
           {/* Input Form */}
           <div className="grid gap-4">
+            {/* Show product image if available */}
+            {initialProductImageUrl && (
+              <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
+                <img 
+                  src={initialProductImageUrl} 
+                  alt={productName || "Product"} 
+                  className="w-16 h-16 object-cover rounded border"
+                  onError={(e) => {
+                    console.warn("Failed to load product image:", initialProductImageUrl);
+                    (e.target as HTMLImageElement).style.display = 'none';
+                  }}
+                />
+                <div className="flex-1">
+                  <p className="text-sm font-medium">Product Image</p>
+                  <p className="text-xs text-muted-foreground">
+                    This image will be used as context for ad generation
+                  </p>
+                </div>
+              </div>
+            )}
+            
             <div className="grid gap-2">
               <Label htmlFor="productName">Product Name *</Label>
               <Input

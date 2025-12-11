@@ -68,16 +68,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     try {
       const response = await authApi.getCurrentUser();
-      if (response.success && response.data) {
-        const userData: User = {
-          id: response.data.id,
-          email: response.data.email,
-          name: response.data.name,
-          shops: response.data.shops || [], // Ensure shops array exists
-        };
-        setUser(userData);
-        localStorage.setItem("user", JSON.stringify(userData));
-        console.log("✅ User data refreshed with shops:", userData.shops?.length || 0);
+      // apiClient.get unwraps the response, so response is the data directly
+      // But AuthResponse interface expects { success, data }, so we need to handle both formats
+      if (response && (response as any).success !== false) {
+        // Handle unwrapped response (data directly)
+        const userData = (response as any).data || response;
+        if (userData && userData.id) {
+          const user: User = {
+            id: userData.id,
+            email: userData.email,
+            name: userData.name,
+            shops: userData.shops || [], // Ensure shops array exists
+          };
+          setUser(user);
+          localStorage.setItem("user", JSON.stringify(user));
+          console.log("✅ User data refreshed with shops:", user.shops?.length || 0);
+        } else {
+          console.warn("⚠️  getCurrentUser returned invalid data structure:", response);
+        }
       } else {
         console.warn("⚠️  getCurrentUser returned no data, using token data");
         // Don't update user if API fails - keep existing user data

@@ -3,6 +3,7 @@ import prisma from "../lib/prisma";
 import { mlClient } from "../utils/mlClient";
 import { MLRestockRequest, MLRestockResponse, MLProductInput } from "../types/ml.types";
 import { getSocketIO } from "../services/socket.service";
+import { getShopIdFromRequest, verifyShopAccess } from "../utils/requestHelpers";
 
 /**
  * POST /api/ai/restock-strategy
@@ -13,10 +14,100 @@ export async function getRestockStrategy(
   res: Response
 ): Promise<void> {
   try {
-    const { shopId, budget, goal, restockDays, weatherCondition, isPayday, upcomingHoliday } = req.body;
+    // Get shopId from request (body or token/user's shops)
+    let { shopId, budget, goal, restockDays, weatherCondition, isPayday, upcomingHoliday } = req.body;
+    const user = (req as any).user;
+    // JWT token might have userId at top level or nested in user object
+    const userId = user?.userId || user?.id || (req as any).userId;
 
-    // Check if user has an active Shopee integration
-    // Check settings JSON for isActive or termsAccepted
+    console.log(`📊 Restock Planner request:`, {
+      shopIdFromBody: shopId,
+      userId: userId,
+      userObject: user ? Object.keys(user) : 'no user',
+      hasShopIdInToken: !!user?.shopId,
+    });
+
+    // If shopId not in body, try to get it from request helper (token/user's shops)
+    if (!shopId) {
+      shopId = await getShopIdFromRequest(req);
+      console.log(`📊 Restock Planner: Got shopId from request helper: ${shopId}`);
+    }
+
+    // 1. Validation
+    console.log(`📊 Restock Planner validation:`, { 
+      shopId: shopId || 'MISSING', 
+      budget: budget !== undefined ? budget : 'MISSING', 
+      goal: goal || 'MISSING',
+      budgetType: typeof budget,
+      goalType: typeof goal,
+    });
+    
+    if (!shopId || budget === undefined || budget === null || !goal) {
+      console.log(`❌ Restock Planner validation failed:`, { 
+        shopId: !!shopId, 
+        budget: budget !== undefined && budget !== null, 
+        goal: !!goal,
+        budgetValue: budget,
+        goalValue: goal,
+      });
+      res.status(400).json({
+        error: "Validation Error",
+        message: !shopId 
+          ? "Shop ID is required. Please ensure you have a shop associated with your account." 
+          : (budget === undefined || budget === null)
+          ? "Budget is required and must be a positive number."
+          : !goal
+          ? "Goal is required. Must be one of: profit, volume, or balanced."
+          : "shopId, budget, and goal are required",
+        details: !shopId ? "You need to have a shop linked to your account. Please check your shop settings." : undefined,
+      });
+      return;
+    }
+
+    // Validate budget is a positive number
+    const budgetNum = Number(budget);
+    if (isNaN(budgetNum) || budgetNum <= 0) {
+      console.log(`❌ Restock Planner: Invalid budget value:`, budget);
+      res.status(400).json({
+        error: "Validation Error",
+        message: "Budget must be a positive number greater than 0",
+        details: `Received budget value: ${budget} (type: ${typeof budget})`,
+      });
+      return;
+    }
+
+    // Validate goal is one of the allowed values
+    if (!["profit", "volume", "balanced"].includes(goal)) {
+      console.log(`❌ Restock Planner: Invalid goal value:`, goal);
+      res.status(400).json({
+        error: "Validation Error",
+        message: "Goal must be one of: profit, volume, or balanced",
+        details: `Received goal value: ${goal}`,
+      });
+      return;
+    }
+
+    // Check if user has access to this shop
+    // First, ensure userId is available in request for verifyShopAccess
+    if (userId && !(req as any).user?.userId) {
+      (req as any).user = { ...user, userId: userId };
+    }
+    
+    const hasAccess = await verifyShopAccess(req, shopId);
+    console.log(`📊 Restock Planner: Shop access check for shop ${shopId}: ${hasAccess}, userId: ${userId}`);
+    if (!hasAccess) {
+      console.log(`❌ Restock Planner: Access denied for shop ${shopId}, userId: ${userId}`);
+      res.status(403).json({
+        error: "Access Denied",
+        message: "You do not have access to this shop.",
+        details: `User ${userId || 'unknown'} does not have access to shop ${shopId}. Please ensure the shop is linked to your account.`,
+      });
+      return;
+    }
+
+    // Check if user has a Shopee integration (optional - allow restock planner to work with any shop)
+    // We removed the strict integration requirement to allow restock planner to work with all shops
+    // This matches the pattern used in other controllers (smartShelf, reports, etc.)
     const integration = await prisma.integration.findFirst({
       where: {
         shopId,
@@ -24,37 +115,21 @@ export async function getRestockStrategy(
       },
     });
 
-    // If no integration or not active (check settings JSON)
-    if (!integration) {
-      res.status(403).json({
-        error: "Integration Required",
-        message: "Please integrate with Shopee-Clone and accept the terms to use the Restock Planner.",
-        details: "You need to complete the Shopee-Clone integration in Settings before using this feature."
+    // Log integration status for debugging
+    if (integration) {
+      const settings = integration.settings as any;
+      console.log(`📊 Restock Planner: Found integration for shop ${shopId}`, {
+        hasIntegration: true,
+        isActive: settings?.isActive !== false,
+        termsAccepted: settings?.termsAccepted === true,
+        connectedAt: settings?.connectedAt,
       });
-      return;
+    } else {
+      console.log(`📊 Restock Planner: No integration found for shop ${shopId}, proceeding anyway (integration is optional)`);
     }
 
-    // Check if integration is active via settings
-    const settings = integration.settings as any;
-    const isActive = settings?.isActive !== false && (settings?.termsAccepted === true || settings?.connectedAt);
-    
-    if (!isActive) {
-      res.status(403).json({
-        error: "Integration Required",
-        message: "Please integrate with Shopee-Clone and accept the terms to use the Restock Planner.",
-        details: "You need to complete the Shopee-Clone integration in Settings before using this feature."
-      });
-      return;
-    }
-
-    // 1. Validation
-    if (!shopId || !budget || !goal) {
-      res.status(400).json({
-        error: "Validation Error",
-        message: "shopId, budget, and goal are required",
-      });
-      return;
-    }
+    // Note: We no longer require integration to be active
+    // This allows restock planner to work with any shop that has products
 
     // 2. Fetch Products & Inventory from Prisma
     const products = await prisma.product.findMany({
@@ -90,18 +165,17 @@ export async function getRestockStrategy(
 
     console.log(`Found ${sales.length} sales records for shop ${shopId}`);
 
-    // Handle cold start: If no sales data, return helpful error instead of mock data
+    // Handle cold start: If no sales data, we'll still proceed but with limited data
+    // The ML service can handle this, but we'll log a warning
     if (sales.length === 0) {
-      console.log("⚠️ No sales history found - cold start scenario");
-      res.status(400).json({
-        error: "Insufficient Data",
-        message: "No sales history found. Please sync your sales data from Shopee-Clone or add sales records before using the Restock Planner. The ML service requires at least 7-30 days of sales history for accurate predictions.",
-        suggestion: "Sync your data via SSO login or manually add sales records through the API.",
-      });
-      return;
+      console.log("⚠️ No sales history found - proceeding with cold start scenario");
+      console.log(`   Shop ${shopId} has ${products.length} products but 0 sales records`);
+      console.log(`   ML service will use product data and inventory levels for recommendations`);
+      // Don't return error - allow ML service to handle cold start
+      // The ML service can work with just product data and inventory levels
+    } else {
+      console.log(`✅ Using ${sales.length} real sales records from database`);
     }
-
-    console.log(`✅ Using ${sales.length} real sales records from database`);
 
     // 4. Format Data for ML Service
     // Map products to MLProductInput format with strict type validation
@@ -232,7 +306,7 @@ export async function getRestockStrategy(
       shop_id: String(shopId),
       budget: budgetFloat, // float > 0
       goal: sanitizedGoal, // 'profit' | 'volume' | 'balanced'
-      Product: validProducts, // Array with min_length=1
+      products: validProducts, // Array with min_length=1 (ML service expects lowercase 'products')
       restock_days: restockDaysInt, // int between 1 and 90
       weather_condition: sanitizedWeather as 'sunny' | 'rainy' | 'storm' | null,
       is_payday: sanitizedIsPayday,

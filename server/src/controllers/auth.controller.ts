@@ -3,6 +3,7 @@ import { Request, Response } from "express";
 import { authService, RegisterInput, LoginInput, ShopeeSSOInput } from "../service/auth.service";
 import prisma from "../lib/prisma";
 import { shopSeedService } from "../service/shopSeed.service";
+import { shopAccessService } from "../service/shopAccess.service";
 
 export class AuthController {
   /**
@@ -182,6 +183,23 @@ export class AuthController {
         } else {
           shops = [];
         }
+      }
+
+      // Also include linked shops (for BVA users who linked Shopee-Clone shops)
+      try {
+        const linkedShops = await shopAccessService.getLinkedShops(userId);
+        console.log(`🔍 getMe: Found ${linkedShops.length} linked shops for user ${userId}`);
+        
+        // Merge owned and linked shops, avoiding duplicates
+        const shopMap = new Map<string, { id: string; name: string }>();
+        shops.forEach(shop => shopMap.set(shop.id, shop));
+        linkedShops.forEach(shop => shopMap.set(shop.id, { id: shop.id, name: shop.name }));
+        shops = Array.from(shopMap.values());
+        
+        console.log(`🔍 getMe: Total shops (owned + linked): ${shops.length}`);
+      } catch (linkError: any) {
+        console.error(`❌ getMe: Error fetching linked shops:`, linkError);
+        // Don't fail the request if linked shops can't be fetched
       }
 
       console.log(`📋 GET /api/auth/me for user ${userId} (role: ${user.role}), shops count: ${shops.length}`);

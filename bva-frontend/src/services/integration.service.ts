@@ -16,6 +16,7 @@ export interface Integration {
 export interface CreateIntegrationRequest {
   platform: "SHOPEE" | "LAZADA" | "TIKTOK" | "OTHER";
   settings?: Record<string, any>;
+  shopeeToken?: string; // Shopee-Clone JWT token for authentication
 }
 
 export interface TestConnectionResponse {
@@ -27,12 +28,15 @@ export interface TestConnectionResponse {
 }
 
 export interface SyncResponse {
-  success: boolean;
-  message: string;
-  data: {
+  success?: boolean;
+  message?: string;
+  data?: {
     products: number;
     sales: number;
   };
+  // apiClient.post unwraps responses, so we might get just the data part
+  products?: number;
+  sales?: number;
 }
 
 class IntegrationService {

@@ -10,8 +10,12 @@ import {
   getRestockStrategy,
   getMLServiceHealth,
 } from "../controllers/restock.controller";
+import { authMiddleware } from "../middlewares/auth.middleware";
 
 const router = Router();
+
+// Apply auth middleware to all routes
+router.use(authMiddleware);
 
 /**
  * POST /api/ai/restock-strategy

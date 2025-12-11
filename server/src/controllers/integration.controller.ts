@@ -18,7 +18,7 @@ export class IntegrationController {
         });
       }
 
-      const { platform, settings } = req.body;
+      const { platform, settings, shopeeToken } = req.body;
 
       if (!platform) {
         return res.status(400).json({
@@ -27,10 +27,44 @@ export class IntegrationController {
         });
       }
 
+      // Check if integration already exists before creating
+      const existing = await integrationService.getShopIntegrations(shopId);
+      const existingIntegration = existing.find(i => i.platform === platform);
+
+      if (existingIntegration) {
+        // Update existing integration instead of creating new one
+        const updatedSettings = existingIntegration.settings as any;
+        const newSettings: Record<string, any> = {
+          ...updatedSettings,
+          lastConnectedAt: new Date().toISOString(),
+          isActive: true,
+          termsAccepted: true,
+          ...settings,
+        };
+
+        // Update token if provided
+        if (shopeeToken && platform === "SHOPEE") {
+          newSettings.shopeeToken = shopeeToken;
+        }
+
+        const updated = await integrationService.updateIntegration(existingIntegration.id, {
+          settings: newSettings,
+        });
+
+        // Return 200 OK with existing integration (treat as success)
+        return res.status(200).json({
+          success: true,
+          data: updated,
+          message: "Integration already exists. Updated successfully.",
+        });
+      }
+
+      // Create new integration
       const integration = await integrationService.createIntegration({
         shopId,
         platform,
         settings,
+        shopeeToken, // Include Shopee-Clone token if provided
       });
 
       return res.status(201).json({
@@ -39,7 +73,27 @@ export class IntegrationController {
       });
     } catch (error: any) {
       console.error("Error creating integration:", error);
+      // Integration service now handles duplicates gracefully, so this shouldn't happen
+      // But keep as fallback
       if (error.message?.includes("already exists")) {
+        // Try to get existing integration and return it
+        try {
+          const shopId = await getShopIdFromRequest(req);
+          const { platform } = req.body;
+          if (shopId && platform) {
+            const integrations = await integrationService.getShopIntegrations(shopId);
+            const existing = integrations.find(i => i.platform === platform);
+            if (existing) {
+              return res.status(200).json({
+                success: true,
+                data: existing,
+                message: "Integration already exists. Using existing integration.",
+              });
+            }
+          }
+        } catch (fallbackError) {
+          // Fall through to 409 error
+        }
         return res.status(409).json({
           success: false,
           error: error.message,
@@ -60,9 +114,10 @@ export class IntegrationController {
     try {
       const shopId = await getShopIdFromRequest(req);
       if (!shopId) {
-        return res.status(400).json({
-          success: false,
-          error: "Shop ID is required",
+        // Return empty array instead of error - user may not have a shop yet
+        return res.json({
+          success: true,
+          data: [],
         });
       }
 
@@ -228,16 +283,10 @@ export class IntegrationController {
         });
       }
       
-      // Get JWT token from Authorization header
+      // Token is optional now - integration may have stored token in settings
+      // Get JWT token from Authorization header (fallback)
       const authHeader = req.headers.authorization;
-      const token = authHeader?.replace("Bearer ", "");
-      
-      if (!token) {
-        return res.status(401).json({
-          success: false,
-          error: "Authentication token required",
-        });
-      }
+      const token = authHeader?.replace("Bearer ", "") || undefined;
       
       const result = await integrationService.syncIntegration(id, token);
 

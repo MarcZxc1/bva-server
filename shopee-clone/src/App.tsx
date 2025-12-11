@@ -17,6 +17,7 @@ import BuyerAccount from './features/buyer/BuyerAccount';
 import BuyerPurchase from './features/buyer/BuyerPurchase';
 import BuyerCart from './features/buyer/BuyerCart';
 import BuyerCheckout from './features/buyer/BuyerCheckout';
+import BVAIntegrationCheck from './pages/BVAIntegrationCheck';
 
 function App() {
   return (
@@ -103,6 +104,9 @@ function App() {
                   </ProtectedRoute>
                 } 
               />
+              
+              {/* BVA Integration Check Route */}
+              <Route path="/bva-integration-check" element={<BVAIntegrationCheck />} />
             </Routes>
           </OrderProvider>
         </CartProvider>

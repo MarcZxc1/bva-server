@@ -75,7 +75,7 @@ const BuyerPurchase: React.FC = () => {
 
   // Real-time updates for buyers - listen to order status changes
   // Note: Buyers don't have a shopId, but we can still listen to global updates
-  const { isConnected } = useRealtimeOrders({
+  useRealtimeOrders({
     shopId: undefined, // Buyers don't have shopId, but we can still listen to global updates
     enabled: isAuthenticated,
     onOrderUpdate: fetchOrders,

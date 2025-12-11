@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import * as productService from "../service/product.service";
-import { getShopIdFromRequest } from "../utils/requestHelpers";
+import { getShopIdFromRequest, verifyShopAccess } from "../utils/requestHelpers";
 
 export const getAllProducts = async (req: Request, res: Response) => {
   try {
@@ -29,7 +29,27 @@ export const getProductsByShop = async (req: Request, res: Response) => {
       });
     }
 
+    // Verify user has access to this shop (owned or linked)
+    const user = (req as any).user;
+    if (!user || !user.userId) {
+      return res.status(401).json({
+        success: false,
+        error: "Authentication required",
+      });
+    }
+
+    const hasAccess = await verifyShopAccess(req, shopId);
+    if (!hasAccess) {
+      return res.status(403).json({
+        success: false,
+        error: "Access denied. You do not have permission to access this shop.",
+      });
+    }
+
     const products = await productService.getProductsByShop(shopId);
+    
+    console.log(`📦 getProductsByShop: Returning ${products.length} products for shop ${shopId}`);
+    
     res.json({
       success: true,
       data: products,

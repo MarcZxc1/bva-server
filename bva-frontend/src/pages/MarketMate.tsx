@@ -62,7 +62,12 @@ export default function MarketMate() {
   useEffect(() => {
     const state = location.state as { promotion?: any; product?: any } | null;
     if (state?.promotion) {
-      console.log("🎯 Received promotion from SmartShelf:", state.promotion);
+      console.log("🎯 Received promotion from SmartShelf:", {
+        promotion: state.promotion,
+        product: state.product,
+        hasProductImage: !!state.product?.imageUrl,
+        productId: state.product?.productId,
+      });
       // Auto-create campaign from the promotion
       const createCampaignFromPromotion = async () => {
         try {
@@ -73,6 +78,7 @@ export default function MarketMate() {
               playbook: "Flash Sale",
               product_name: state.promotion.product_name,
               discount: `${state.promotion.suggested_discount_pct}% OFF`,
+              product_image_url: state.product?.imageUrl, // Include product image URL
             },
             status: "DRAFT",
             platform: "SHOPEE",
@@ -159,7 +165,10 @@ export default function MarketMate() {
             <h1 className="text-4xl font-bold mb-2 text-foreground">🎯 MarketMate</h1>
             <p className="text-muted-foreground">AI-powered marketing automation for your products</p>
           </div>
-          <AdGeneratorDialog />
+          <AdGeneratorDialog 
+            initialProductId={location.state?.product?.productId}
+            initialProductImageUrl={location.state?.product?.imageUrl}
+          />
         </div>
       </div>
 

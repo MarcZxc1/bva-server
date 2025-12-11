@@ -138,6 +138,47 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       
       console.log('✅ OAuth user set with role:', normalizedUser.role);
       
+      // Check if we're in BVA integration context (iframe)
+      const isInIframe = window.self !== window.top;
+      const isBVAIntegrationPage = window.location.pathname === '/bva-integration-check';
+      
+      if (isInIframe && isBVAIntegrationPage) {
+        // If in BVA integration iframe, send message to parent instead of redirecting
+        if (normalizedUser.role === 'SELLER' && normalizedUser.shops && normalizedUser.shops.length > 0) {
+          const shop = normalizedUser.shops[0];
+          const message = {
+            type: 'SHOPEE_CLONE_AUTH_SUCCESS',
+            shop: {
+              id: shop.id,
+              name: shop.name,
+            },
+            user: {
+              id: normalizedUser.id,
+              email: normalizedUser.email,
+              name: normalizedUser.name || normalizedUser.username,
+            },
+          };
+          
+          if (window.parent) {
+            window.parent.postMessage(message, '*');
+            console.log('✅ Sent shop info to BVA after OAuth:', message);
+          }
+        } else {
+          const message = {
+            type: 'SHOPEE_CLONE_AUTH_ERROR',
+            error: normalizedUser.role !== 'SELLER' 
+              ? 'User is not a seller. Please login with a seller account.'
+              : 'User does not have a shop. Please create a shop first.',
+          };
+          
+          if (window.parent) {
+            window.parent.postMessage(message, '*');
+          }
+        }
+        // Don't redirect in iframe context
+        return;
+      }
+      
       // Redirect based on role - SELLER goes to dashboard, BUYER goes to landing page
       if (normalizedUser.role === 'SELLER') {
         console.log('🚀 [OAuth] Redirecting SELLER to /dashboard');
@@ -244,6 +285,47 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       
       console.log('✅ Login successful, user role:', normalizedUser.role);
       
+      // Check if we're in BVA integration context (iframe)
+      const isInIframe = window.self !== window.top;
+      const isBVAIntegrationPage = window.location.pathname === '/bva-integration-check';
+      
+      if (isInIframe && isBVAIntegrationPage) {
+        // If in BVA integration iframe, send message to parent instead of redirecting
+        if (normalizedUser.role === 'SELLER' && normalizedUser.shops && normalizedUser.shops.length > 0) {
+          const shop = normalizedUser.shops[0];
+          const message = {
+            type: 'SHOPEE_CLONE_AUTH_SUCCESS',
+            shop: {
+              id: shop.id,
+              name: shop.name,
+            },
+            user: {
+              id: normalizedUser.id,
+              email: normalizedUser.email,
+              name: normalizedUser.name || normalizedUser.username,
+            },
+          };
+          
+          if (window.parent) {
+            window.parent.postMessage(message, '*');
+            console.log('✅ Sent shop info to BVA after login:', message);
+          }
+        } else {
+          const message = {
+            type: 'SHOPEE_CLONE_AUTH_ERROR',
+            error: normalizedUser.role !== 'SELLER' 
+              ? 'User is not a seller. Please login with a seller account.'
+              : 'User does not have a shop. Please create a shop first.',
+          };
+          
+          if (window.parent) {
+            window.parent.postMessage(message, '*');
+          }
+        }
+        // Don't redirect in iframe context
+        return;
+      }
+      
       // Redirect based on role - SELLER goes to dashboard, BUYER goes to landing page
       if (normalizedUser.role === 'SELLER') {
         console.log('🚀 [Login] Redirecting SELLER to /dashboard');
@@ -314,6 +396,47 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setUser(normalizedUser);
       
       console.log('✅ Registration successful, user role:', normalizedUser.role);
+      
+      // Check if we're in BVA integration context (iframe)
+      const isInIframe = window.self !== window.top;
+      const isBVAIntegrationPage = window.location.pathname === '/bva-integration-check';
+      
+      if (isInIframe && isBVAIntegrationPage) {
+        // If in BVA integration iframe, send message to parent instead of redirecting
+        if (normalizedUser.role === 'SELLER' && normalizedUser.shops && normalizedUser.shops.length > 0) {
+          const shop = normalizedUser.shops[0];
+          const message = {
+            type: 'SHOPEE_CLONE_AUTH_SUCCESS',
+            shop: {
+              id: shop.id,
+              name: shop.name,
+            },
+            user: {
+              id: normalizedUser.id,
+              email: normalizedUser.email,
+              name: normalizedUser.name || normalizedUser.username,
+            },
+          };
+          
+          if (window.parent) {
+            window.parent.postMessage(message, '*');
+            console.log('✅ Sent shop info to BVA after registration:', message);
+          }
+        } else {
+          const message = {
+            type: 'SHOPEE_CLONE_AUTH_ERROR',
+            error: normalizedUser.role !== 'SELLER' 
+              ? 'User is not a seller. Please register with a seller account.'
+              : 'User does not have a shop. Please create a shop first.',
+          };
+          
+          if (window.parent) {
+            window.parent.postMessage(message, '*');
+          }
+        }
+        // Don't redirect in iframe context
+        return;
+      }
       
       // Redirect based on role - SELLER goes to dashboard, BUYER goes to landing page
       if (normalizedUser.role === 'SELLER') {

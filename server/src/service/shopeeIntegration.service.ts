@@ -48,67 +48,146 @@ interface ShopeeApiResponse<T> {
 
 class ShopeeIntegrationService {
   /**
-   * Sync all data from Shopee-Clone for a user
-   * Uses JWT token for authentication (no API key needed)
+   * Sync all data from Shopee-Clone for a shop (READ-ONLY OPERATION)
+   * 
+   * IMPORTANT: This is a READ-ONLY operation. BVA ONLY READS from Shopee-Clone.
+   * - Fetches products from Shopee-Clone API (GET request only)
+   * - Fetches sales/orders from Shopee-Clone API (GET request only)
+   * - Saves fetched data to BVA database (local copy)
+   * - Does NOT create, update, or modify anything in Shopee-Clone
+   * 
+   * Purpose: Refresh BVA's local copy of Shopee-Clone data for real-time access.
+   * This allows Restock Planner, SmartShelf, and MarketMate to work with current data.
+   * 
+   * Uses JWT token for authentication (read-only access)
+   * @param shopId - The shop ID to sync data for (can be linked or owned)
+   * @param token - Shopee-Clone JWT token for authentication
    */
-  async syncAllData(userId: string, token: string): Promise<{ products: number; sales: number }> {
-    console.log(`🔄 Starting Shopee-Clone sync for user ${userId}`);
+  async syncAllData(shopId: string, token: string): Promise<{ products: number; sales: number }> {
+    console.log(`🔄 Starting Shopee-Clone sync (READ-ONLY) for shop ${shopId}`);
+    console.log(`📖 BVA is only READING from Shopee-Clone - no data will be written to Shopee-Clone`);
+    console.log(`🔑 Using token: ${token ? token.substring(0, 20) + '...' : 'NO TOKEN'}`);
 
-    // Get the user's shop
-    const shop = await prisma.shop.findFirst({
-      where: { ownerId: userId },
+    // Verify shop exists
+    const shop = await prisma.shop.findUnique({
+      where: { id: shopId },
     });
 
     if (!shop) {
-      throw new Error("User does not have a shop. Cannot sync data.");
+      throw new Error(`Shop ${shopId} not found. Cannot sync data.`);
     }
 
-    // Sync products and sales in parallel
+    console.log(`📦 Syncing data for shop: ${shop.name} (${shop.id})`);
+    console.log(`🌐 API URL: ${SHOPEE_CLONE_API_URL}`);
+
+    // Sync products and sales in parallel (both are read-only GET requests)
     const [productsCount, salesCount] = await Promise.all([
-      this.syncProducts(shop.id, token),
-      this.syncSales(shop.id, token),
+      this.syncProducts(shopId, token),
+      this.syncSales(shopId, token),
     ]);
 
     console.log(`✅ Shopee-Clone sync complete: ${productsCount} products, ${salesCount} sales`);
+    console.log(`📝 Data saved to BVA database only - Shopee-Clone was not modified`);
 
     return { products: productsCount, sales: salesCount };
   }
 
   /**
-   * Fetch and sync products from Shopee-Clone
-   * Uses JWT token for authentication
+   * Fetch and sync products from Shopee-Clone (READ-ONLY)
+   * This method ONLY READS from Shopee-Clone API and writes to BVA database.
+   * It does NOT write, create, or modify anything in Shopee-Clone.
+   * Purpose: Refresh/update BVA's local copy of Shopee-Clone product data.
+   * Uses JWT token for authentication (read-only access)
    */
   async syncProducts(shopId: string, token: string): Promise<number> {
     try {
       console.log(`📦 Syncing products for shop ${shopId}...`);
 
-      // Use external API endpoint for products (or regular products endpoint with auth)
-      const response = await fetch(`${SHOPEE_CLONE_API_URL}/api/products`, {
-        method: "GET",
+      let products: ShopeeProduct[] = [];
+
+      // Use shop-specific endpoint for products (READ-ONLY GET request)
+      // This ONLY reads from Shopee-Clone - does NOT modify Shopee-Clone
+      const response = await fetch(`${SHOPEE_CLONE_API_URL}/api/products/shop/${shopId}`, {
+        method: "GET", // READ-ONLY - no POST/PUT/PATCH/DELETE
         headers: {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${token}`,
         },
       });
 
-      if (!response.ok) {
-        console.warn(`⚠️ Failed to fetch products from Shopee-Clone: ${response.status}`);
-        return 0;
+      if (response.ok) {
+        const rawResult = await response.json();
+        console.log(`📦 Raw API response from Shopee-Clone:`, {
+          isArray: Array.isArray(rawResult),
+          hasSuccess: typeof rawResult === 'object' && 'success' in rawResult,
+          hasData: typeof rawResult === 'object' && 'data' in rawResult,
+          keys: typeof rawResult === 'object' ? Object.keys(rawResult) : [],
+        });
+        
+        const result: ShopeeApiResponse<ShopeeProduct[]> | ShopeeProduct[] = rawResult;
+        // Handle both response formats: { success, data } or direct array
+        if (Array.isArray(result)) {
+          products = result;
+        } else if (result && typeof result === 'object' && 'data' in result) {
+          products = (result as ShopeeApiResponse<ShopeeProduct[]>).data || [];
+        } else if (result && typeof result === 'object' && 'success' in result && 'data' in result) {
+          products = (result as ShopeeApiResponse<ShopeeProduct[]>).data || [];
+        } else {
+          console.warn(`⚠️ Unexpected response format from Shopee-Clone:`, typeof result);
+          products = [];
+        }
+        console.log(`✅ Fetched ${products.length} products from shop-specific endpoint`);
+      } else {
+        const errorText = await response.text();
+        console.warn(`⚠️ Failed to fetch products from shop endpoint: ${response.status} - ${errorText}`);
+        // Try fallback to general products endpoint
+        const fallbackResponse = await fetch(`${SHOPEE_CLONE_API_URL}/api/products`, {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`,
+          },
+        });
+        if (fallbackResponse.ok) {
+          const fallbackResult = await fallbackResponse.json();
+          products = Array.isArray(fallbackResult) 
+            ? fallbackResult 
+            : (fallbackResult as ShopeeApiResponse<ShopeeProduct[]>).data || [];
+          console.log(`✅ Fetched ${products.length} products from fallback endpoint`);
+        } else {
+          console.warn(`⚠️ Fallback also failed: ${fallbackResponse.status}`);
+          return 0;
+        }
       }
-
-      const result: ShopeeApiResponse<ShopeeProduct[]> | ShopeeProduct[] = await response.json();
-      
-      // Handle both response formats: { success, data } or direct array
-      const products: ShopeeProduct[] = Array.isArray(result) 
-        ? result 
-        : (result as ShopeeApiResponse<ShopeeProduct[]>).data || [];
 
       if (!products || products.length === 0) {
         console.log("📦 No products found in Shopee-Clone");
+        console.log(`⚠️  Shopee-Clone API returned empty products array for shop ${shopId}`);
+        console.log(`   This could mean:`);
+        console.log(`   1. Shopee-Clone has no products yet`);
+        console.log(`   2. The API endpoint is incorrect`);
+        console.log(`   3. The token doesn't have access to this shop's products`);
         return 0;
       }
 
+      console.log(`📦 Found ${products.length} products in Shopee-Clone to sync`);
+      console.log(`   Sample product:`, products[0] ? {
+        id: products[0].id,
+        name: products[0].name,
+        price: products[0].price,
+        stock: products[0].stock,
+      } : 'N/A');
+
       // Upsert each product
+      // DATA MAPPING: Shopee Product -> BVA Product Table
+      // - product.name -> Product.name (required for MarketMate, SmartShelf)
+      // - product.price -> Product.price (required for Restock Planner, MarketMate)
+      // - product.stock -> Product.stock (required for SmartShelf, Restock Planner)
+      // - product.image -> Product.imageUrl (required for MarketMate campaigns)
+      // - product.description -> Product.description (optional, for product details)
+      // - product.category -> Product.category (optional, for filtering)
+      // - product.cost -> Product.cost (required for profit calculation in Restock Planner)
+      // - product.id -> Product.externalId (links to Shopee-Clone)
       let syncedCount = 0;
       for (const product of products) {
         try {
@@ -132,13 +211,13 @@ class ShopeeIntegrationService {
                 id: existingByExternalId.id,
               },
               data: {
-                name: product.name,
+                name: product.name, // MarketMate, SmartShelf
                 description: product.description || null,
-                price: product.price,
-                cost: product.cost || null,
+                price: product.price, // Restock Planner, MarketMate
+                cost: product.cost || null, // Restock Planner profit calculation
                 category: product.category || null,
-                imageUrl: product.image || null,
-                stock: product.stock || 0,
+                imageUrl: product.image || null, // MarketMate campaigns
+                stock: product.stock || 0, // SmartShelf, Restock Planner
                 updatedAt: new Date(),
               },
             });
@@ -161,22 +240,23 @@ class ShopeeIntegrationService {
             finalSku = `${baseSku}-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
           }
 
-          // Create new product
+          // Create new product with complete data mapping
           await prisma.product.create({
             data: {
               shopId,
-              externalId: product.id,
+              externalId: product.id, // Link to Shopee-Clone
               sku: finalSku,
-              name: product.name,
+              name: product.name, // Required: MarketMate, SmartShelf
               description: product.description || null,
-              price: product.price,
-              cost: product.cost || null,
+              price: product.price, // Required: Restock Planner, MarketMate
+              cost: product.cost || null, // Required: Restock Planner profit calculation
               category: product.category || null,
-              imageUrl: product.image || null,
-              stock: product.stock || 0,
+              imageUrl: product.image || null, // Required: MarketMate campaigns
+              stock: product.stock || 0, // Required: SmartShelf, Restock Planner
             },
           });
           syncedCount++;
+          console.log(`✅ Created product: ${product.name} (Price: ${product.price}, Stock: ${product.stock})`);
         } catch (error: any) {
           // Handle specific Prisma errors
           if (error.code === 'P2002') {
@@ -220,7 +300,10 @@ class ShopeeIntegrationService {
         }
       }
 
-      console.log(`📦 Synced ${syncedCount}/${products.length} products`);
+      console.log(`📦 Synced ${syncedCount}/${products.length} products to BVA database`);
+      if (syncedCount === 0 && products.length > 0) {
+        console.warn(`⚠️  WARNING: ${products.length} products fetched but 0 synced. Check for errors above.`);
+      }
       return syncedCount;
     } catch (error) {
       console.error("❌ Error syncing products from Shopee-Clone:", error);
@@ -229,26 +312,32 @@ class ShopeeIntegrationService {
   }
 
   /**
-   * Fetch and sync sales/orders from Shopee-Clone
-   * Uses JWT token for authentication
+   * Fetch and sync sales/orders from Shopee-Clone (READ-ONLY)
+   * This method ONLY READS from Shopee-Clone API and writes to BVA database.
+   * It does NOT write, create, or modify anything in Shopee-Clone.
+   * Purpose: Refresh/update BVA's local copy of Shopee-Clone sales data.
+   * Uses JWT token for authentication (read-only access)
    */
   async syncSales(shopId: string, token: string): Promise<number> {
     try {
       console.log(`💰 Syncing sales for shop ${shopId}...`);
 
-      // Use seller orders endpoint with JWT token
+      // Use seller orders endpoint with JWT token - try shop-specific first
       const endpoints = [
-        `/api/orders/shop/${shopId}`,
-        "/api/orders",
-        "/api/seller/orders",
+        `/api/orders/seller/${shopId}`,  // Shop-specific seller orders
+        `/api/orders/shop/${shopId}`,    // Alternative shop endpoint
+        "/api/orders/my",                 // My orders (if token has user context)
+        "/api/orders",                    // General orders endpoint
       ];
 
       let orders: ShopeeOrder[] = [];
 
       for (const endpoint of endpoints) {
         try {
+          console.log(`💰 Trying endpoint: ${endpoint} (READ-ONLY)`);
+          // READ-ONLY GET request - does NOT modify Shopee-Clone
           const response = await fetch(`${SHOPEE_CLONE_API_URL}${endpoint}`, {
-            method: "GET",
+            method: "GET", // READ-ONLY - no POST/PUT/PATCH/DELETE
             headers: {
               "Content-Type": "application/json",
               "Authorization": `Bearer ${token}`,
@@ -257,13 +346,27 @@ class ShopeeIntegrationService {
 
           if (response.ok) {
             const result = await response.json();
-            orders = Array.isArray(result) ? result : result.data || [];
-            if (orders.length > 0) {
-              console.log(`💰 Found ${orders.length} orders at ${endpoint}`);
-              break;
+            // Handle both { success: true, data: [...] } and direct array formats
+            if (Array.isArray(result)) {
+              orders = result;
+            } else if (result.data && Array.isArray(result.data)) {
+              orders = result.data;
+            } else if (result.success && result.data && Array.isArray(result.data)) {
+              orders = result.data;
             }
+            
+            if (orders.length > 0) {
+              console.log(`✅ Found ${orders.length} orders at ${endpoint}`);
+              break;
+            } else {
+              console.log(`⚠️ Endpoint ${endpoint} returned empty array`);
+            }
+          } else {
+            const errorText = await response.text();
+            console.warn(`⚠️ Endpoint ${endpoint} failed: ${response.status} - ${errorText}`);
           }
-        } catch (error) {
+        } catch (error: any) {
+          console.warn(`⚠️ Error trying ${endpoint}:`, error.message);
           // Try next endpoint
           continue;
         }
@@ -344,6 +447,13 @@ class ShopeeIntegrationService {
           const randomOffset = Math.random() * timeRangeMs;
           const timeTraveledDate = new Date(thirtyDaysAgo.getTime() + randomOffset);
 
+          // DATA MAPPING: Shopee Order -> BVA Sale Table
+          // - order.items -> Sale.items (required for Restock Planner analysis)
+          // - order.total -> Sale.total, Sale.revenue (required for Reports, Dashboard)
+          // - calculated profit -> Sale.profit (required for Reports, Restock Planner)
+          // - order.status -> Sale.status (required for order tracking)
+          // - order.id -> Sale.externalId (links to Shopee-Clone)
+          // - timeTraveledDate -> Sale.createdAt (distributed for ML service historical data)
           await prisma.sale.upsert({
             where: {
               shopId_externalId: {
@@ -352,10 +462,10 @@ class ShopeeIntegrationService {
               },
             },
             update: {
-              items: items,
-              total,
-              revenue,
-              profit,
+              items: items, // Required: Restock Planner analyzes item sales
+              total, // Required: Reports, Dashboard
+              revenue, // Required: Reports, Dashboard
+              profit, // Required: Reports, Restock Planner profit optimization
               status: order.status || "completed",
               customerName: order.customerName || null,
               customerEmail: order.customerEmail || null,
@@ -363,13 +473,13 @@ class ShopeeIntegrationService {
             },
             create: {
               shopId,
-              externalId: order.id,
+              externalId: order.id, // Link to Shopee-Clone
               platform: "SHOPEE",
               platformOrderId: order.orderId || order.id,
-              items: items,
-              total,
-              revenue,
-              profit,
+              items: items, // Required: Restock Planner analyzes item sales
+              total, // Required: Reports, Dashboard
+              revenue, // Required: Reports, Dashboard
+              profit, // Required: Reports, Restock Planner profit optimization
               status: order.status || "completed",
               customerName: order.customerName || null,
               customerEmail: order.customerEmail || null,
@@ -378,12 +488,16 @@ class ShopeeIntegrationService {
             },
           });
           syncedCount++;
+          console.log(`✅ Synced sale: ${order.id} (Total: ${total}, Profit: ${profit.toFixed(2)})`);
         } catch (error) {
           console.error(`❌ Error syncing order ${order.id}:`, error);
         }
       }
 
-      console.log(`💰 Synced ${syncedCount}/${orders.length} sales`);
+      console.log(`💰 Synced ${syncedCount}/${orders.length} sales to BVA database`);
+      if (syncedCount === 0 && orders.length > 0) {
+        console.warn(`⚠️  WARNING: ${orders.length} orders fetched but 0 synced. Check for errors above.`);
+      }
       return syncedCount;
     } catch (error) {
       console.error("❌ Error syncing sales from Shopee-Clone:", error);
@@ -450,11 +564,13 @@ class ShopeeIntegrationService {
   }
 
   /**
-   * Trigger a manual sync for a user
+   * Trigger a manual sync for a shop
    * Uses JWT token for authentication
+   * @param shopId - The shop ID to sync data for
+   * @param token - Shopee-Clone JWT token for authentication
    */
-  async triggerSync(userId: string, token: string): Promise<{ products: number; sales: number }> {
-    return this.syncAllData(userId, token);
+  async triggerSync(shopId: string, token: string): Promise<{ products: number; sales: number }> {
+    return this.syncAllData(shopId, token);
   }
 }
 

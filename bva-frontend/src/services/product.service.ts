@@ -19,8 +19,21 @@ export interface Product {
 
 export const productService = {
   fetchProducts: async (shopId: string): Promise<Product[]> => {
-    // API client already unwraps the response, so it returns Product[] directly
-    const products = await apiClient.get<Product[]>(`/api/products/shop/${shopId}`);
-    return products || [];
+    if (!shopId) {
+      console.warn("⚠️ productService.fetchProducts: shopId is empty");
+      return [];
+    }
+    
+    try {
+      console.log(`📦 productService: Fetching products from /api/products/shop/${shopId}`);
+      // API client already unwraps the response, so it returns Product[] directly
+      const products = await apiClient.get<Product[]>(`/api/products/shop/${shopId}`);
+      console.log(`✅ productService: Received ${products?.length || 0} products`);
+      return products || [];
+    } catch (error: any) {
+      console.error(`❌ productService: Error fetching products:`, error);
+      console.error(`   Error details:`, error.message, error.response?.data);
+      throw error;
+    }
   },
 };

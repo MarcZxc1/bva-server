@@ -92,11 +92,13 @@ export class MLServiceClient {
   /**
    * MarketMate: Generate AI-powered ad image
    * Endpoint: POST /api/v1/ads/generate-image
+   * Uses product image as context if provided
    */
   async generateAdImage(request: {
     product_name: string;
     playbook: string;
     style?: string | undefined;
+    product_image_url?: string | undefined; // Optional: Product image URL to use as context
   }): Promise<{ image_url: string }> {
     return this.post("/api/v1/ads/generate-image", request);
   }

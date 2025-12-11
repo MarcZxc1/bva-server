@@ -9,44 +9,68 @@ import { useIntegration } from "@/hooks/useIntegration";
 import { useState, useMemo } from "react";
 import { apiClient } from "@/lib/api-client";
 import { Skeleton } from "@/components/ui/skeleton";
+import { integrationService } from "@/services/integration.service";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 
 export default function Dashboard() {
   const { user } = useAuth();
   const shopId = user?.shops?.[0]?.id;
   const hasShop = !!shopId;
-  const [isSyncing, setIsSyncing] = useState(false);
+  const queryClient = useQueryClient();
   
-  const { hasActiveIntegration, isLoading: isLoadingIntegration } = useIntegration();
-  const { data: atRiskData, isLoading: atRiskLoading, refetch: refetchAtRisk } = useAtRiskInventory(shopId || "", hasShop && hasActiveIntegration);
-  const { data: analyticsData, isLoading: analyticsLoading, refetch: refetchAnalytics } = useDashboardAnalytics(shopId || "", hasShop && hasActiveIntegration);
+  const { isPlatformConnected, isLoading: isLoadingIntegration, integrations } = useIntegration();
+  const { data: atRiskData, isLoading: atRiskLoading, refetch: refetchAtRisk } = useAtRiskInventory(shopId || "", hasShop && isPlatformConnected);
+  const { data: analyticsData, isLoading: analyticsLoading, refetch: refetchAnalytics } = useDashboardAnalytics(shopId || "", hasShop && isPlatformConnected);
   
   // Enable real-time updates
   const { isConnected } = useRealtimeDashboard({ 
     shopId: shopId || undefined, 
-    enabled: hasShop && hasActiveIntegration
+    enabled: hasShop && isPlatformConnected
   });
 
   const isLoading = (analyticsLoading || atRiskLoading || isLoadingIntegration) && hasShop;
 
+  // Sync integration mutation
+  const syncIntegrationMutation = useMutation({
+    mutationFn: (id: string) => integrationService.syncIntegration(id),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["dashboard-analytics"] });
+      queryClient.invalidateQueries({ queryKey: ["at-risk-inventory"] });
+      queryClient.invalidateQueries({ queryKey: ["products"] });
+      queryClient.invalidateQueries({ queryKey: ["sales"] });
+      // Handle both wrapped and unwrapped response formats
+      const products = data?.data?.products ?? data?.products ?? 0;
+      const sales = data?.data?.sales ?? data?.sales ?? 0;
+      if (products > 0 || sales > 0) {
+        toast.success(`Sync completed! ${products} products, ${sales} sales synced.`);
+      } else {
+        toast.success("Sync completed successfully!");
+      }
+      // Refetch dashboard data
+      refetchAtRisk();
+      refetchAnalytics();
+    },
+    onError: (error: any) => {
+      toast.error(error.message || "Failed to sync integration");
+    },
+  });
+
   // Handle data sync from Shopee-Clone
   const handleSyncData = async () => {
-    if (!user?.shops?.[0]?.id) return;
+    if (!shopId) return;
     
-    setIsSyncing(true);
+    // Find the Shopee integration
+    const shopeeIntegration = integrations?.find(i => i.platform === "SHOPEE");
+    if (!shopeeIntegration) {
+      toast.error("No Shopee integration found. Please connect Shopee-Clone first.");
+      return;
+    }
+    
     try {
-      // Refresh local data first
-      await Promise.all([
-        refetchAtRisk(),
-        refetchAnalytics(),
-      ]);
-      
-      // Note: Full sync from Shopee-Clone requires API key and happens via SSO login
-      // This button refreshes the current data. For full sync, use SSO login.
-      console.log("Data refreshed. For full Shopee-Clone sync, use SSO login.");
+      await syncIntegrationMutation.mutateAsync(shopeeIntegration.id);
     } catch (error) {
-      console.error("Error refreshing data:", error);
-    } finally {
-      setIsSyncing(false);
+      console.error("Error syncing data:", error);
     }
   };
 
@@ -169,7 +193,7 @@ export default function Dashboard() {
 
   // Check for empty states
   const hasNoShop = !hasShop;
-  const hasNoIntegration = !hasActiveIntegration;
+  const hasNoIntegration = !isPlatformConnected;
   const hasNoSalesData = !salesData || salesData.length === 0;
   const hasNoInventory = !atRiskData?.at_risk || atRiskData.at_risk.length === 0;
 
@@ -289,7 +313,7 @@ export default function Dashboard() {
       )}
 
       {/* Key Metrics - Only show if integration is active */}
-      {!isLoadingIntegration && hasActiveIntegration && (
+      {!isLoadingIntegration && isPlatformConnected && (
         <>
           {isLoading ? (
             <div className="space-y-4">
@@ -539,11 +563,11 @@ export default function Dashboard() {
               <div className="pt-2">
                 <Button
                   onClick={handleSyncData}
-                  disabled={isSyncing}
+                  disabled={syncIntegrationMutation.isPending}
                   className="gap-2 bg-primary hover:bg-primary/90"
                 >
-                  <RefreshCw className={`h-4 w-4 ${isSyncing ? 'animate-spin' : ''}`} />
-                  {isSyncing ? "Refreshing..." : "Sync Data from Shopee-Clone"}
+                  <RefreshCw className={`h-4 w-4 ${syncIntegrationMutation.isPending ? 'animate-spin' : ''}`} />
+                  {syncIntegrationMutation.isPending ? "Syncing..." : "Sync Data from Shopee-Clone"}
                 </Button>
               </div>
               </div>

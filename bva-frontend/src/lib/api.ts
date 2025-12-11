@@ -231,3 +231,21 @@ export const socialMediaApi = {
   },
 };
 
+// Shop Access API
+export const shopAccessApi = {
+  linkShop: async (shopId: string): Promise<{ shop: { id: string; name: string; platform: string } }> => {
+    // apiClient.post unwraps { success: true, data: {...} } to just {...}
+    // So we get { shop: {...} } directly
+    const response = await apiClient.post<{ shop: { id: string; name: string; platform: string } }>("/api/shops/link", { shopId });
+    return response;
+  },
+  
+  getLinkedShops: async (): Promise<Array<{ id: string; name: string; platform: string }>> => {
+    return apiClient.get<Array<{ id: string; name: string; platform: string }>>("/api/shops/linked");
+  },
+  
+  unlinkShop: async (shopId: string): Promise<void> => {
+    return apiClient.delete(`/api/shops/link/${shopId}`);
+  },
+};
+

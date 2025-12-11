@@ -131,8 +131,20 @@ model Shop {
   Product     Product[]
   Sale        Sale[]
   User        User          @relation(fields: [ownerId], references: [id])
+  ShopAccess  ShopAccess[]
 
   @@unique([ownerId, platform])
+}
+
+model ShopAccess {
+  id        String   @id @default(uuid())
+  userId    String
+  shopId    String
+  createdAt DateTime @default(now())
+  User      User     @relation(fields: [userId], references: [id])
+  Shop      Shop     @relation(fields: [shopId], references: [id])
+
+  @@unique([userId, shopId])
 }
 
 model SocialMediaAccount {
@@ -168,6 +180,7 @@ model User {
   Notification       Notification[]
   Shop               Shop[]
   SocialMediaAccount SocialMediaAccount[]
+  ShopAccess         ShopAccess[]
 
   @@unique([email, platform])
 }

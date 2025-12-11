@@ -216,15 +216,24 @@ export default function SmartShelf() {
   };
 
   const handleUsePromotion = (promotion: any) => {
+    // Find the product to get its image
+    const product = products?.find(p => p.id === actionItem?.product_id);
+    const productImageUrl = product?.imageUrl || null;
+    
     // Navigate to MarketMate with promotion data (route is /ads, not /marketmate)
     console.log("🎯 Navigating to MarketMate with promotion:", {
       promotion,
-      product: actionItem
+      product: actionItem,
+      productImageUrl: productImageUrl ? productImageUrl.substring(0, 50) + '...' : 'none'
     });
     navigate("/ads", { 
       state: { 
         promotion,
-        product: actionItem 
+        product: {
+          ...actionItem,
+          imageUrl: productImageUrl, // Include product image URL
+          productId: actionItem?.product_id, // Include product ID for image generation
+        }
       } 
     });
     setShowPromotionsModal(false);

@@ -34,6 +34,13 @@ export function useIntegration() {
     return settings?.termsAccepted === true && settings?.isActive !== false;
   }) || false;
 
+  // Check if user has linked shops (for BVA users linking Shopee-Clone shops)
+  // This checks if user has any shops (owned or linked)
+  const hasLinkedShops = hasShop;
+
+  // Platform is connected if there's an active integration OR linked shops
+  const isPlatformConnected = hasActiveIntegration || hasLinkedShops;
+
   const activeIntegration = integrations?.find((integration) => {
     const settings = integration.settings as any;
     return settings?.termsAccepted === true && settings?.isActive !== false;
@@ -42,6 +49,7 @@ export function useIntegration() {
   return {
     integrations: integrations || [],
     hasActiveIntegration,
+    isPlatformConnected, // True if integration exists OR linked shops exist
     activeIntegration,
     isLoading,
     error,

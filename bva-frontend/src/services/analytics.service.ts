@@ -91,17 +91,31 @@ export interface PromotionResponse {
 
 export const analyticsService = {
   getDashboardStats: async (shopId: string): Promise<DashboardResponse> => {
-    const response = await apiClient.get<DashboardResponse>(`/api/smart-shelf/${shopId}/dashboard`);
-    console.log("📊 Raw dashboard response from API:", {
-      hasResponse: !!response,
-      hasForecast: !!response?.forecast,
-      forecastType: typeof response?.forecast,
-      forecastValue: response?.forecast,
-      forecastKeys: response?.forecast ? Object.keys(response.forecast) : [],
-      forecastsArray: response?.forecast?.forecasts,
-      forecastsLength: response?.forecast?.forecasts?.length || 0
-    });
-    return response;
+    console.log(`📊 Fetching dashboard stats for shop ${shopId}...`);
+    try {
+      const response = await apiClient.get<DashboardResponse>(`/api/smart-shelf/${shopId}/dashboard`);
+      console.log("📊 Raw dashboard response from API:", {
+        hasResponse: !!response,
+        hasMetrics: !!response?.metrics,
+        hasForecast: !!response?.forecast,
+        forecastType: typeof response?.forecast,
+        forecastValue: response?.forecast,
+        forecastKeys: response?.forecast ? Object.keys(response.forecast) : [],
+        forecastsArray: response?.forecast?.forecasts,
+        forecastsLength: response?.forecast?.forecasts?.length || 0,
+        metrics: response?.metrics ? {
+          totalRevenue: response.metrics.totalRevenue,
+          totalProfit: response.metrics.totalProfit,
+          totalProducts: response.metrics.totalProducts,
+          totalSales: response.metrics.totalSales,
+        } : null,
+      });
+      return response;
+    } catch (error: any) {
+      console.error("❌ Error fetching dashboard stats:", error);
+      console.error("   Error details:", error.message, error.response?.data);
+      throw error;
+    }
   },
 
   getAtRiskInventory: async (shopId: string): Promise<AtRiskResponse> => {

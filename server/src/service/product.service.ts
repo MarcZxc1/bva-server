@@ -56,11 +56,14 @@ export async function getProductsByShop(shopId: string) {
   const integrationPlatforms = integrations.map(integration => integration.platform);
 
   // Get ALL products for the shop (both synced from integrations and locally created)
-  // This allows shopee-clone sellers to see all their products
+  // This allows BVA to display all products for the shop
+  // Products with externalId are synced from Shopee-Clone
+  // Products without externalId are created directly in BVA
   const products = await prisma.product.findMany({
     where: { 
       shopId,
       // No filter - show all products regardless of externalId
+      // This ensures BVA frontend can see all products
     },
     include: {
       Inventory: {

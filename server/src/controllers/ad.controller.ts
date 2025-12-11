@@ -134,7 +134,7 @@ export class AdController {
    */
   public async generateAdImage(req: Request, res: Response): Promise<void> {
     try {
-      const { product_name, productId, playbook, style } = req.body;
+      const { product_name, productId, product_image_url, playbook, style } = req.body;
       
       if (!product_name || !playbook) {
         res.status(400).json({ 
@@ -146,32 +146,40 @@ export class AdController {
 
       // If productId is provided, fetch real product details from database
       let productName = product_name;
+      let productImageUrl = product_image_url; // Use provided image URL or fetch from DB
       
       if (productId) {
         try {
           const user = (req as any).user;
           if (user && user.userId) {
-            const shop = await prisma.shop.findFirst({
-              where: { ownerId: user.userId },
-              select: { id: true },
-            });
+            // Get shopId from request helper (handles both owned and linked shops)
+            const { getShopIdFromRequest } = await import("../utils/requestHelpers");
+            const shopId = await getShopIdFromRequest(req);
 
-            if (shop) {
+            if (shopId) {
               const product = await prisma.product.findFirst({
                 where: {
                   id: productId,
-                  shopId: shop.id,
+                  shopId: shopId,
                 },
                 select: {
                   name: true,
                   description: true,
                   category: true,
+                  imageUrl: true, // Fetch product image URL
                 },
               });
 
               if (product) {
                 productName = product.name || product_name;
-                console.log(`✅ Fetched product details for image generation: ${product.name}`);
+                // Use product image from DB if not provided in request
+                if (!productImageUrl && product.imageUrl) {
+                  productImageUrl = product.imageUrl;
+                }
+                console.log(`✅ Fetched product details for image generation: ${product.name}`, {
+                  hasImage: !!product.imageUrl,
+                  imageUrl: product.imageUrl ? product.imageUrl.substring(0, 50) + '...' : 'none'
+                });
               }
             }
           }
@@ -182,7 +190,12 @@ export class AdController {
       }
       
       // Generate image via service (forwarded to ML service)
-      const result = await adService.generateAdImage({ 
+      const result = await adService.generateAdImage({
+        product_name: productName,
+        playbook,
+        style,
+        product_image_url: productImageUrl, // Pass product image URL to ML service
+      });({ 
         product_name: productName, 
         playbook, 
         style 

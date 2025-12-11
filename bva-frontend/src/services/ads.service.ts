@@ -15,6 +15,8 @@ export interface GenerateAdImageRequest {
   product_name: string;
   playbook: string;
   style?: string;
+  productId?: string; // Optional: If provided, backend will fetch product image
+  product_image_url?: string; // Optional: Direct product image URL to use as context
 }
 
 export interface GenerateAdImageResponse {

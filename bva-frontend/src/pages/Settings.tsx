@@ -12,7 +12,9 @@ import { userApi } from "@/lib/api";
 import { toast } from "sonner";
 import { integrationService, Integration } from "@/services/integration.service";
 import { IntegrationAgreementDialog } from "@/components/IntegrationAgreementDialog";
+import { ShopeeCloneIntegrationModal } from "@/components/ShopeeCloneIntegrationModal";
 import { Skeleton } from "@/components/ui/skeleton";
+import { shopAccessApi } from "@/lib/api";
 
 export default function Settings() {
   const { user } = useAuth();
@@ -35,6 +37,7 @@ export default function Settings() {
 
   // Integration State
   const [showAgreementDialog, setShowAgreementDialog] = useState(false);
+  const [showShopeeModal, setShowShopeeModal] = useState(false);
   const [selectedPlatform, setSelectedPlatform] = useState<"SHOPEE" | "LAZADA" | "TIKTOK" | "OTHER">("SHOPEE");
 
   // Password Form State
@@ -166,7 +169,16 @@ export default function Settings() {
     mutationFn: (id: string) => integrationService.syncIntegration(id),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["integrations"] });
-      toast.success(`Sync completed! ${data.data.products} products, ${data.data.sales} sales synced.`);
+      // Handle both wrapped and unwrapped response formats
+      // apiClient.post unwraps { success: true, data: {...} } to just {...}
+      // So data might be { products, sales } directly or { data: { products, sales } }
+      const products = data?.data?.products ?? data?.products ?? 0;
+      const sales = data?.data?.sales ?? data?.sales ?? 0;
+      if (products > 0 || sales > 0) {
+        toast.success(`Sync completed! ${products} products, ${sales} sales synced.`);
+      } else {
+        toast.success("Sync completed successfully!");
+      }
     },
     onError: (error: any) => {
       toast.error(error.message || "Failed to sync integration");
@@ -201,13 +213,107 @@ export default function Settings() {
 
   const handleConnectIntegration = (platform: "SHOPEE" | "LAZADA" | "TIKTOK" | "OTHER") => {
     setSelectedPlatform(platform);
-    setShowAgreementDialog(true);
+    if (platform === "SHOPEE") {
+      setShowShopeeModal(true);
+    } else {
+      setShowAgreementDialog(true);
+    }
   };
 
   const handleAgreeToIntegration = async () => {
     await createIntegrationMutation.mutateAsync({
       platform: selectedPlatform,
     });
+  };
+
+  const handleShopeeConnect = async (shopId: string, shopName: string, shopeeToken: string) => {
+    try {
+      // First, link the shop
+      console.log(`🔗 Linking shop ${shopId} (${shopName})...`);
+      const linkResult = await shopAccessApi.linkShop(shopId);
+      console.log(`✅ Shop linked successfully:`, linkResult);
+      
+      if (!linkResult || !linkResult.shop) {
+        throw new Error("Failed to link shop: Invalid response from server");
+      }
+      
+      // Refresh user data to get updated shops list
+      if (refreshUser) {
+        await refreshUser();
+      }
+      
+      // Wait a bit to ensure the backend has processed the link
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Then, create the integration with Shopee-Clone token
+      console.log(`🔗 Creating SHOPEE integration with token...`);
+      try {
+        await createIntegrationMutation.mutateAsync({
+          platform: "SHOPEE",
+          shopeeToken: shopeeToken, // Pass the Shopee-Clone token
+        });
+        console.log(`✅ Integration created successfully`);
+      } catch (error: any) {
+        // Handle 409 Conflict - Integration already exists
+        if (error.response?.status === 409 || error.message?.includes("already exists")) {
+          console.log(`ℹ️ Integration already exists, treating as success...`);
+          toast.success("Integration already active. Refreshing data...");
+          
+          // Get existing integration and proceed to sync
+          const integrations = await integrationService.getIntegrations();
+          const shopeeIntegration = integrations.find(i => i.platform === "SHOPEE");
+          
+          if (shopeeIntegration) {
+            console.log(`🔄 Syncing existing integration data...`);
+            await syncIntegrationMutation.mutateAsync(shopeeIntegration.id);
+            console.log(`✅ Integration synced successfully`);
+            return; // Exit early, sync is complete
+          } else {
+            // If we can't find it, try to create again (might have been created between calls)
+            console.log(`⚠️ Integration not found, retrying creation...`);
+            await createIntegrationMutation.mutateAsync({
+              platform: "SHOPEE",
+              shopeeToken: shopeeToken,
+            });
+          }
+        } else {
+          // Re-throw other errors
+          throw error;
+        }
+      }
+
+      // Sync the integration to fetch seller data
+      const integrations = await integrationService.getIntegrations();
+      const shopeeIntegration = integrations.find(i => i.platform === "SHOPEE");
+      if (shopeeIntegration) {
+        console.log(`🔄 Syncing integration data...`);
+        await syncIntegrationMutation.mutateAsync(shopeeIntegration.id);
+        console.log(`✅ Integration synced successfully`);
+      } else {
+        console.warn(`⚠️ Shopee integration not found after creation`);
+        toast.warning("Integration created but not found. Please refresh the page.");
+      }
+    } catch (error: any) {
+      console.error(`❌ Error in handleShopeeConnect:`, error);
+      
+      // Enhanced error handling for 409
+      if (error.response?.status === 409) {
+        toast.success("Integration already active. Refreshing data...");
+        // Try to sync anyway
+        try {
+          const integrations = await integrationService.getIntegrations();
+          const shopeeIntegration = integrations.find(i => i.platform === "SHOPEE");
+          if (shopeeIntegration) {
+            await syncIntegrationMutation.mutateAsync(shopeeIntegration.id);
+          }
+        } catch (syncError) {
+          console.error("Failed to sync after 409:", syncError);
+        }
+        return; // Don't throw, treat as success
+      }
+      
+      throw error;
+    }
   };
 
   const getPlatformName = (platform: string) => {
@@ -525,6 +631,13 @@ export default function Settings() {
         onOpenChange={setShowAgreementDialog}
         platform={selectedPlatform}
         onAgree={handleAgreeToIntegration}
+      />
+
+      {/* Shopee-Clone Integration Modal */}
+      <ShopeeCloneIntegrationModal
+        open={showShopeeModal}
+        onOpenChange={setShowShopeeModal}
+        onConnect={handleShopeeConnect}
       />
     </div>
   );
