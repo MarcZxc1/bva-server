@@ -13,10 +13,12 @@ const ALLOWED_FRONTENDS = [
   "http://localhost:5173", // Shopee Clone
   "http://localhost:5174", // TikTok Seller Clone (Vite default alternate port)
   "http://localhost:5175", // TikTok Seller Clone (if 5174 is taken)
+  "http://localhost:3001", // Lazada Clone (Next.js)
   "http://localhost:8080", // BVA Frontend
   "https://bva-frontend.vercel.app",
   "https://shopee-clone.vercel.app",
-  "https://tiktokseller-clone.vercel.app" // TikTok Seller Clone production
+  "https://tiktokseller-clone.vercel.app", // TikTok Seller Clone production
+  "https://lazada-clone.vercel.app" // Lazada Clone production
 ];
 
 // Get frontend URL from environment or default
@@ -84,7 +86,10 @@ router.get("/google", (req: Request, res: Response, next) => {
     
     const isShopeeClone = redirectUrl.includes('5173') || redirectUrl.includes('shopee') || redirectUrl.includes('localhost:5173');
     const isTikTokSellerClone = redirectUrl.includes('5174') || redirectUrl.includes('5175') || redirectUrl.includes('tiktokseller') || redirectUrl.includes('tiktok');
-    const errorPath = (role === 'SELLER' ? (isShopeeClone ? '/login' : isTikTokSellerClone ? '/login' : '/login') : (isShopeeClone ? '/buyer-login' : '/login'));
+    const isLazadaClone = redirectUrl.includes('3001') || redirectUrl.includes('lazada') || redirectUrl.includes('localhost:3001');
+    const errorPath = (role === 'SELLER' 
+      ? (isShopeeClone ? '/login' : isTikTokSellerClone ? '/login' : isLazadaClone ? '/seller-login' : '/login') 
+      : (isShopeeClone ? '/buyer-login' : isLazadaClone ? '/login' : '/login'));
     return res.redirect(`${redirectUrl}${errorPath}?error=google_auth_failed&details=${encodeURIComponent('Google OAuth is not configured on the server')}`);
   }
   
@@ -108,6 +113,8 @@ router.get("/google", (req: Request, res: Response, next) => {
         stateData.platform = 'SHOPEE_CLONE';
       } else if (stateData.redirectUrl.includes('5174') || stateData.redirectUrl.includes('5175') || stateData.redirectUrl.includes('tiktokseller')) {
         stateData.platform = 'TIKTOK_CLONE';
+      } else if (stateData.redirectUrl.includes('3001') || stateData.redirectUrl.includes('lazada')) {
+        stateData.platform = 'LAZADA_CLONE';
       } else {
         stateData.platform = 'BVA';
       }
@@ -120,6 +127,8 @@ router.get("/google", (req: Request, res: Response, next) => {
       stateData.platform = 'SHOPEE_CLONE';
     } else if (stateData.redirectUrl.includes('5174') || stateData.redirectUrl.includes('5175') || stateData.redirectUrl.includes('tiktokseller')) {
       stateData.platform = 'TIKTOK_CLONE';
+    } else if (stateData.redirectUrl.includes('3001') || stateData.redirectUrl.includes('lazada')) {
+      stateData.platform = 'LAZADA_CLONE';
     } else {
       stateData.platform = 'BVA';
     }
@@ -141,9 +150,10 @@ router.get("/google", (req: Request, res: Response, next) => {
     console.error("❌ Google OAuth strategy not found. Make sure GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET are set.");
     const isShopeeClone = stateData.redirectUrl.includes('5173') || stateData.redirectUrl.includes('shopee') || stateData.redirectUrl.includes('localhost:5173');
     const isTikTokSellerClone = stateData.redirectUrl.includes('5174') || stateData.redirectUrl.includes('5175') || stateData.redirectUrl.includes('tiktokseller') || stateData.redirectUrl.includes('tiktok');
+    const isLazadaClone = stateData.redirectUrl.includes('3001') || stateData.redirectUrl.includes('lazada') || stateData.redirectUrl.includes('localhost:3001');
     const errorPath = stateData.role === 'SELLER' 
-      ? (isShopeeClone ? '/login' : isTikTokSellerClone ? '/login' : '/login')
-      : (isShopeeClone ? '/buyer-login' : '/login');
+      ? (isShopeeClone ? '/login' : isTikTokSellerClone ? '/login' : isLazadaClone ? '/seller-login' : '/login')
+      : (isShopeeClone ? '/buyer-login' : isLazadaClone ? '/login' : '/login');
     return res.redirect(`${stateData.redirectUrl}${errorPath}?error=google_auth_failed&details=${encodeURIComponent('Google OAuth strategy not configured')}`);
   }
 
@@ -175,10 +185,11 @@ router.get("/google/callback", (req, res, next) => {
   // Extract state and validate it
   const state = req.query.state as string;
   // Default to TikTok seller clone (port 5174) for TikTok clone requests
-  // Check referer first to detect TikTok clone
+  // Check referer first to detect TikTok clone or Lazada clone
   const referer = req.get('referer') || '';
   const isTikTokReferer = referer.includes('5174') || referer.includes('5175') || referer.includes('tiktokseller') || referer.includes('tiktok');
-  let redirectUrl = isTikTokReferer ? 'http://localhost:5174' : FRONTEND_URL;
+  const isLazadaReferer = referer.includes('3001') || referer.includes('lazada');
+  let redirectUrl = isTikTokReferer ? 'http://localhost:5174' : isLazadaReferer ? 'http://localhost:3001' : FRONTEND_URL;
   let role: string = 'BUYER';
   let platform: string = 'BVA'; // Initialize platform variable
   let decodedState: { redirectUrl: string; role?: string; platform?: string } | null = null;
@@ -193,6 +204,7 @@ router.get("/google/callback", (req, res, next) => {
           const requestedUrl = decodedState.redirectUrl;
           const isShopeeCloneRequest = requestedUrl.includes('5173') || requestedUrl.includes('shopee') || requestedUrl.includes('localhost:5173');
           const isTikTokSellerCloneRequest = requestedUrl.includes('5174') || requestedUrl.includes('5175') || requestedUrl.includes('tiktokseller') || requestedUrl.includes('tiktok') && requestedUrl.includes('seller');
+          const isLazadaCloneRequest = requestedUrl.includes('3001') || requestedUrl.includes('lazada') || requestedUrl.includes('localhost:3001');
           
           // Extract base URL (without path) for validation
           let baseUrl: string;
@@ -221,6 +233,9 @@ router.get("/google/callback", (req, res, next) => {
               } else {
                 redirectUrl = 'http://localhost:5174'; // Default to 5174
               }
+            } else if (isLazadaCloneRequest) {
+              // If request came from lazada-clone, ensure we redirect back to lazada-clone
+              redirectUrl = baseUrl.includes('3001') ? baseUrl : 'http://localhost:3001';
             } else {
               redirectUrl = baseUrl;
             }
@@ -233,10 +248,16 @@ router.get("/google/callback", (req, res, next) => {
               // ALWAYS default to tiktokseller-clone port 5174
               redirectUrl = 'http://localhost:5174';
               console.log(`🔧 TikTok clone request detected, forcing redirectUrl to port 5174: ${redirectUrl}`);
+            } else if (isLazadaCloneRequest) {
+              redirectUrl = 'http://localhost:3001';
+              console.log(`🔧 Lazada clone request detected, forcing redirectUrl to port 3001: ${redirectUrl}`);
             } else if (platform === 'TIKTOK_CLONE') {
               // If platform is TIKTOK_CLONE, force port 5174
               redirectUrl = 'http://localhost:5174';
               console.log(`🔧 Platform TIKTOK_CLONE detected, forcing redirectUrl to port 5174: ${redirectUrl}`);
+            } else if (platform === 'LAZADA_CLONE') {
+              redirectUrl = 'http://localhost:3001';
+              console.log(`🔧 Platform LAZADA_CLONE detected, forcing redirectUrl to port 3001: ${redirectUrl}`);
             }
           }
         }
@@ -250,6 +271,11 @@ router.get("/google/callback", (req, res, next) => {
             redirectUrl = 'http://localhost:5174';
             console.log(`🔧 Platform TIKTOK_CLONE detected, setting redirectUrl to port 5174: ${redirectUrl}`);
           }
+          // If platform is LAZADA_CLONE, ensure redirectUrl is port 3001
+          if (platform === 'LAZADA_CLONE' && !redirectUrl.includes('3001') && !redirectUrl.includes('lazada-clone.vercel.app')) {
+            redirectUrl = 'http://localhost:3001';
+            console.log(`🔧 Platform LAZADA_CLONE detected, setting redirectUrl to port 3001: ${redirectUrl}`);
+          }
         }
       }
     }
@@ -261,9 +287,13 @@ router.get("/google/callback", (req, res, next) => {
       redirectUrl = 'http://localhost:5173';
     } else if (referer.includes('5174') || referer.includes('5175') || referer.includes('tiktokseller') || referer.includes('tiktok')) {
       redirectUrl = referer.includes('5175') ? 'http://localhost:5175' : 'http://localhost:5174';
+    } else if (referer.includes('3001') || referer.includes('lazada')) {
+      redirectUrl = 'http://localhost:3001';
     } else if (platform === 'TIKTOK_CLONE') {
       // If platform is explicitly TIKTOK_CLONE, always use port 5174
       redirectUrl = 'http://localhost:5174';
+    } else if (platform === 'LAZADA_CLONE') {
+      redirectUrl = 'http://localhost:3001';
     } else {
       // Default to shopee-clone (port 5173) instead of bva-frontend
       redirectUrl = FRONTEND_URL.includes('5173') ? FRONTEND_URL : 'http://localhost:5173';
@@ -274,9 +304,10 @@ router.get("/google/callback", (req, res, next) => {
   // IMPORTANT: Frontend users should NEVER redirect to wrong frontend
   const isShopeeClone = redirectUrl.includes('5173') || redirectUrl.includes('shopee') || redirectUrl.includes('localhost:5173');
   const isTikTokSellerClone = redirectUrl.includes('5174') || redirectUrl.includes('5175') || redirectUrl.includes('tiktokseller') || redirectUrl.includes('tiktok');
+  const isLazadaClone = redirectUrl.includes('3001') || redirectUrl.includes('lazada') || redirectUrl.includes('localhost:3001');
   const failurePath = role === 'SELLER' 
-    ? (isShopeeClone ? '/login' : isTikTokSellerClone ? '/login' : '/login?error=google_auth_failed')
-    : (isShopeeClone ? '/buyer-login' : '/login?error=google_auth_failed');
+    ? (isShopeeClone ? '/login' : isTikTokSellerClone ? '/login' : isLazadaClone ? '/seller-login' : '/login?error=google_auth_failed')
+    : (isShopeeClone ? '/buyer-login' : isLazadaClone ? '/login' : '/login?error=google_auth_failed');
   const failureRedirect = `${redirectUrl}${failurePath}`;
 
   passport.authenticate("google", {
@@ -294,9 +325,10 @@ router.get("/google/callback", (req, res, next) => {
       // IMPORTANT: Frontend users should NEVER redirect to wrong frontend
       const isShopeeClone = redirectUrl.includes('5173') || redirectUrl.includes('shopee') || redirectUrl.includes('localhost:5173');
       const isTikTokSellerClone = redirectUrl.includes('5174') || redirectUrl.includes('5175') || redirectUrl.includes('tiktokseller') || redirectUrl.includes('tiktok');
+      const isLazadaClone = redirectUrl.includes('3001') || redirectUrl.includes('lazada') || redirectUrl.includes('localhost:3001');
       const errorPath = role === 'SELLER' 
-        ? (isShopeeClone ? '/login' : isTikTokSellerClone ? '/login' : '/login')
-        : (isShopeeClone ? '/buyer-login' : '/login');
+        ? (isShopeeClone ? '/login' : isTikTokSellerClone ? '/login' : isLazadaClone ? '/seller-login' : '/login')
+        : (isShopeeClone ? '/buyer-login' : isLazadaClone ? '/login' : '/login');
       const errorMessage = err.message || err.toString() || 'Authentication failed';
       console.error(`Redirecting to error page: ${redirectUrl}${errorPath}?error=google_auth_failed&details=${encodeURIComponent(errorMessage)}`);
       return res.redirect(`${redirectUrl}${errorPath}?error=google_auth_failed&details=${encodeURIComponent(errorMessage)}`);
@@ -307,9 +339,10 @@ router.get("/google/callback", (req, res, next) => {
       console.error("❌ Google OAuth: No user in request after authentication");
       const isShopeeClone = redirectUrl.includes('5173') || redirectUrl.includes('shopee') || redirectUrl.includes('localhost:5173');
       const isTikTokSellerClone = redirectUrl.includes('5174') || redirectUrl.includes('5175') || redirectUrl.includes('tiktokseller') || redirectUrl.includes('tiktok');
+      const isLazadaClone = redirectUrl.includes('3001') || redirectUrl.includes('lazada') || redirectUrl.includes('localhost:3001');
       const errorPath = role === 'SELLER' 
-        ? (isShopeeClone ? '/login' : isTikTokSellerClone ? '/login' : '/login')
-        : (isShopeeClone ? '/buyer-login' : '/login');
+        ? (isShopeeClone ? '/login' : isTikTokSellerClone ? '/login' : isLazadaClone ? '/seller-login' : '/login')
+        : (isShopeeClone ? '/buyer-login' : isLazadaClone ? '/login' : '/login');
       return res.redirect(`${redirectUrl}${errorPath}?error=google_auth_failed&details=${encodeURIComponent('No user returned from Google OAuth')}`);
     }
     
@@ -482,6 +515,14 @@ router.get("/google/callback", (req, res, next) => {
           destination = '/?token=' + token;
         }
         console.log(`✅ Google OAuth success (Shopee-Clone) - Redirecting ${platformUser.role} to: ${redirectUrl}${destination}`);
+      } else if (isLazadaClone) {
+        // Lazada clone: redirect based on role
+        if (platformUser.role === 'SELLER') {
+          destination = '/seller-login?token=' + token;
+        } else {
+          destination = '/?token=' + token;
+        }
+        console.log(`✅ Google OAuth success (Lazada-Clone) - Redirecting ${platformUser.role} to: ${redirectUrl}${destination}`);
       } else if (isTikTokSellerClone || platform === 'TIKTOK_CLONE') {
         // TikTok Seller Clone: ALWAYS use port 5174, ALWAYS redirect to seller dashboard
         // Force redirectUrl to port 5174 to prevent redirecting to wrong port
@@ -506,9 +547,10 @@ router.get("/google/callback", (req, res, next) => {
       // IMPORTANT: Frontend users should NEVER redirect to wrong frontend
       const isShopeeClone = redirectUrl.includes('5173') || redirectUrl.includes('shopee') || redirectUrl.includes('localhost:5173');
       const isTikTokSellerClone = redirectUrl.includes('5174') || redirectUrl.includes('5175') || redirectUrl.includes('tiktokseller') || redirectUrl.includes('tiktok');
+      const isLazadaClone = redirectUrl.includes('3001') || redirectUrl.includes('lazada') || redirectUrl.includes('localhost:3001');
       const errorPath = role === 'SELLER' 
-        ? (isShopeeClone ? '/login' : isTikTokSellerClone ? '/login' : '/login')
-        : (isShopeeClone ? '/buyer-login' : '/login');
+        ? (isShopeeClone ? '/login' : isTikTokSellerClone ? '/login' : isLazadaClone ? '/seller-login' : '/login')
+        : (isShopeeClone ? '/buyer-login' : isLazadaClone ? '/login' : '/login');
       res.redirect(`${redirectUrl}${errorPath}?error=token_generation_failed&details=${encodeURIComponent(errorMessage)}`);
     }
   });
@@ -543,6 +585,15 @@ router.post("/login", (req: Request, res: Response) =>
  */
 router.get("/me", authMiddleware, (req: Request, res: Response) =>
   authController.getMe(req, res)
+);
+
+/**
+ * @route   GET /api/auth/profile
+ * @desc    Get current user profile (returns user object directly for Lazada-Clone compatibility)
+ * @access  Private
+ */
+router.get("/profile", authMiddleware, (req: Request, res: Response) =>
+  authController.getProfile(req, res)
 );
 
 /**

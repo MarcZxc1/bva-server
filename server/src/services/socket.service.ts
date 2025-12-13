@@ -1,43 +1,26 @@
+// src/services/socket.service.ts
+
 import { Server as SocketIOServer } from "socket.io";
 import { Server as HTTPServer } from "http";
+import { Product } from "@prisma/client";
 
 let io: SocketIOServer | null = null;
 
-export interface OrderNotificationData {
-  shopId: string;
-  orderId: string;
-  total: number;
-  revenue: number;
-  profit: number;
-  items: Array<{
-    productId: string;
-    productName: string;
-    quantity: number;
-    price: number;
-  }>;
-  customerEmail?: string;
-  createdAt: Date;
-}
+// ... (existing interfaces)
 
-export interface LowStockAlertData {
-  shopId: string;
-  productId: string;
-  productName: string;
-  currentStock: number;
-  threshold: number;
-}
+export interface NewProductData extends Product {}
 
-/**
- * Initialize Socket.IO server
- */
 export function initializeSocketIO(httpServer: HTTPServer): SocketIOServer {
+  // ... (existing implementation)
   io = new SocketIOServer(httpServer, {
     cors: {
       origin: [
         "http://localhost:5173", // Shopee Clone
+        "http://localhost:3001", // Lazada Clone (Next.js)
         "http://localhost:8080", // BVA Frontend
         "https://bva-frontend.vercel.app",
-        "https://shopee-clone.vercel.app"
+        "https://shopee-clone.vercel.app",
+        "https://lazada-clone.vercel.app" // Lazada Clone production
       ],
       credentials: true,
       methods: ["GET", "POST"]
@@ -72,9 +55,6 @@ export function initializeSocketIO(httpServer: HTTPServer): SocketIOServer {
   return io;
 }
 
-/**
- * Get the Socket.IO instance
- */
 export function getSocketIO(): SocketIOServer {
   if (!io) {
     throw new Error("Socket.IO not initialized. Call initializeSocketIO first.");
@@ -82,97 +62,22 @@ export function getSocketIO(): SocketIOServer {
   return io;
 }
 
+// ... (existing notification functions)
+
 /**
- * Notify shop about a new order
+ * Notify all clients about a new product
  */
-export function notifyNewOrder(data: OrderNotificationData): void {
+export function notifyNewProduct(product: any): void {
   if (!io) {
-    console.warn("⚠️  Socket.IO not initialized. Skipping order notification.");
+    console.warn("⚠️  Socket.IO not initialized. Skipping new product notification.");
     return;
   }
 
-  const room = `shop_${data.shopId}`;
-  io.to(room).emit("dashboard_update", {
-    type: "new_order",
-    data: {
-      orderId: data.orderId,
-      total: data.total,
-      revenue: data.revenue,
-      profit: data.profit,
-      items: data.items,
-      customerEmail: data.customerEmail,
-      createdAt: data.createdAt,
-    },
+  // Emit to all clients
+  io.emit("product_update", {
+    type: "new_product",
+    data: product,
   });
 
-  console.log(`📢 Notified shop ${data.shopId} about new order ${data.orderId}`);
+  console.log(`🚀 Notified all clients about new product: ${product.name}`);
 }
-
-/**
- * Notify shop about low stock alert
- */
-export function notifyLowStock(data: LowStockAlertData): void {
-  if (!io) {
-    console.warn("⚠️  Socket.IO not initialized. Skipping low stock notification.");
-    return;
-  }
-
-  const room = `shop_${data.shopId}`;
-  io.to(room).emit("dashboard_update", {
-    type: "low_stock",
-    data: {
-      productId: data.productId,
-      productName: data.productName,
-      currentStock: data.currentStock,
-      threshold: data.threshold,
-    },
-  });
-
-  console.log(`⚠️  Notified shop ${data.shopId} about low stock: ${data.productName}`);
-}
-
-/**
- * Notify shop about inventory update
- */
-export function notifyInventoryUpdate(shopId: string, updates: Array<{
-  productId: string;
-  productName: string;
-  newStock: number;
-}>): void {
-  if (!io) {
-    console.warn("⚠️  Socket.IO not initialized. Skipping inventory update.");
-    return;
-  }
-
-  const room = `shop_${shopId}`;
-  io.to(room).emit("dashboard_update", {
-    type: "inventory_update",
-    data: {
-      updates,
-    },
-  });
-
-  console.log(`📦 Notified shop ${shopId} about inventory updates`);
-}
-
-/**
- * Notify shop about forecast update (when sales data changes)
- */
-export function notifyForecastUpdate(shopId: string): void {
-  if (!io) {
-    console.warn("⚠️  Socket.IO not initialized. Skipping forecast update.");
-    return;
-  }
-
-  const room = `shop_${shopId}`;
-  io.to(room).emit("dashboard_update", {
-    type: "forecast_update",
-    data: {
-      shopId,
-      timestamp: new Date().toISOString(),
-    },
-  });
-
-  console.log(`📊 Notified shop ${shopId} about forecast update`);
-}
-

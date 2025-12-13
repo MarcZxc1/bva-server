@@ -54,6 +54,29 @@ export const getMyOrders = async (req: Request, res: Response) => {
   }
 };
 
+// Get all orders for current user (returns array directly for Lazada-Clone compatibility)
+export const getAllOrders = async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user?.userId;
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: "Unauthorized",
+      });
+    }
+
+    const orders = await orderService.getMyOrders(userId);
+    // Return orders array directly (for Lazada-Clone compatibility)
+    res.json(orders);
+  } catch (error: any) {
+    console.error("Error in getAllOrders:", error);
+    res.status(500).json({
+      success: false,
+      error: error.message || "Internal Server Error",
+    });
+  }
+};
+
 export const getSellerOrders = async (req: Request, res: Response) => {
   try {
     const { shopId } = req.params;
@@ -137,6 +160,38 @@ export const getOrderById = async (req: Request, res: Response) => {
     res.status(404).json({
       success: false,
       error: error.message || "Order not found",
+    });
+  }
+};
+
+// Public endpoint for BVA integration (no auth required)
+export const getOrdersByShopPublic = async (req: Request, res: Response) => {
+  try {
+    const { shopId } = req.params;
+    if (!shopId) {
+      return res.status(400).json({
+        success: false,
+        error: "Shop ID is required",
+      });
+    }
+
+    const { status, startDate, endDate } = req.query;
+
+    const orders = await orderService.getSellerOrders(shopId, {
+      status: status as string,
+      startDate: startDate as string,
+      endDate: endDate as string,
+    });
+
+    res.json({
+      success: true,
+      data: orders,
+    });
+  } catch (error: any) {
+    console.error("Error in getOrdersByShopPublic:", error);
+    res.status(500).json({
+      success: false,
+      error: error.message || "Internal Server Error",
     });
   }
 };

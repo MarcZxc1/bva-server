@@ -48,6 +48,7 @@ bva-server/
 ├── bva-frontend/        # Frontend application (React/Vite)
 ├── ml-service/          # Machine Learning service (Python/FastAPI)
 ├── shopee-clone/        # Shopee clone frontend
+├── lazada-clone/        # Lazada clone frontend (Next.js)
 └── shopee-auth/         # Shopee authentication service
 ```
 
@@ -58,6 +59,7 @@ Once running, access:
 - **BVA Frontend:** http://localhost:8080
 - **Backend API:** http://localhost:3000/api
 - **Shopee Clone:** http://localhost:5174
+- **Lazada Clone:** http://localhost:3001
 - **ML Service Docs:** http://localhost:8001/docs
 
 ## 📝 Available Commands
@@ -69,6 +71,7 @@ Once running, access:
 | `npm run dev:server` | Run only backend server |
 | `npm run dev:frontend` | Run only BVA frontend |
 | `npm run dev:shopee` | Run only Shopee clone |
+| `npm run dev:lazada` | Run only Lazada clone |
 | `npm run build` | Build all services for production |
 | `npm run install:all` | Install dependencies for all workspaces |
 
@@ -79,7 +82,7 @@ Once running, access:
 - **Restock Planner** - Intelligent demand forecasting and restocking recommendations
 - **MarketMate** - Marketing campaign management
 - **Reports** - Comprehensive business reports and analytics
-- **Multi-platform Integration** - Shopee-Clone integration support
+- **Multi-platform Integration** - Shopee-Clone and Lazada-Clone integration support
 
 ## 🛠️ Technology Stack
 

@@ -35,10 +35,12 @@ app.use(cors({
     "http://localhost:5173", // Shopee Clone
     "http://localhost:5174", // TikTok Seller Clone (Vite default alternate port)
     "http://localhost:5175", // TikTok Seller Clone (if 5174 is taken)
+    "http://localhost:3001", // Lazada Clone (Next.js)
     "http://localhost:8080", // BVA Frontend
     "https://bva-frontend.vercel.app",
     "https://shopee-clone.vercel.app",
-    "https://tiktokseller-clone.vercel.app" // TikTok Seller Clone production
+    "https://tiktokseller-clone.vercel.app", // TikTok Seller Clone production
+    "https://lazada-clone.vercel.app" // Lazada Clone production
   ],
   credentials: true,
   methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],

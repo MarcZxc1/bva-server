@@ -316,7 +316,7 @@ class AuthService {
    * @param userId - The user ID
    * @param platform - Optional platform filter (UserPlatform or Shop Platform). If not provided, uses user's platform.
    */
-  async getUserShops(userId: string, platform?: "SHOPEE_CLONE" | "TIKTOK_CLONE" | "BVA" | "SHOPEE" | "TIKTOK" | "LAZADA" | "OTHER") {
+  async getUserShops(userId: string, platform?: "SHOPEE_CLONE" | "TIKTOK_CLONE" | "LAZADA_CLONE" | "BVA" | "SHOPEE" | "TIKTOK" | "LAZADA" | "OTHER") {
     // First get user to check role and platform
     const user = await prisma.user.findUnique({
       where: { id: userId },
@@ -337,7 +337,7 @@ class AuthService {
       shopPlatform = "SHOPEE";
     } else if (targetPlatform === "TIKTOK_CLONE" || targetPlatform === "TIKTOK") {
       shopPlatform = "TIKTOK";
-    } else if (targetPlatform === "LAZADA") {
+    } else if (targetPlatform === "LAZADA_CLONE" || targetPlatform === "LAZADA") {
       shopPlatform = "LAZADA";
     }
 

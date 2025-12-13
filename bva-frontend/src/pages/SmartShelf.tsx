@@ -95,124 +95,11 @@ export default function SmartShelf() {
   const [isGeneratingPromotions, setIsGeneratingPromotions] = useState(false);
   const [showPromotionsModal, setShowPromotionsModal] = useState(false);
   const [actionItem, setActionItem] = useState<any>(null);
+  const [showActionDialog, setShowActionDialog] = useState(false);
 
   const handleTakeAction = async (item: any) => {
-    console.log("🎯 Take Action clicked for item:", {
-      product_id: item?.product_id,
-      name: item?.name,
-      action_type: item?.recommended_action?.action_type,
-      recommended_action: item?.recommended_action
-    });
-    
-    // Validate item
-    if (!item) {
-      console.error("❌ No item provided");
-      toast.error("Invalid item data");
-      return;
-    }
-
-    // Get action type (may be missing, that's okay - we'll still generate promotions)
-    const actionType = item.recommended_action?.action_type?.toLowerCase() || "";
-    console.log("📋 Action type detected:", actionType || "none (will generate promotions anyway)");
-
-    // Handle restock action - navigate to Restock Planner
-    if (actionType.includes("restock")) {
-      console.log("📦 Action is restock - navigating to Restock Planner");
-      navigate("/restock");
-      return;
-    }
-
-    // For ALL other actions (promotion, discount, clearance, bundle, monitor, review) - generate promotions
-    // This ensures we always generate promotions for at-risk items that need attention
-    if (!shopId) {
-      console.error("❌ No shopId available");
-      toast.error("Shop ID is required");
-      return;
-    }
-
-    console.log("🎨 Generating promotions for action type:", actionType);
-    setIsGeneratingPromotions(true);
     setActionItem(item);
-
-    try {
-      // Prepare item data for promotion generation
-      const itemData: any = {
-        product_id: item.product_id,
-        name: item.name || "Unknown Product",
-        quantity: item.current_quantity || 0,
-        price: 0,
-        categories: [],
-        days_to_expiry: item.days_to_expiry,
-      };
-
-      // Calculate expiry date if days_to_expiry is available
-      if (item.days_to_expiry !== undefined && item.days_to_expiry !== null) {
-        const expiry = new Date();
-        expiry.setDate(expiry.getDate() + item.days_to_expiry);
-        itemData.expiry_date = expiry.toISOString();
-      } else {
-        itemData.expiry_date = null;
-      }
-
-      // Fetch product price if available
-      const product = products?.find(p => p.id === item.product_id);
-      if (product) {
-        itemData.price = product.price || 0;
-        itemData.categories = product.description ? [product.description] : [];
-        console.log("✅ Found product data:", { price: itemData.price, categories: itemData.categories });
-      } else {
-        console.warn("⚠️ Product not found in products list, using defaults");
-        // Use a default price if available from the item itself
-        if (item.price !== undefined) {
-          itemData.price = item.price;
-        }
-      }
-
-      console.log("📤 Sending promotion generation request:", {
-        shopId,
-        itemData: {
-          ...itemData,
-          expiry_date: itemData.expiry_date ? new Date(itemData.expiry_date).toLocaleDateString() : null
-        }
-      });
-
-      const promotions = await analyticsService.generatePromotionsForItem(shopId, itemData);
-      
-      console.log("✅ Promotions API response:", {
-        hasPromotions: !!promotions,
-        promotionsCount: promotions?.promotions?.length || 0,
-        meta: promotions?.meta
-      });
-      
-      if (promotions && promotions.promotions && promotions.promotions.length > 0) {
-        setPromotionsData(promotions);
-        setShowPromotionsModal(true);
-        toast.success(`Generated ${promotions.promotions.length} promotion${promotions.promotions.length !== 1 ? 's' : ''}`);
-        console.log("✅ Promotions modal opened with", promotions.promotions.length, "promotions");
-      } else {
-        console.warn("⚠️ No promotions in response:", promotions);
-        toast.warning("No promotions generated. The item may not be suitable for promotions at this time.");
-      }
-    } catch (error: any) {
-      console.error("❌ Error generating promotions:", {
-        error,
-        message: error?.message,
-        response: error?.response?.data,
-        status: error?.response?.status,
-        stack: error?.stack
-      });
-      
-      let errorMessage = "Failed to generate promotions";
-      if (error?.response?.data?.error) {
-        errorMessage = error.response.data.error;
-      } else if (error?.message) {
-        errorMessage = error.message;
-      }
-      
-      toast.error(errorMessage);
-    } finally {
-      setIsGeneratingPromotions(false);
-    }
+    setShowActionDialog(true);
   };
 
   const handleUsePromotion = (promotion: any) => {
@@ -878,6 +765,47 @@ export default function SmartShelf() {
               </p>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Action Dialog */}
+      <Dialog open={showActionDialog} onOpenChange={setShowActionDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Take Action for {actionItem?.name}</DialogTitle>
+            <DialogDescription>
+              Choose an action to perform for this product.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col space-y-4">
+            <Button
+              onClick={() => {
+                const product = products?.find(p => p.id === actionItem?.product_id);
+                const productImageUrl = product?.imageUrl || null;
+                navigate("/ads", {
+                  state: {
+                    product: {
+                      ...actionItem,
+                      imageUrl: productImageUrl,
+                      productId: actionItem?.product_id,
+                    }
+                  }
+                });
+                setShowActionDialog(false);
+                toast.success("Redirecting to MarketMate to create campaign");
+              }}
+            >
+              Make a Campaign
+            </Button>
+            <Button
+              onClick={() => {
+                navigate("/restock");
+                setShowActionDialog(false);
+              }}
+            >
+              Restock Planner
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

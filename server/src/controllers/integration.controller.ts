@@ -18,7 +18,7 @@ export class IntegrationController {
         });
       }
 
-      const { platform, settings, shopeeToken } = req.body;
+      const { platform, settings, shopeeToken, lazadaToken } = req.body;
 
       if (!platform) {
         return res.status(400).json({
@@ -42,9 +42,12 @@ export class IntegrationController {
           ...settings,
         };
 
-        // Update token if provided
+        // Update platform-specific token if provided
         if (shopeeToken && platform === "SHOPEE") {
           newSettings.shopeeToken = shopeeToken;
+        }
+        if (lazadaToken && platform === "LAZADA") {
+          newSettings.lazadaToken = lazadaToken;
         }
 
         const updated = await integrationService.updateIntegration(existingIntegration.id, {
@@ -65,6 +68,7 @@ export class IntegrationController {
         platform,
         settings,
         shopeeToken, // Include Shopee-Clone token if provided
+        lazadaToken, // Include Lazada-Clone token if provided
       });
 
       return res.status(201).json({

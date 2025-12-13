@@ -7,21 +7,24 @@
     "server",
     "bva-frontend",
     "shopee-clone",
+    "lazada-clone",
     "shopee-auth"
   ],
   "scripts": {
     "start": "./start-all.sh",
-    "dev": "concurrently -n \"SERVER,FRONTEND,SHOPEE\" -c \"blue,green,yellow\" \"npm run dev:server\" \"npm run dev:frontend\" \"npm run dev:shopee\"",
+    "dev": "concurrently -n \"SERVER,FRONTEND,SHOPEE,LAZADA\" -c \"blue,green,yellow,magenta\" \"npm run dev:server\" \"npm run dev:frontend\" \"npm run dev:shopee\" \"npm run dev:lazada\"",
     "dev:server": "cd server && npm run dev",
     "dev:frontend": "cd bva-frontend && npm run dev",
     "dev:shopee": "cd shopee-clone && npm run dev",
+    "dev:lazada": "cd lazada-clone && npm run dev",
     "dev:all": "npm run dev",
     "install:all": "npm install && npm run install:workspaces",
-    "install:workspaces": "npm install --workspace=server && npm install --workspace=bva-frontend && npm install --workspace=shopee-clone",
-    "build": "npm run build --workspace=server && npm run build --workspace=bva-frontend && npm run build --workspace=shopee-clone",
+    "install:workspaces": "npm install --workspace=server && npm install --workspace=bva-frontend && npm install --workspace=shopee-clone && npm install --workspace=lazada-clone",
+    "build": "npm run build --workspace=server && npm run build --workspace=bva-frontend && npm run build --workspace=shopee-clone && npm run build --workspace=lazada-clone",
     "build:server": "npm run build --workspace=server",
     "build:frontend": "npm run build --workspace=bva-frontend",
-    "build:shopee": "npm run build --workspace=shopee-clone"
+    "build:shopee": "npm run build --workspace=shopee-clone",
+    "build:lazada": "npm run build --workspace=lazada-clone"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"

@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import { integrationService, Integration } from "@/services/integration.service";
 import { IntegrationAgreementDialog } from "@/components/IntegrationAgreementDialog";
 import { ShopeeCloneIntegrationModal } from "@/components/ShopeeCloneIntegrationModal";
+import { LazadaIntegrationModal } from "@/components/LazadaIntegrationModal";
 import { Skeleton } from "@/components/ui/skeleton";
 import { shopAccessApi } from "@/lib/api";
 
@@ -38,6 +39,7 @@ export default function Settings() {
   // Integration State
   const [showAgreementDialog, setShowAgreementDialog] = useState(false);
   const [showShopeeModal, setShowShopeeModal] = useState(false);
+  const [showLazadaModal, setShowLazadaModal] = useState(false);
   const [selectedPlatform, setSelectedPlatform] = useState<"SHOPEE" | "LAZADA" | "TIKTOK" | "OTHER">("SHOPEE");
 
   // Password Form State
@@ -215,6 +217,8 @@ export default function Settings() {
     setSelectedPlatform(platform);
     if (platform === "SHOPEE") {
       setShowShopeeModal(true);
+    } else if (platform === "LAZADA") {
+      setShowLazadaModal(true);
     } else {
       setShowAgreementDialog(true);
     }
@@ -305,6 +309,96 @@ export default function Settings() {
           const shopeeIntegration = integrations.find(i => i.platform === "SHOPEE");
           if (shopeeIntegration) {
             await syncIntegrationMutation.mutateAsync(shopeeIntegration.id);
+          }
+        } catch (syncError) {
+          console.error("Failed to sync after 409:", syncError);
+        }
+        return; // Don't throw, treat as success
+      }
+      
+      throw error;
+    }
+  };
+
+  const handleLazadaConnect = async (shopId: string, shopName: string, lazadaToken: string) => {
+    try {
+      // First, link the shop
+      console.log(`🔗 Linking shop ${shopId} (${shopName})...`);
+      const linkResult = await shopAccessApi.linkShop(shopId);
+      console.log(`✅ Shop linked successfully:`, linkResult);
+      
+      if (!linkResult || !linkResult.shop) {
+        throw new Error("Failed to link shop: Invalid response from server");
+      }
+      
+      // Refresh user data to get updated shops list
+      if (refreshUser) {
+        await refreshUser();
+      }
+      
+      // Wait a bit to ensure the backend has processed the link
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Then, create the integration with Lazada-Clone token
+      console.log(`🔗 Creating LAZADA integration with token...`);
+      try {
+        await createIntegrationMutation.mutateAsync({
+          platform: "LAZADA",
+          lazadaToken: lazadaToken, // Pass the Lazada-Clone token
+        });
+        console.log(`✅ Integration created successfully`);
+      } catch (error: any) {
+        // Handle 409 Conflict - Integration already exists
+        if (error.response?.status === 409 || error.message?.includes("already exists")) {
+          console.log(`ℹ️ Integration already exists, treating as success...`);
+          toast.success("Integration already active. Refreshing data...");
+          
+          // Get existing integration and proceed to sync
+          const integrations = await integrationService.getIntegrations();
+          const lazadaIntegration = integrations.find(i => i.platform === "LAZADA");
+          
+          if (lazadaIntegration) {
+            console.log(`🔄 Syncing existing integration data...`);
+            await syncIntegrationMutation.mutateAsync(lazadaIntegration.id);
+            console.log(`✅ Integration synced successfully`);
+            return; // Exit early, sync is complete
+          } else {
+            // If we can't find it, try to create again (might have been created between calls)
+            console.log(`⚠️ Integration not found, retrying creation...`);
+            await createIntegrationMutation.mutateAsync({
+              platform: "LAZADA",
+              lazadaToken: lazadaToken,
+            });
+          }
+        } else {
+          // Re-throw other errors
+          throw error;
+        }
+      }
+
+      // Sync the integration to fetch seller data
+      const integrations = await integrationService.getIntegrations();
+      const lazadaIntegration = integrations.find(i => i.platform === "LAZADA");
+      if (lazadaIntegration) {
+        console.log(`🔄 Syncing integration data...`);
+        await syncIntegrationMutation.mutateAsync(lazadaIntegration.id);
+        console.log(`✅ Integration synced successfully`);
+      } else {
+        console.warn(`⚠️ Lazada integration not found after creation`);
+        toast.warning("Integration created but not found. Please refresh the page.");
+      }
+    } catch (error: any) {
+      console.error(`❌ Error in handleLazadaConnect:`, error);
+      
+      // Enhanced error handling for 409
+      if (error.response?.status === 409) {
+        toast.success("Integration already active. Refreshing data...");
+        // Try to sync anyway
+        try {
+          const integrations = await integrationService.getIntegrations();
+          const lazadaIntegration = integrations.find(i => i.platform === "LAZADA");
+          if (lazadaIntegration) {
+            await syncIntegrationMutation.mutateAsync(lazadaIntegration.id);
           }
         } catch (syncError) {
           console.error("Failed to sync after 409:", syncError);
@@ -638,6 +732,13 @@ export default function Settings() {
         open={showShopeeModal}
         onOpenChange={setShowShopeeModal}
         onConnect={handleShopeeConnect}
+      />
+      
+      {/* Lazada-Clone Integration Modal */}
+      <LazadaIntegrationModal
+        open={showLazadaModal}
+        onOpenChange={setShowLazadaModal}
+        onConnect={handleLazadaConnect}
       />
     </div>
   );

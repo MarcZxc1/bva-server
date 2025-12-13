@@ -134,6 +134,87 @@ export class AuthController {
   }
 
   /**
+   * Get current user profile (for /api/auth/profile - returns user object directly)
+   * GET /api/auth/profile
+   */
+  async getProfile(req: Request, res: Response) {
+    try {
+      const userId = (req as any).userId;
+
+      if (!userId) {
+        return res.status(401).json({
+          success: false,
+          message: "Unauthorized",
+        });
+      }
+
+      const user = await authService.getUserById(userId);
+      console.log(`🔍 getProfile: Retrieved user ${userId}, role: ${user.role}, platform: ${(user as any).platform}`);
+      
+      let shops: Array<{ id: string; name: string }> = [];
+      try {
+        const userPlatform = (user as any).platform || "BVA";
+        shops = await authService.getUserShops(userId, userPlatform);
+        console.log(`🔍 getProfile: getUserShops returned ${shops.length} shops for user ${userId} on platform ${userPlatform}`);
+      } catch (shopError: any) {
+        console.error(`❌ getProfile: Error in getUserShops for user ${userId}:`, shopError);
+        
+        if (user.role === "SELLER") {
+          try {
+            const userPlatform = (user as any).platform || "BVA";
+            const shop = await shopSeedService.getOrCreateShopForUser(userId, userPlatform);
+            if (shop && shop.id && shop.name) {
+              shops = [{ id: shop.id, name: shop.name }];
+            } else {
+              shops = [];
+            }
+          } catch (directShopError: any) {
+            console.error(`❌ Direct shop creation also failed:`, directShopError);
+            shops = [];
+          }
+        } else {
+          shops = [];
+        }
+      }
+
+      // Include linked shops
+      try {
+        const linkedShops = await shopAccessService.getLinkedShops(userId);
+        const shopMap = new Map<string, { id: string; name: string }>();
+        shops.forEach(shop => shopMap.set(shop.id, shop));
+        linkedShops.forEach(shop => shopMap.set(shop.id, { id: shop.id, name: shop.name }));
+        shops = Array.from(shopMap.values());
+      } catch (linkError: any) {
+        console.error(`❌ getProfile: Error fetching linked shops:`, linkError);
+      }
+
+      // Return user object directly (for Lazada-Clone compatibility)
+      const userData = {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        role: user.role,
+        shopeeId: (user as any).shopeeId,
+        googleId: (user as any).googleId,
+        platform: (user as any).platform,
+        createdAt: user.createdAt,
+        shops: shops,
+      };
+
+      return res.status(200).json(userData);
+    } catch (error) {
+      console.error("GetProfile error:", error);
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      return res.status(500).json({
+        success: false,
+        message: errorMessage.includes("shop") ? errorMessage : "Internal server error",
+      });
+    }
+  }
+
+  /**
    * Get current user profile
    * GET /api/auth/me
    */

@@ -10,9 +10,13 @@ router.get("/", productController.getAllProducts);
 // Get product by ID (public)
 router.get("/:id", productController.getProductById);
 
-// Get all products for a shop (protected)
+// Public integration endpoint for BVA (no auth required)
+// GET /api/products/shop/:shopId -> Returns list of products for a shop
+router.get("/shop/:shopId", productController.getProductsByShopPublic);
+
+// Get all products for a shop (protected - for authenticated users)
 router.get(
-  "/shop/:shopId",
+  "/shop/:shopId/private",
   authMiddleware,
   productController.getProductsByShop
 );

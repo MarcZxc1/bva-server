@@ -208,6 +208,10 @@ export async function getProductById(productId: string) {
   };
 }
 
+import { notifyNewProduct } from "../services/socket.service";
+
+// ... (existing code)
+
 export async function createProduct(data: {
   shopId: string;
   name: string;
@@ -245,8 +249,7 @@ export async function createProduct(data: {
     },
   });
 
-  // Return product with serialized dates and proper format
-  return {
+  const createdProduct = {
     id: product.id,
     sku: product.sku,
     name: product.name,
@@ -259,6 +262,10 @@ export async function createProduct(data: {
     createdAt: product.createdAt.toISOString(),
     updatedAt: product.updatedAt.toISOString(),
   };
+
+  notifyNewProduct(createdProduct);
+
+  return createdProduct;
 }
 
 export async function updateProduct(

@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # BVA Server - Start All Services Script
-# This script starts all services: Database, ML Service, Server, BVA Frontend, and Shopee Clone
+# This script starts all services: Database, ML Service, Server, BVA Frontend, Shopee Clone, and Lazada Clone
 
 set -e
 
@@ -136,11 +136,12 @@ sleep 3
 wait_for_service 8001 "ML Service" || print_message "$YELLOW" "ML Service may still be starting..."
 
 # Start all Node.js services using concurrently
-print_message "$BLUE" "Starting Node.js services (Server, BVA Frontend, Shopee Clone)..."
+print_message "$BLUE" "Starting Node.js services (Server, BVA Frontend, Shopee Clone, Lazada Clone)..."
 print_message "$CYAN" "Services will be available at:"
 print_message "$CYAN" "  - Server:        http://localhost:3000"
 print_message "$CYAN" "  - BVA Frontend:  http://localhost:8080"
 print_message "$CYAN" "  - Shopee Clone:  http://localhost:5174"
+print_message "$CYAN" "  - Lazada Clone:  http://localhost:3001"
 print_message "$CYAN" "  - ML Service:    http://localhost:8001"
 echo ""
 
@@ -150,10 +151,11 @@ if npm run dev >/dev/null 2>&1; then
 else
     # Fallback: use concurrently directly
     npx concurrently \
-        -n "SERVER,FRONTEND,SHOPEE" \
-        -c "blue,green,yellow" \
+        -n "SERVER,FRONTEND,SHOPEE,LAZADA" \
+        -c "blue,green,yellow,magenta" \
         "cd server && npm run dev" \
         "cd bva-frontend && npm run dev" \
-        "cd shopee-clone && npm run dev"
+        "cd shopee-clone && npm run dev" \
+        "cd lazada-clone && npm run dev"
 fi
 

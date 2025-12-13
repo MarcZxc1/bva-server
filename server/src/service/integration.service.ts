@@ -2,12 +2,14 @@
 import prisma from "../lib/prisma";
 import { Platform } from "../generated/prisma";
 import { shopeeIntegrationService } from "./shopeeIntegration.service";
+import { lazadaIntegrationService } from "./lazadaIntegration.service";
 
 interface CreateIntegrationInput {
   shopId: string;
   platform: Platform;
   settings?: Record<string, any>;
   shopeeToken?: string; // Shopee-Clone JWT token for authentication
+  lazadaToken?: string; // Lazada-Clone JWT token for authentication
 }
 
 interface UpdateIntegrationInput {
@@ -45,9 +47,12 @@ class IntegrationService {
         ...data.settings,
       };
 
-      // Update Shopee-Clone token if provided
+      // Update platform-specific token if provided
       if (data.shopeeToken && data.platform === Platform.SHOPEE) {
         updatedSettings.shopeeToken = data.shopeeToken;
+      }
+      if (data.lazadaToken && data.platform === Platform.LAZADA) {
+        updatedSettings.lazadaToken = data.lazadaToken;
       }
 
       // Update the existing integration
@@ -69,9 +74,12 @@ class IntegrationService {
       ...data.settings,
     };
 
-    // Store Shopee-Clone token in settings if provided
+    // Store platform-specific token in settings if provided
     if (data.shopeeToken && data.platform === Platform.SHOPEE) {
       settings.shopeeToken = data.shopeeToken;
+    }
+    if (data.lazadaToken && data.platform === Platform.LAZADA) {
+      settings.lazadaToken = data.lazadaToken;
     }
 
     const integration = await prisma.integration.create({
@@ -190,6 +198,21 @@ class IntegrationService {
             message: error.message || "Connection failed",
           };
         }
+      case Platform.LAZADA:
+        try {
+          // Try to fetch products to test connection
+          const products = await lazadaIntegrationService.fetchProducts(token);
+          return {
+            success: true,
+            message: "Connection successful",
+            data: { productCount: products.length },
+          };
+        } catch (error: any) {
+          return {
+            success: false,
+            message: error.message || "Connection failed",
+          };
+        }
       default:
         throw new Error(`Platform ${integration.platform} not supported`);
     }
@@ -228,11 +251,24 @@ class IntegrationService {
           throw new Error("Shopee-Clone authentication token is required. Please reconnect the integration.");
         }
         // Pass shopId instead of userId - syncAllData now accepts shopId directly
-        const result = await shopeeIntegrationService.syncAllData(shopId, shopeeToken);
+        const shopeeResult = await shopeeIntegrationService.syncAllData(shopId, shopeeToken);
         return {
           success: true,
           message: "Sync completed",
-          data: result,
+          data: shopeeResult,
+        };
+      case Platform.LAZADA:
+        // Use Lazada-Clone token from settings if available, otherwise fallback to provided token
+        const lazadaToken = settings?.lazadaToken || token;
+        if (!lazadaToken) {
+          throw new Error("Lazada-Clone authentication token is required. Please reconnect the integration.");
+        }
+        // Pass shopId instead of userId - syncAllData now accepts shopId directly
+        const lazadaResult = await lazadaIntegrationService.syncAllData(shopId, lazadaToken);
+        return {
+          success: true,
+          message: "Sync completed",
+          data: lazadaResult,
         };
       default:
         throw new Error(`Platform ${integration.platform} not supported`);

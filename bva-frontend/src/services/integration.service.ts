@@ -17,6 +17,7 @@ export interface CreateIntegrationRequest {
   platform: "SHOPEE" | "LAZADA" | "TIKTOK" | "OTHER";
   settings?: Record<string, any>;
   shopeeToken?: string; // Shopee-Clone JWT token for authentication
+  lazadaToken?: string; // Lazada-Clone JWT token for authentication
 }
 
 export interface TestConnectionResponse {

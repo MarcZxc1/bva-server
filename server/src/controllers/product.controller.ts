@@ -63,6 +63,35 @@ export const getProductsByShop = async (req: Request, res: Response) => {
   }
 };
 
+// Public endpoint for BVA integration (no auth required)
+export const getProductsByShopPublic = async (req: Request, res: Response) => {
+  try {
+    const { shopId } = req.params;
+
+    if (!shopId) {
+      return res.status(400).json({
+        success: false,
+        error: "Shop ID is required",
+      });
+    }
+
+    const products = await productService.getProductsByShop(shopId);
+    
+    console.log(`📦 getProductsByShopPublic: Returning ${products.length} products for shop ${shopId}`);
+    
+    res.json({
+      success: true,
+      data: products,
+    });
+  } catch (error: any) {
+    console.error("Error in getProductsByShopPublic:", error);
+    res.status(500).json({
+      success: false,
+      error: error.message || "Internal Server Error",
+    });
+  }
+};
+
 export const getProductById = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;

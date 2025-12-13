@@ -1,0 +1,298 @@
+// src/components/LazadaIntegrationModal.tsx
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { AlertCircle, CheckCircle2, Loader2, Store } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+
+interface ShopInfo {
+  id: string;
+  name: string;
+}
+
+interface LazadaIntegrationModalProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onConnect: (shopId: string, shopName: string, token: string) => Promise<void>;
+}
+
+export function LazadaIntegrationModal({
+  open,
+  onOpenChange,
+  onConnect,
+}: LazadaIntegrationModalProps) {
+  const [agreed, setAgreed] = useState(false);
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [shopInfo, setShopInfo] = useState<ShopInfo | null>(null);
+  const [lazadaToken, setLazadaToken] = useState<string | null>(null);
+  const [showLogin, setShowLogin] = useState(false);
+  const [authStatus, setAuthStatus] = useState<'checking' | 'authenticated' | 'not_authenticated'>('checking');
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+
+  const LAZADA_CLONE_URL = import.meta.env.VITE_LAZADA_CLONE_URL || 'http://localhost:3001';
+
+  // Listen for messages from lazada-clone iframe
+  useEffect(() => {
+    if (!open) return;
+
+    const handleMessage = (event: MessageEvent) => {
+      // Accept messages from lazada-clone origin
+      const lazadaOrigin = new URL(LAZADA_CLONE_URL).origin;
+      if (event.origin !== lazadaOrigin) {
+        return;
+      }
+
+      const { type, shop, token, error: errorMessage, message } = event.data;
+
+      console.log('📨 Received message from Lazada-Clone:', { type, shop, hasToken: !!token, errorMessage });
+
+      switch (type) {
+        case 'LAZADA_CLONE_AUTH_SUCCESS':
+          if (shop && token) {
+            setShopInfo(shop);
+            setLazadaToken(token);
+            setAuthStatus('authenticated');
+            setShowLogin(false);
+            setError(null);
+          } else if (shop && !token) {
+            setError('Authentication token is missing. Please try again.');
+            setAuthStatus('not_authenticated');
+            setShowLogin(true);
+          }
+          break;
+
+        case 'LAZADA_CLONE_AUTH_ERROR':
+          setError(errorMessage || 'Authentication failed');
+          setAuthStatus('not_authenticated');
+          setShowLogin(true);
+          break;
+
+        case 'LAZADA_CLONE_AUTH_REQUIRED':
+          setAuthStatus('not_authenticated');
+          setShowLogin(true);
+          setError(null);
+          break;
+
+        default:
+          console.log('Unknown message type:', type);
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+
+    // Check initial auth status after a short delay
+    const timeout = setTimeout(() => {
+      if (authStatus === 'checking' && !shopInfo) {
+        setAuthStatus('not_authenticated');
+        setShowLogin(true);
+      }
+    }, 2000);
+
+    return () => {
+      window.removeEventListener('message', handleMessage);
+      clearTimeout(timeout);
+    };
+  }, [open, authStatus, shopInfo, LAZADA_CLONE_URL]);
+
+  // Reset state when modal opens/closes
+  useEffect(() => {
+    if (open) {
+      setAgreed(false);
+      setError(null);
+      setShopInfo(null);
+      setLazadaToken(null);
+      setShowLogin(false);
+      setAuthStatus('checking');
+    }
+  }, [open]);
+
+  const handleConnect = async () => {
+    if (!agreed) {
+      setError("Please agree to the terms to continue");
+      return;
+    }
+
+    if (!shopInfo) {
+      setError("Shop information is required. Please ensure you are logged in to Lazada-Clone.");
+      return;
+    }
+
+    if (!lazadaToken) {
+      setError("Authentication token is missing. Please grant permission in Lazada-Clone.");
+      return;
+    }
+
+    setIsConnecting(true);
+    setError(null);
+    try {
+      await onConnect(shopInfo.id, shopInfo.name, lazadaToken);
+      // Reset form on success
+      setAgreed(false);
+      setShopInfo(null);
+      setLazadaToken(null);
+      onOpenChange(false);
+    } catch (err: any) {
+      setError(err.message || "Failed to connect integration");
+    } finally {
+      setIsConnecting(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Connect Lazada-Clone Integration</DialogTitle>
+          <DialogDescription>
+            Connect your Lazada-Clone shop to sync products, orders, and analytics with BVA.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-6 py-4">
+          {/* Shop Info Display */}
+          {shopInfo && authStatus === 'authenticated' && (
+            <Alert className="bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-800">
+              <Store className="h-4 w-4 text-green-600 dark:text-green-400" />
+              <AlertDescription className="text-green-900 dark:text-green-100">
+                <strong>Shop Detected:</strong> {shopInfo.name}
+                <br />
+                <span className="text-sm">We found your shop. Review the terms below to continue.</span>
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {/* Login Iframe */}
+          {showLogin && authStatus === 'not_authenticated' && (
+            <div className="space-y-2">
+              <Alert>
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>
+                  Please login to your Lazada-Clone seller account to continue.
+                </AlertDescription>
+              </Alert>
+              <div className="border rounded-lg overflow-hidden" style={{ height: '500px' }}>
+                <iframe
+                  ref={iframeRef}
+                  src={`${LAZADA_CLONE_URL}/bva-integration-check`}
+                  className="w-full h-full border-0"
+                  title="Lazada-Clone Login"
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Checking Status */}
+          {authStatus === 'checking' && !showLogin && (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              <span className="ml-2 text-muted-foreground">Checking authentication status...</span>
+            </div>
+          )}
+
+          {/* Agreement Terms - Only show when authenticated */}
+          {shopInfo && authStatus === 'authenticated' && (
+            <div className="space-y-3">
+              <h4 className="font-semibold text-sm">Integration Agreement</h4>
+              <div className="space-y-2 text-sm text-muted-foreground bg-muted/50 p-4 rounded-lg max-h-48 overflow-y-auto">
+                <p>
+                  By connecting Lazada-Clone, you agree to:
+                </p>
+                <ul className="list-disc list-inside space-y-1 ml-2">
+                  <li>Allow BVA to access your product catalog, sales data, and order information from <strong>{shopInfo.name}</strong></li>
+                  <li>Enable automatic synchronization of data between Lazada-Clone and BVA</li>
+                  <li>Grant BVA permission to use your data for analytics, forecasting, and AI-powered recommendations</li>
+                  <li>Understand that data will be processed securely and in accordance with our privacy policy</li>
+                  <li>Your connection will use your authenticated session - no additional API keys required</li>
+                </ul>
+                <p className="mt-3 text-xs">
+                  You can disconnect this integration at any time from the Settings page.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Connection Info */}
+          {shopInfo && authStatus === 'authenticated' && (
+            <div className="space-y-2">
+              <div className="bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                <p className="text-sm text-blue-900 dark:text-blue-100">
+                  <strong>Simple Connection:</strong> This integration will use your authenticated session. 
+                  No API keys needed - just click "Connect" to authorize BVA to access your Lazada-Clone data.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Agreement Checkbox - Only show when authenticated */}
+          {shopInfo && authStatus === 'authenticated' && (
+            <div className="flex items-start gap-2">
+              <input
+                type="checkbox"
+                id="agree"
+                checked={agreed}
+                onChange={(e) => setAgreed(e.target.checked)}
+                disabled={isConnecting}
+                className="mt-1"
+              />
+              <label htmlFor="agree" className="text-sm text-muted-foreground cursor-pointer">
+                I have read and agree to the integration agreement terms above
+              </label>
+            </div>
+          )}
+
+          {/* Error Message */}
+          {error && (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+        </div>
+
+        <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                onOpenChange(false);
+                setAgreed(false);
+                setError(null);
+                setShopInfo(null);
+                setLazadaToken(null);
+                setShowLogin(false);
+              }}
+              disabled={isConnecting}
+            >
+              Cancel
+            </Button>
+          {shopInfo && authStatus === 'authenticated' && (
+            <Button
+              onClick={handleConnect}
+              disabled={!agreed || isConnecting}
+            >
+              {isConnecting ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Connecting...
+                </>
+              ) : (
+                <>
+                  <CheckCircle2 className="h-4 w-4 mr-2" />
+                  Connect Integration
+                </>
+              )}
+            </Button>
+          )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+

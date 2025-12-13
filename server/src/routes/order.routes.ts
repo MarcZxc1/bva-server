@@ -11,6 +11,13 @@ router.post("/", authMiddleware, orderController.createOrder);
 // IMPORTANT: Specific routes must come before generic :id route
 router.get("/my", authMiddleware, orderController.getMyOrders);
 
+// Get all orders for current user (returns array directly for Lazada-Clone compatibility)
+router.get("/", authMiddleware, orderController.getAllOrders);
+
+// Public integration endpoint for BVA (no auth required)
+// GET /api/orders/shop/:shopId -> Returns list of past orders for a shop
+router.get("/shop/:shopId", orderController.getOrdersByShopPublic);
+
 // Get seller orders (protected - seller)
 // This must come before /:id to avoid route conflicts
 router.get("/seller/:shopId", authMiddleware, orderController.getSellerOrders);

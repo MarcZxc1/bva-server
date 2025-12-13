@@ -61,23 +61,21 @@ export default function MarketMate() {
   // Handle promotion data from SmartShelf navigation
   useEffect(() => {
     const state = location.state as { promotion?: any; product?: any } | null;
-    if (state?.promotion) {
-      console.log("🎯 Received promotion from SmartShelf:", {
-        promotion: state.promotion,
+    if (state?.product) {
+      console.log("🎯 Received product from SmartShelf:", {
         product: state.product,
         hasProductImage: !!state.product?.imageUrl,
         productId: state.product?.productId,
       });
       // Auto-create campaign from the promotion
-      const createCampaignFromPromotion = async () => {
+      const createCampaignFromProduct = async () => {
         try {
           await createCampaignMutation.mutateAsync({
-            name: `${state.promotion.product_name} - ${state.promotion.event_title}`,
+            name: `${state.product.name} - New Campaign`,
             content: {
-              promo_copy: state.promotion.promo_copy,
+              promo_copy: `Get ${state.product.name} now!`,
               playbook: "Flash Sale",
-              product_name: state.promotion.product_name,
-              discount: `${state.promotion.suggested_discount_pct}% OFF`,
+              product_name: state.product.name,
               product_image_url: state.product?.imageUrl, // Include product image URL
             },
             status: "DRAFT",
@@ -86,14 +84,14 @@ export default function MarketMate() {
           queryClient.invalidateQueries({ queryKey: ["campaigns"] });
           // Clear the state after processing
           window.history.replaceState({}, document.title);
-          toast.success("Campaign created from SmartShelf promotion!");
+          toast.success("Campaign created from SmartShelf product!");
         } catch (error) {
-          console.error("Error creating campaign from promotion:", error);
+          console.error("Error creating campaign from product:", error);
           // Clear state even on error to prevent re-processing
           window.history.replaceState({}, document.title);
         }
       };
-      createCampaignFromPromotion();
+      createCampaignFromProduct();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.state]);
