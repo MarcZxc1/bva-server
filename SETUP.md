@@ -1,6 +1,6 @@
-# BVA Server - Complete Setup Guide
+# BVA Server - Windows Setup Guide
 
-A comprehensive guide to set up and run the Business Virtual Assistant (BVA) platform on **Windows** and **Linux**.
+A comprehensive guide to set up and run the Business Virtual Assistant (BVA) platform on **Windows 10/11**.
 
 > **📝 Environment Variables:** Complete `.env.example` files are provided in each service directory:
 > - `server/.env.example` - Backend server configuration
@@ -12,51 +12,168 @@ A comprehensive guide to set up and run the Business Virtual Assistant (BVA) pla
 ## 📋 Table of Contents
 
 - [Prerequisites](#prerequisites)
-- [Windows Setup](#windows-setup)
-- [Linux Setup](#linux-setup)
-- [Environment Variables](#environment-variables)
-- [Database Setup](#database-setup)
+- [Step-by-Step Installation](#step-by-step-installation)
+  - [1. Install Node.js](#1-install-nodejs)
+  - [2. Install Python](#2-install-python)
+  - [3. Install PostgreSQL](#3-install-postgresql)
+  - [4. Install Git](#4-install-git)
+  - [5. Clone and Setup Project](#5-clone-and-setup-project)
+  - [6. Configure Environment Variables](#6-configure-environment-variables)
+  - [7. Setup Database](#7-setup-database)
+  - [8. Setup ML Service](#8-setup-ml-service)
+  - [9. Start All Services](#9-start-all-services)
+- [Environment Variables Reference](#environment-variables-reference)
 - [Running Services](#running-services)
 - [Troubleshooting](#troubleshooting)
+- [Linux Setup (Quick Reference)](#linux-setup-quick-reference)
 
 ---
 
 ## Prerequisites
 
+Before starting, ensure you have administrator access to your Windows machine.
+
 ### Required Software
 
-| Software | Version | Purpose |
-|----------|---------|---------|
-| **Node.js** | >= 18.0.0 | Backend server and frontend applications |
-| **npm** | >= 9.0.0 | Package manager |
-| **Python** | >= 3.9 | ML Service (FastAPI) |
-| **PostgreSQL** | >= 14.0 | Database |
-| **Git** | Latest | Version control |
+| Software | Version | Purpose | Download Link |
+|----------|---------|---------|---------------|
+| **Node.js** | >= 18.0.0 | Backend server and frontend | [nodejs.org](https://nodejs.org/) |
+| **Python** | >= 3.9 | ML Service (FastAPI) | [python.org](https://www.python.org/downloads/) |
+| **PostgreSQL** | >= 14.0 | Database | [postgresql.org](https://www.postgresql.org/download/windows/) |
+| **Git** | Latest | Version control | [git-scm.com](https://git-scm.com/download/win) |
 
 ### Optional but Recommended
 
-- **Docker** & **Docker Compose** - For running PostgreSQL easily
-- **Redis** | >= 6.0 | Caching (optional)
+- **Docker Desktop** - For running PostgreSQL easily ([docker.com](https://www.docker.com/products/docker-desktop/))
+- **Redis** >= 6.0 - For caching (optional)
+- **Visual Studio Code** - Recommended IDE ([code.visualstudio.com](https://code.visualstudio.com/))
+- **Windows Terminal** - Better terminal experience ([Microsoft Store](https://aka.ms/terminal))
+
+### System Requirements
+
+- **OS:** Windows 10 (version 1809 or higher) or Windows 11
+**Download and Install:**
+
+1. Visit [nodejs.org](https://nodejs.org/) and download the **LTS version** (recommended)
+2. Run the installer (`node-v18.x.x-x64.msi`)
+3. During installation:
+   - ✅ Accept the license agreement
+   - ✅ Keep default installation path
+   - ✅ **Check "Automatically install the necessary tools"** (optional but recommended)
+   - ✅ Click "Install"
+
+**Verify Installation:**
+
+Open **PowerShell** or **Command Prompt** and run:
+
+```powershell
+node --version
+# Should output: v18.x.x or higher
+
+npm --version
+# Should output: 9.x.x or higher
+**Download and Install:**
+
+1. Visit [python.org/downloads](https://www.python.org/downloads/) and download **Python 3.9** or higher
+2. Run the installer (`python-3.x.x-amd64.exe`)
+3. During installation:
+   - ✅ **IMPORTANT:** Check **"Add Python to PATH"** at the bottom
+   - ✅ Click "Install Now"
+   - ✅ Click "Disable path length limit" when prompted (recommended)
+
+**Verify Installation:**
+
+You have **two options** for installing PostgreSQL:
+
+#### **Option A: Using PostgreSQL Installer (Recommended for Beginners)**
+
+1. Download from [postgresql.org/download/windows/](https://www.postgresql.org/download/windows/)
+2. Run the installer (`postgresql-14.x-x-windows-x64.exe`)
+3. During installation:
+   - ✅ Keep default installation directory
+   - ✅ Select components: PostgreSQL Server, pgAdmin 4, Command Line Tools
+   - ✅ Keep default data directory
+   - ✅ **Set password for 'postgres' user** (remember this password!)
+   - ✅ Keep port as `5432`
+   - ✅ Keep default locale
+4. Complete the installation and **uncheck** "Launch Stack Builder" (optional)
+
+**Verify Installation:**
+
+```powershell
+psql --version
+# Should output: psql (PostgreSQL) 14.x or higher
+```
+
+**Create Database:**
+
+```powershell
+# Open psql (enter your postgres password when prompted)
+psql -U postgres
+
+# In psql prompt:
+CREATE DATABASE bva_db;
+CREATE USER bva_user WITH PASSWORD 'your_secure_password';
+GRANT ALL PRIVILEGES ON DATABASE bva_db TO bva_user;
+\q
+```
+
+#### **Option B: Using Docker Desktop (Recommended for Developers)**
+
+1. Download and install [Docker Desktop for Windows](https://www.docker.com/products/docker-desktop/)
+2. Start Docker Desktop (wait for it to fully start)
+3. Enable WSL 2 if prompted
+**Download and Install:**
+
+1. Download from [git-scm.com/download/win](https://git-scm.com/download/win)
+2. Run the installer (`Git-2.x.x-64-bit.exe`)
+3. During installation (recommended settings):
+   - ✅ Keep default components
+   - ✅ Default editor: Use Visual Studio Code (if installed) or Vim
+   - ✅ Branch name: "Let Git decide"
+   - ✅ PATH: "Git from the command line and also from 3rd-party software"
+**Clone Repository:**
+
+Open PowerShell or Command Prompt and navigate to where you want to store the project:
+
+```powershell
+# Navigate to your preferred directory
+cd C:\Users\YourUsername\Documents
+
+# Clone the repository
+git clone https://github.com/MarcZxc1/bva-server.git
+cd bva-server
+```
+
+**Install All Dependencies:**
+
+This will install dependencies for all services (server, frontend, shopee-clone, lazada-clone):
+
+```powershell
+npm run install:all
+```
+
+> **⏱️ Note:** This may take 5-10 minutes depending on your internet connection.
+
+**Create Environment Files:**
+
+```powershell
+# Create environment files from examples
+cd server
+copy .env.example .env
+
+cd ..\ml-service
+copy .env.example .env
+
+cd ..\bva-frontend
+copy .env.example .env
+
+cd ..
+```
 
 ---
 
-## Windows Setup
-
-### Step 1: Install Node.js
-
-1. Download Node.js LTS from [nodejs.org](https://nodejs.org/)
-2. Run the installer and follow the setup wizard
-3. Verify installation:
-   ```powershell
-   node --version
-   npm --version
-   ```
-
-### Step 2: Install Python
-
-1. Download Python from [python.org](https://www.python.org/downloads/)
-2. **Important:** Check "Add Python to PATH" during installation
-3. Choose Python 3.9 or higher
+### 6. Configure Environment Variables
 4. Verify installation:
    ```powershell
    python --version
@@ -154,57 +271,115 @@ REDIS_URL=redis://localhost:6379
 ```
 
 **Edit `ml-service/.env` file:**
-
-```env
-# Application
-HOST=0.0.0.0
-PORT=8001
-DEBUG=false
-
-# Redis
-REDIS_URL=redis://localhost:6379/0
-CELERY_BROKER_URL=redis://localhost:6379/0
-CELERY_RESULT_BACKEND=redis://localhost:6379/1
-
-# Model Configuration
-MODEL_DIR=./models
-DEFAULT_FORECAST_PERIODS=14
-
-# Google Gemini API (for AI features)
-GEMINI_API_KEY=your_gemini_api_key_here
-GEMINI_MODEL=gemini-2.0-flash-exp
-
-# Backend API (Optional)
-BACKEND_API_URL=http://localhost:3000
-```
-
-**Edit `bva-frontend/.env` file (optional):**
-
-```env
-# Backend API URL
-VITE_API_URL=http://localhost:3000
-
-```
-
-> **Note:** See `.env.example` files in each directory for complete environment variable documentation.
-
-### Step 7: Setup Database
+Navigate to the server directory and setup the database:
 
 ```powershell
 cd server
 
-# Run database migrations
-npx prisma migrate dev
+# Generate Prisma Client
+npx prisma generate
 
-# (Optional) Seed database
+# Run database migrations (creates tables)
+npx prisma migrate dev --name init
+
+# Optional: Seed database with sample data
 npx prisma db seed
 ```
 
-### Step 8: Setup ML Service
+**Expected Output:**
+```
+✔ Generated Prisma Client
+✔ The migration has been generated and applied
+✔ Seeding complete
+```
+
+> **💡 Tip:** View your database using Prisma Studio:
+> ```powershell
+> npx prisma studio
+> ```
+> This opens a web interface at http://localhost:5555
+
+Navigate to the ML service directory and setup Python environment:
 
 ```powershell
-cd ml-service
+cd ..\ml-service
 
+# Create Python virtual environment
+python -m venv venv
+
+# Activate virtual environment
+.\venv\Scripts\activate
+
+# Upgrade pip (recommended)
+python -m pip install --upgrade pip
+
+# Install dependencies
+You have **two options** to start the services:
+
+#### **Option A: Start All Services at Once (Recommended)**
+
+From the project root directory:
+
+```powershell
+cd C:\Users\YourUsername\Documents\bva-server
+npm start
+```
+
+This will automatically start all services in the correct order.
+
+#### **Option B: Start Services Individually (Advanced)**
+
+Open **4 separate** PowerShell/Command Prompt windows:
+
+**Terminal 1 - ML Service:**
+```powershell
+cd C:\Users\YourUsername\Documents\bva-server\ml-service
+.\venv\Scripts\activate
+uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload
+```
+
+**Terminal 2 - Backend Server:**
+```powershell
+cd C:\Users\YourUsername\Documents\bva-server\server
+npm run dev
+```
+
+**Terminal 3 - BVA Frontend:**
+```powershell
+cd C:\Users\YourUsername\Documents\bva-server\bva-frontend
+npm run dev
+```
+
+**Terminal 4 - Shopee Clone (Optional):**
+```powershell
+cd C:\Users\YourUsername\Documents\bva-server\shopee-clone
+npm run dev
+```
+
+**Wait for all services to start** (you'll see "Server running" messages).
+
+---
+
+### 10. Access Services
+
+# Run database migrations
+npx prisma migrate dev
+Once all services are running successfully, open your web browser and access:
+
+| Service | URL | Description |
+|---------|-----|-------------|
+| **🎯 BVA Frontend** | http://localhost:8080 | Main application interface |
+| **🔧 Backend API** | http://localhost:3000/api | REST API endpoints |
+| **🏪 Shopee Clone** | http://localhost:5174 | Shopee marketplace clone |
+| **🛍️ Lazada Clone** | http://localhost:3001 | Lazada marketplace clone |
+| **🤖 ML Service Docs** | http://localhost:8001/docs | FastAPI interactive documentation |
+| **🗄️ Prisma Studio** | http://localhost:5555 | Database management (run `npx prisma studio` in server/) |
+
+> **✅ Success Check:** If you can access the BVA Frontend at http://localhost:8080 and see the login page, your setup is complete!
+
+---
+
+## Environment Variables Reference
 # Create virtual environment
 python -m venv venv
 
@@ -445,13 +620,9 @@ npx prisma migrate dev
 # (Optional) Seed database
 npx prisma db seed
 ```
+Complete `.env.example` files are provided in each service directory. Copy them to `.env` and fill in your values.
 
-### Step 8: Setup ML Service
-
-```bash
-cd ml-service
-
-# Create virtual environment
+### Server Environment Variables (`server/.env`)
 python3 -m venv venv
 
 # Activate virtual environment
@@ -553,59 +724,7 @@ REDIS_URL=redis://localhost:6379
 
 **Required Variables:**
 
-```env
-# Application Configuration
-HOST=0.0.0.0
-PORT=8001
-DEBUG=false
-
-# Redis Configuration
-REDIS_URL=redis://localhost:6379/0
-CELERY_BROKER_URL=redis://localhost:6379/0
-CELERY_RESULT_BACKEND=redis://localhost:6379/1
-```
-
-**Optional Variables:**
-
-```env
-# Model Configuration
-MODEL_DIR=./models
-DEFAULT_FORECAST_PERIODS=14
-DEFAULT_FORECAST_METHOD=auto
-
-# Google Gemini API (for AI features)
-GEMINI_API_KEY=your_gemini_api_key_here
-GEMINI_MODEL=gemini-2.0-flash-exp
-IMAGEN_MODEL=gemini-2.5-flash-image
-
-# Backend API (Optional)
-BACKEND_API_URL=http://localhost:3000
-BACKEND_API_KEY=your_backend_api_key
-
-# Social Media APIs (Optional)
-FACEBOOK_ACCESS_TOKEN=your_facebook_access_token
-INSTAGRAM_ACCESS_TOKEN=your_instagram_access_token
-
-# Logging
-LOG_LEVEL=INFO
-LOG_FORMAT=json
-```
-
-> **See `ml-service/.env.example` for complete documentation of all available variables.**
-
-### BVA Frontend Environment Variables (`bva-frontend/.env`)
-
-**Optional Variables:**
-
-```env
-# Backend API URL
-# In development, leave empty to use Vite proxy
-# In production, set to your backend URL
-VITE_API_URL=http://localhost:3000
-
-```
-
-> **See `bva-frontend/.env.example` for complete documentation of all available variables.**
+*See `bva-frontend/.env.example` for complete documentation of all available variables.**
 
 ---
 
@@ -679,54 +798,38 @@ This will start:
 ### Start Services Individually
 
 ```bash
-# Backend Server
-cd server && npm run dev
+## Running Services
 
-# BVA Frontend
-cd bva-frontend && npm run dev
+### Daily Usage
 
-# Shopee Clone
-cd shopee-clone && npm run dev
+After initial setup, you only need to start the services:
 
-# ML Service
-cd ml-service
-source venv/bin/activate  # Linux
-# or
-.\venv\Scripts\activate    # Windows
-uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload
+```powershell
+# Navigate to project root
+cd C:\Users\YourUsername\Documents\bva-server
+
+# Start all services
+npm start
 ```
+
+### Stopping Services
+
+Press `Ctrl + C` in each terminal window to stop services gracefully.
 
 ### Build for Production
 
-```bash
-# Build all services
+```powershell
+# Build all services for production
 npm run build
 
-# Build individual services
+# Or build individual services
 npm run build:server
 npm run build:frontend
 npm run build:shopee
+npm run build:lazada
 ```
 
----
-
-## Troubleshooting
-
-### Port Already in Use
-
-**Windows:**
-```powershell
-# Find process using port
-netstat -ano | findstr :3000
-
-# Kill process
-taskkill /PID <process_id> /F
-```
-
-**Linux:**
-```bash
-# Find process using port
-lsof -i :3000
+---f -i :3000
 
 # Kill process
 kill -9 <PID>
@@ -758,55 +861,287 @@ kill -9 <PID>
    ```
 3. Verify port 8001 is available
 
-### CORS Issues
+## Troubleshooting
 
-1. Verify `FRONTEND_URL` in `server/.env` matches your frontend URL
-2. Check backend CORS configuration
+### Common Issues and Solutions
 
-### Module Not Found Errors
+#### 🔴 "Port Already in Use" Error
 
-```bash
-# Reinstall all dependencies
-npm run install:all
+**Problem:** Port 3000, 8080, or 8001 is already being used.
 
-# Clear node_modules and reinstall
-rm -rf node_modules package-lock.json
-npm install
+**Solution:**
+
+```powershell
+# Find process using the port (example: port 3000)
+netstat -ano | findstr :3000
+
+# Kill the process (replace <PID> with the number from previous command)
+taskkill /PID <PID> /F
+
+# Or find and kill all Node processes
+taskkill /F /IM node.exe
+
+# Or find and kill Python processes
+taskkill /F /IM python.exe
 ```
 
-### Prisma Issues
+---
+
+#### 🔴 Database Connection Failed
+
+**Problem:** Cannot connect to PostgreSQL database.
+
+**Solutions:**
+
+1. **Check if PostgreSQL is running:**
+   ```powershell
+   # Start PostgreSQL service (adjust version number)
+   net start postgresql-x64-14
+   ```
+
+2. **Verify DATABASE_URL in `server/.env`:**
+   ```env
+   DATABASE_URL="postgresql://postgres:your_password@localhost:5432/bva_db?schema=public"
+   ```
+
+3. **Test database connection:**
+   ```powershell
+   psql -U postgres -d bva_db
+   ```
+
+4. **If database doesn't exist, create it:**
+   ```powershell
+   psql -U postgres
+   # Then in psql:
+   CREATE DATABASE bva_db;
+   \q
+   ```
+
+---
+
+#### 🔴 ML Service Not Starting
+
+**Problem:** ML Service fails to start or shows import errors.
+
+**Solutions:**
+
+1. **Verify virtual environment is activated:**
+   ```powershell
+   cd ml-service
+   .\venv\Scripts\activate
+   # You should see (venv) in your prompt
+   ```
+
+2. **Reinstall dependencies:**
+   ```powershell
+   pip install --upgrade pip
+   pip install -r requirements.txt
+   ```
+
+3. **Check Python version:**
+   ```powershell
+### Getting Help
+
+If you're still experiencing issues:
+
+1. **Check the logs:** Look at the terminal output for error messages
+2. **Review `.env` files:** Make sure all required variables are set
+3. **GitHub Issues:** Check existing issues or create a new one
+4. **Documentation:** Review the README.md for additional information
+
+---
+
+## Linux Setup (Quick Reference)
+
+For Linux users, here's a quick setup reference:
 
 ```bash
-cd server
+# Install Node.js
+curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
+sudo apt-get install -y nodejs
 
-# Reset database (WARNING: Deletes all data)
-npx prisma migrate reset
+# Install Python
+sudo apt-get install python3 python3-pip python3-venv
 
-# Generate Prisma Client
+# Install PostgreSQL
+sudo apt-get install postgresql postgresql-contrib
+
+# Clone and setup
+git clone https://github.com/MarcZxc1/bva-server.git
+cd bva-server
+npm run install:all
+
+# Setup environments
+cd server && cp .env.example .env
+cd ../ml-service && cp .env.example .env
+
+# Setup database
+cd ../server
 npx prisma generate
-
-# Run migrations
 npx prisma migrate dev
+
+# Setup ML service
+cd ../ml-service
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+
+# Start all services
+cd ..
+npm start
 ```
 
 ---
 
 ## Additional Resources
 
-- **Backend API Docs:** http://localhost:3000/api/docs
-- **ML Service Docs:** http://localhost:8001/docs
-- **Prisma Studio:** Run `npx prisma studio` in `server/` directory
+- **📖 README:** [README.md](./README.md) - Project overview
+- **🔧 Backend API Docs:** http://localhost:3000/api/docs
+- **🤖 ML Service Docs:** http://localhost:8001/docs
+- **🗄️ Database Management:** `npx prisma studio` in `server/` directory
+- **🐙 GitHub Repository:** https://github.com/MarcZxc1/bva-server
 
 ---
 
-## Support
+## Quick Commands Reference
 
-For issues or questions:
-1. Check the troubleshooting section above
-2. Review service logs
-3. Check GitHub issues
-4. Contact the development team
+```powershell
+# Start all services
+npm start
+
+# Install dependencies
+npm run install:all
+
+# View database
+cd server && npx prisma studio
+
+# Check service status
+netstat -ano | findstr :3000   # Backend
+netstat -ano | findstr :8080   # Frontend
+netstat -ano | findstr :8001   # ML Service
+
+# Clear cache and restart
+Remove-Item -Recurse -Force node_modules, package-lock.json
+npm run install:all
+```
 
 ---
 
-**Last Updated:** 2024
+**Last Updated:** December 15, 2025
+**Version:** 1.0.0
+**Maintained by:** BVA Development TeamForce node_modules, package-lock.json
+npm run install:all
+
+# Or for a specific service
+cd server
+Remove-Item -Recurse -Force node_modules, package-lock.json
+npm install
+```
+
+---
+
+#### 🔴 Prisma/Database Issues
+
+**Problem:** Database schema issues or migrations failing.
+
+**Solutions:**
+
+```powershell
+cd server
+
+# Generate Prisma Client
+npx prisma generate
+
+# Apply migrations
+npx prisma migrate dev
+
+# Reset database (⚠️ WARNING: Deletes all data)
+npx prisma migrate reset
+
+# View database in browser
+npx prisma studio
+```
+
+---
+
+#### 🔴 CORS Errors in Browser
+
+**Problem:** Frontend can't communicate with backend.
+
+**Solutions:**
+
+1. **Check `FRONTEND_URL` in `server/.env`:**
+   ```env
+   FRONTEND_URL=http://localhost:8080
+   ```
+
+2. **Make sure frontend is running on port 8080**
+
+3. **Clear browser cache and restart services**
+
+---
+
+#### 🔴 "npm ERR! ENOENT" or File Not Found
+
+**Problem:** Missing files or incorrect paths.
+
+**Solutions:**
+
+```powershell
+# Make sure you're in the project root
+cd C:\Users\YourUsername\Documents\bva-server
+
+# Check current directory
+Get-Location
+
+# List files
+dir
+```
+
+---
+
+#### 🔴 Windows Firewall Blocking Connections
+
+**Problem:** Services can't communicate due to Windows Firewall.
+
+**Solutions:**
+
+1. When Windows Firewall prompt appears, click **"Allow access"**
+2. Or manually add rules in Windows Defender Firewall settings
+3. For development, you can temporarily disable firewall (not recommended for production)
+
+---
+
+#### 🔴 Gemini API Key Invalid
+
+**Problem:** ML Service can't access Google Gemini API.
+
+**Solutions:**
+
+1. **Get a valid API key:**
+   - Visit https://makersuite.google.com/app/apikey
+   - Sign in with Google account
+   - Create a new API key
+
+2. **Update `ml-service/.env`:**
+   ```env
+   GEMINI_API_KEY=your_actual_api_key_here
+   ```
+
+3. **Restart ML Service**
+
+---
+
+#### 🔴 Git Clone Fails
+
+**Problem:** Can't clone repository due to authentication.
+
+**Solutions:**
+
+```powershell
+# Use HTTPS with personal access token
+git clone https://github.com/MarcZxc1/bva-server.git
+
+# Or configure SSH keys
+# See: https://docs.github.com/en/authentication/connecting-to-github-with-ssh
+```
