@@ -154,8 +154,9 @@ function detectAtRiskBasic(
 }
 
 /**
- * GET /api/smart-shelf/dashboard/user
+ * GET /api/smart-shelf/dashboard/user?platform=SHOPEE
  * Get aggregated dashboard analytics from all accessible shops
+ * Optional platform query parameter to filter by specific platform
  */
 export const getUserDashboardAnalytics = async (req: Request, res: Response) => {
   try {
@@ -167,10 +168,13 @@ export const getUserDashboardAnalytics = async (req: Request, res: Response) => 
       });
     }
 
+    const platform = req.query.platform as string | undefined;
+
     // Use service layer for aggregated dashboard analytics
-    const dashboardData = await getUserDashboardAnalyticsService(user.userId);
+    const dashboardData = await getUserDashboardAnalyticsService(user.userId, platform);
 
     console.log(`📊 getUserDashboardAnalytics controller: Returning aggregated data for user ${user.userId}`, {
+      platform: platform || 'ALL',
       hasMetrics: !!dashboardData.metrics,
       hasForecast: !!dashboardData.forecast,
       metrics: dashboardData.metrics,
@@ -230,8 +234,9 @@ export const getDashboardAnalytics = async (req: Request, res: Response) => {
 };
 
 /**
- * GET /api/smart-shelf/at-risk/user
+ * GET /api/smart-shelf/at-risk/user?platform=SHOPEE
  * Get aggregated at-risk inventory from all accessible shops
+ * Optional platform query parameter to filter by specific platform
  */
 export const getUserAtRiskInventory = async (req: Request, res: Response) => {
   try {
@@ -243,8 +248,10 @@ export const getUserAtRiskInventory = async (req: Request, res: Response) => {
       });
     }
 
+    const platform = req.query.platform as string | undefined;
+
     // Use service layer for aggregated at-risk detection
-    const atRiskData = await getUserAtRiskInventoryService(user.userId);
+    const atRiskData = await getUserAtRiskInventoryService(user.userId, platform);
 
     return res.json({
       success: true,

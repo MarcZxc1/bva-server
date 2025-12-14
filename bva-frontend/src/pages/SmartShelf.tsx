@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -85,10 +85,19 @@ export default function SmartShelf() {
   const navigate = useNavigate();
   const shopId = user?.shops?.[0]?.id;
   const hasShop = !!shopId;
+  const [selectedPlatform, setSelectedPlatform] = useState<'ALL' | 'SHOPEE' | 'LAZADA'>('ALL');
   
-  const { hasActiveIntegration, isLoading: isLoadingIntegration } = useIntegration();
-  const { data: atRiskData, isLoading, refetch } = useAllUserAtRiskInventory(hasShop);
-  const { data: products, isLoading: isLoadingProducts, error: productsError } = useAllUserProducts();
+  const { hasActiveIntegration, isLoading: isLoadingIntegration, connectedPlatforms } = useIntegration();
+  const platformFilter = selectedPlatform === 'ALL' ? undefined : selectedPlatform;
+  const { data: atRiskData, isLoading, refetch } = useAllUserAtRiskInventory(hasShop, platformFilter);
+  const { data: allProducts, isLoading: isLoadingProducts, error: productsError } = useAllUserProducts();
+  
+  // Filter products by selected platform
+  const products = useMemo(() => {
+    if (!allProducts) return [];
+    if (selectedPlatform === 'ALL') return allProducts;
+    return allProducts.filter(p => p.platform?.toUpperCase() === selectedPlatform);
+  }, [allProducts, selectedPlatform]);
   
   const [selectedItem, setSelectedItem] = useState<any>(null);
   const [promotionsData, setPromotionsData] = useState<PromotionResponse | null>(null);
@@ -252,6 +261,37 @@ export default function SmartShelf() {
             )}
           </Button>
         </div>
+        
+        {/* Platform Filter Buttons */}
+        {!isLoadingIntegration && hasActiveIntegration && (
+          <div className="flex gap-2 mt-4">
+            <Button
+              variant={selectedPlatform === 'ALL' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setSelectedPlatform('ALL')}
+            >
+              All Platforms
+            </Button>
+            {connectedPlatforms?.has('SHOPEE') && (
+              <Button
+                variant={selectedPlatform === 'SHOPEE' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setSelectedPlatform('SHOPEE')}
+              >
+                Shopee Only
+              </Button>
+            )}
+            {connectedPlatforms?.has('LAZADA') && (
+              <Button
+                variant={selectedPlatform === 'LAZADA' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setSelectedPlatform('LAZADA')}
+              >
+                Lazada Only
+              </Button>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Summary Cards */}

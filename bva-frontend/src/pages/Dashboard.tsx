@@ -18,10 +18,12 @@ export default function Dashboard() {
   const shopId = user?.shops?.[0]?.id;
   const hasShop = !!shopId;
   const queryClient = useQueryClient();
+  const [selectedPlatform, setSelectedPlatform] = useState<'ALL' | 'SHOPEE' | 'LAZADA'>('ALL');
   
-  const { isPlatformConnected, isLoading: isLoadingIntegration, integrations } = useIntegration();
-  const { data: atRiskData, isLoading: atRiskLoading, refetch: refetchAtRisk } = useAllUserAtRiskInventory(hasShop && isPlatformConnected);
-  const { data: analyticsData, isLoading: analyticsLoading, refetch: refetchAnalytics } = useAllUserDashboardAnalytics(hasShop && isPlatformConnected);
+  const { isPlatformConnected, isLoading: isLoadingIntegration, integrations, connectedPlatforms } = useIntegration();
+  const platformFilter = selectedPlatform === 'ALL' ? undefined : selectedPlatform;
+  const { data: atRiskData, isLoading: atRiskLoading, refetch: refetchAtRisk } = useAllUserAtRiskInventory(hasShop && isPlatformConnected, platformFilter);
+  const { data: analyticsData, isLoading: analyticsLoading, refetch: refetchAnalytics } = useAllUserDashboardAnalytics(hasShop && isPlatformConnected, platformFilter);
   
   // Enable real-time updates
   const { isConnected } = useRealtimeDashboard({ 
@@ -263,6 +265,37 @@ export default function Dashboard() {
             )}
           </div>
         </div>
+        
+        {/* Platform Filter Buttons */}
+        {!isLoadingIntegration && isPlatformConnected && (
+          <div className="flex gap-2 mt-4">
+            <Button
+              variant={selectedPlatform === 'ALL' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setSelectedPlatform('ALL')}
+            >
+              All Platforms
+            </Button>
+            {connectedPlatforms?.has('SHOPEE') && (
+              <Button
+                variant={selectedPlatform === 'SHOPEE' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setSelectedPlatform('SHOPEE')}
+              >
+                Shopee Only
+              </Button>
+            )}
+            {connectedPlatforms?.has('LAZADA') && (
+              <Button
+                variant={selectedPlatform === 'LAZADA' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setSelectedPlatform('LAZADA')}
+              >
+                Lazada Only
+              </Button>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Skeleton Loading for Integration Check */}

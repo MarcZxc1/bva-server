@@ -92,16 +92,19 @@ export interface PromotionResponse {
 export const analyticsService = {
   /**
    * Get aggregated dashboard stats from all accessible shops (owned + linked)
+   * @param platform - Optional platform filter (SHOPEE, LAZADA, etc.)
    */
-  getAllUserDashboardStats: async (): Promise<DashboardResponse> => {
-    console.log(`📊 Fetching aggregated dashboard stats for all user shops...`);
+  getAllUserDashboardStats: async (platform?: string): Promise<DashboardResponse> => {
+    const platformParam = platform ? `?platform=${platform}` : '';
+    console.log(`📊 Fetching aggregated dashboard stats for all user shops${platform ? ` (${platform} only)` : ''}...`);
     try {
-      const response = await apiClient.get<DashboardResponse>(`/api/smart-shelf/dashboard/user`);
+      const response = await apiClient.get<DashboardResponse>(`/api/smart-shelf/dashboard/user${platformParam}`);
       console.log("📊 Raw aggregated dashboard response from API:", {
         hasResponse: !!response,
         hasMetrics: !!response?.metrics,
         hasForecast: !!response?.forecast,
         metrics: response?.metrics,
+        platform: platform || 'ALL',
       });
       return response;
     } catch (error: any) {
@@ -140,10 +143,12 @@ export const analyticsService = {
 
   /**
    * Get aggregated at-risk inventory from all accessible shops
+   * @param platform - Optional platform filter (SHOPEE, LAZADA, etc.)
    */
-  getAllUserAtRiskInventory: async (): Promise<AtRiskResponse> => {
-    console.log(`📊 Fetching aggregated at-risk inventory for all user shops...`);
-    return apiClient.get<AtRiskResponse>(`/api/smart-shelf/at-risk/user`);
+  getAllUserAtRiskInventory: async (platform?: string): Promise<AtRiskResponse> => {
+    const platformParam = platform ? `?platform=${platform}` : '';
+    console.log(`📊 Fetching aggregated at-risk inventory for all user shops${platform ? ` (${platform} only)` : ''}...`);
+    return apiClient.get<AtRiskResponse>(`/api/smart-shelf/at-risk/user${platformParam}`);
   },
 
   getAtRiskInventory: async (shopId: string): Promise<AtRiskResponse> => {

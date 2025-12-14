@@ -374,11 +374,15 @@ export async function getAtRiskInventory(
 /**
  * Get aggregated at-risk inventory for all shops accessible to a user
  * Combines data from owned and linked shops
+ * @param platform - Optional platform filter (SHOPEE, LAZADA, etc.)
  */
-export async function getUserAtRiskInventory(userId: string): Promise<AtRiskResponse> {
+export async function getUserAtRiskInventory(userId: string, platform?: string): Promise<AtRiskResponse> {
   // Get all shops the user owns
   const ownedShops = await prisma.shop.findMany({
-    where: { ownerId: userId },
+    where: { 
+      ownerId: userId,
+      ...(platform && { platform: platform as any }),
+    },
     select: { id: true, platform: true },
   });
 
@@ -392,10 +396,15 @@ export async function getUserAtRiskInventory(userId: string): Promise<AtRiskResp
     },
   });
 
+  // Filter linked shops by platform if specified
+  const filteredLinkedShops = platform
+    ? linkedShops.filter(ls => ls.Shop.platform === platform)
+    : linkedShops;
+
   // Combine all shop IDs
   const allShopIds = [
     ...ownedShops.map(s => s.id),
-    ...linkedShops.map(sa => sa.Shop.id),
+    ...filteredLinkedShops.map(sa => sa.Shop.id),
   ];
 
   if (allShopIds.length === 0) {
@@ -572,12 +581,16 @@ export async function getUserAtRiskInventory(userId: string): Promise<AtRiskResp
 /**
  * Get aggregated dashboard analytics for all shops accessible to a user
  * Combines data from owned and linked shops
+ * @param platform - Optional platform filter (SHOPEE, LAZADA, etc.)
  */
-export async function getUserDashboardAnalytics(userId: string) {
+export async function getUserDashboardAnalytics(userId: string, platform?: string) {
   // Get all shops the user owns
   const ownedShops = await prisma.shop.findMany({
-    where: { ownerId: userId },
-    select: { id: true },
+    where: { 
+      ownerId: userId,
+      ...(platform && { platform: platform as any }),
+    },
+    select: { id: true, platform: true },
   });
 
   // Get all shops the user has access to via ShopAccess
@@ -585,15 +598,20 @@ export async function getUserDashboardAnalytics(userId: string) {
     where: { userId: userId },
     include: {
       Shop: {
-        select: { id: true },
+        select: { id: true, platform: true },
       },
     },
   });
 
+  // Filter linked shops by platform if specified
+  const filteredLinkedShops = platform
+    ? linkedShops.filter(ls => ls.Shop.platform === platform)
+    : linkedShops;
+
   // Combine all shop IDs
   const allShopIds = [
     ...ownedShops.map(s => s.id),
-    ...linkedShops.map(sa => sa.Shop.id),
+    ...filteredLinkedShops.map(sa => sa.Shop.id),
   ];
 
   if (allShopIds.length === 0) {
