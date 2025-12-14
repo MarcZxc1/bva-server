@@ -10,11 +10,11 @@ export class IntegrationController {
    */
   async createIntegration(req: Request, res: Response) {
     try {
-      const shopId = await getShopIdFromRequest(req);
-      if (!shopId) {
-        return res.status(400).json({
+      const user = (req as any).user;
+      if (!user || !user.userId) {
+        return res.status(401).json({
           success: false,
-          error: "Shop ID is required",
+          error: "User not authenticated",
         });
       }
 
@@ -24,6 +24,20 @@ export class IntegrationController {
         return res.status(400).json({
           success: false,
           error: "Platform is required",
+        });
+      }
+
+      // Get the correct shop based on platform
+      // This ensures we use the right shop for each platform integration
+      console.log(`🔍 [createIntegration] User: ${user.userId}, Platform: ${platform}`);
+      const shopId = await integrationService.getShopIdByPlatform(user.userId, platform);
+      console.log(`📍 [createIntegration] Found shop ID: ${shopId}`);
+      
+      if (!shopId) {
+        console.error(`❌ [createIntegration] No ${platform} shop found for user ${user.userId}`);
+        return res.status(400).json({
+          success: false,
+          error: `No ${platform} shop found for this user. Please link a shop first.`,
         });
       }
 
@@ -111,21 +125,21 @@ export class IntegrationController {
   }
 
   /**
-   * Get all integrations for a shop
+   * Get all integrations for all shops the user has access to (owned + linked)
    * GET /api/integrations
    */
   async getIntegrations(req: Request, res: Response) {
     try {
-      const shopId = await getShopIdFromRequest(req);
-      if (!shopId) {
-        // Return empty array instead of error - user may not have a shop yet
-        return res.json({
-          success: true,
-          data: [],
+      const user = (req as any).user;
+      if (!user || !user.userId) {
+        return res.status(401).json({
+          success: false,
+          error: "Authentication required",
         });
       }
 
-      const integrations = await integrationService.getShopIntegrations(shopId);
+      // Get all integrations from all accessible shops
+      const integrations = await integrationService.getUserIntegrations(user.userId);
 
       return res.json({
         success: true,
@@ -221,14 +235,25 @@ export class IntegrationController {
           error: "Integration ID is required",
         });
       }
-      await integrationService.deleteIntegration(id);
+      
+      const result = await integrationService.deleteIntegration(id);
 
+      // Return success even if integration was already deleted (idempotent)
       return res.json({
         success: true,
-        message: "Integration deleted successfully",
+        message: result ? "Integration deleted successfully" : "Integration already deleted",
       });
     } catch (error: any) {
       console.error("Error deleting integration:", error);
+      
+      // Handle Prisma P2025 error (record not found)
+      if (error.code === 'P2025') {
+        return res.json({
+          success: true,
+          message: "Integration already deleted",
+        });
+      }
+      
       return res.status(500).json({
         success: false,
         error: error.message || "Internal server error",

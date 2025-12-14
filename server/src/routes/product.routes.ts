@@ -7,6 +7,9 @@ const router = Router();
 // Get all products (public - for buyer landing page)
 router.get("/", productController.getAllProducts);
 
+// Get all products for the authenticated user (from all accessible shops)
+router.get("/user/all", authMiddleware, productController.getUserProducts);
+
 // Get product by ID (public)
 router.get("/:id", productController.getProductById);
 

@@ -1,297 +1,171 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useAuthStore } from '../../store';
+import { useAuthStore } from '@/store';
+import { useRouter } from 'next/navigation';
 
-const BVAIntegrationCheck = () => {
-  const { user, token, isLoggedIn } = useAuthStore();
-  const [showPermissionModal, setShowPermissionModal] = useState(false);
-  const [hasRequestedPermission, setHasRequestedPermission] = useState(false);
+export default function BVAIntegrationCheck() {
+  const { user, shops, token, isHydrated } = useAuthStore();
+  const router = useRouter();
+  const [showPermission, setShowPermission] = useState(false);
   const [shop, setShop] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-  
-  // Get token from localStorage as fallback (in case auth store isn't updated)
-  const getToken = () => {
-    if (typeof window !== 'undefined') {
-      return token || localStorage.getItem('token') || localStorage.getItem('authToken');
-    }
-    return token;
-  };
 
-  // Fetch shop information from API
   useEffect(() => {
-    const fetchShop = async () => {
-      const authToken = getToken();
-      if (!isLoggedIn || !authToken) {
-        setLoading(false);
-        return;
-      }
+    // Wait for store to hydrate
+    if (!isHydrated) return;
 
-      try {
-        // Get API URL from environment or use default (main server)
-        const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api';
-        
-        // Try to get shop from API
-        const response = await fetch(`${API_URL}/shops/my`, {
-          headers: {
-            'Authorization': `Bearer ${authToken}`,
-            'Content-Type': 'application/json',
-          },
-        });
-
-        if (response.ok) {
-          const shopData = await response.json();
-          setShop(shopData);
-        } else if (response.status === 404) {
-          // User doesn't have a shop yet
-          setShop(null);
-        } else {
-          console.error('Error fetching shop:', response.status);
-        }
-      } catch (error) {
-        console.error('Error fetching shop:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    const authToken = getToken();
-    if (isLoggedIn && authToken) {
-      fetchShop();
+    if (user && shops && shops.length > 0 && token) {
+      // User is authenticated and has a shop
+      setShop(shops[0]); // Use first shop
+      setShowPermission(true);
     } else {
-      setLoading(false);
+      // Not authenticated, redirect to seller login
+      console.log('User not authenticated, redirecting to login...');
+      router.push('/seller-login');
     }
-  }, [isLoggedIn, token]);
-
-  useEffect(() => {
-    // Check if we're in an iframe (BVA integration context)
-    const isInIframe = window.self !== window.top;
-    
-    if (!isInIframe) {
-      // If not in iframe, redirect to home
-      window.location.href = '/';
-      return;
-    }
-
-    if (loading) {
-      return; // Wait for shop data to load
-    }
-
-    const authToken = getToken();
-    
-    // If user is authenticated and has a shop
-    if (isLoggedIn && user && authToken && shop) {
-      // Show permission modal first
-      if (!hasRequestedPermission) {
-        setShowPermissionModal(true);
-        return;
-      }
-    } else if (isLoggedIn && user && authToken && !shop) {
-      // User is logged in but has no shop
-      const message = {
-        type: 'LAZADA_CLONE_AUTH_ERROR',
-        error: 'User does not have a shop. Please create a shop first.',
-      };
-      
-      if (window.parent) {
-        window.parent.postMessage(message, '*');
-      }
-    } else if (!isLoggedIn || !authToken) {
-      // User is not authenticated
-      const message = {
-        type: 'LAZADA_CLONE_AUTH_REQUIRED',
-        message: 'Please login to Lazada-Clone to continue.',
-      };
-      
-      if (window.parent) {
-        window.parent.postMessage(message, '*');
-      }
-    }
-  }, [isLoggedIn, user, token, shop, hasRequestedPermission, loading]);
+  }, [user, shops, token, isHydrated, router]);
 
   const handleGrantPermission = () => {
-    const authToken = getToken();
-    if (isLoggedIn && user && authToken && shop) {
-      // Send shop info and token to parent window (BVA Frontend)
-      const message = {
-        type: 'LAZADA_CLONE_AUTH_SUCCESS',
-        shop: {
-          id: shop.id || shop._id?.toString(),
-          name: shop.name,
-        },
-        user: {
-          id: (user as any).id || (user as any)._id?.toString(),
-          email: (user as any).email,
-          name: (user as any).name || (user as any).username,
-        },
-        token: authToken, // Include the Lazada-Clone JWT token
-      };
-      
-      // Send to parent window
-      if (window.parent) {
-        window.parent.postMessage(message, '*');
-        console.log('✅ Sent shop info and token to BVA');
-      }
-      
-      setShowPermissionModal(false);
-      setHasRequestedPermission(true);
-    } else {
-      const message = {
-        type: 'LAZADA_CLONE_AUTH_ERROR',
-        error: 'Shop information not found. Please create a shop first.',
-      };
-      if (window.parent) {
-        window.parent.postMessage(message, '*');
-      }
-    }
+    console.log('✅ User granted BVA permission');
+    
+    window.parent.postMessage({
+      type: 'LAZADA_CLONE_AUTH_SUCCESS',
+      shop: { 
+        id: shop.id, 
+        name: shop.name 
+      },
+      user: { 
+        id: user.id, 
+        email: user.email, 
+        name: user.name 
+      },
+      token: token // Lazada JWT token for API access
+    }, '*'); // Send to any origin (BVA Frontend)
+
+    console.log('📤 Permission granted, message sent to BVA');
   };
 
-  const handleDenyPermission = () => {
-    const message = {
-      type: 'LAZADA_CLONE_AUTH_ERROR',
-      error: 'Permission denied. BVA cannot access your shop data without your consent.',
-    };
+  const handleDeny = () => {
+    console.log('❌ User denied BVA permission');
     
-    if (window.parent) {
-      window.parent.postMessage(message, '*');
-    }
-    
-    setShowPermissionModal(false);
+    window.parent.postMessage({
+      type: 'LAZADA_CLONE_AUTH_DENIED'
+    }, '*');
   };
 
-  // If not authenticated, show login redirect
-  if (!isLoggedIn) {
+  if (!isHydrated || !showPermission) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-        <div className="w-full max-w-md">
-          <div className="bg-white rounded-lg shadow-lg p-6">
-            <h2 className="text-2xl font-bold text-center mb-4 text-gray-800">
-              Login to Lazada-Clone
-            </h2>
-            <p className="text-sm text-center text-gray-600 mb-6">
-              Please login with your seller account to connect with BVA
-            </p>
-            <div className="text-center">
-              <a 
-                href="/seller-login" 
-                className="inline-block px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-              >
-                Go to Login
-              </a>
-            </div>
-          </div>
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading...</p>
         </div>
       </div>
     );
   }
 
-  // Show loading state
-  if (loading) {
+  if (showPermission && shop && user) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-        <div className="bg-white rounded-lg shadow-lg p-6 text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
-          <p className="text-gray-700">Loading...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Show permission modal when authenticated
-  const authToken = getToken();
-  if (showPermissionModal && isLoggedIn && user && authToken && shop) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-        <div className="bg-white rounded-lg shadow-lg p-6 max-w-md w-full">
+      <div className="flex flex-col items-center justify-center min-h-screen p-4 bg-gray-50">
+        <div className="bg-white rounded-lg shadow-lg p-8 max-w-md w-full">
+          {/* Header */}
           <div className="text-center mb-6">
-            <h2 className="text-2xl font-bold text-gray-800 mb-2">
-              Grant Permission to BVA
-            </h2>
+            <div className="w-16 h-16 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <svg 
+                className="w-8 h-8 text-orange-500" 
+                fill="none" 
+                stroke="currentColor" 
+                viewBox="0 0 24 24"
+              >
+                <path 
+                  strokeLinecap="round" 
+                  strokeLinejoin="round" 
+                  strokeWidth={2} 
+                  d="M13 10V3L4 14h7v7l9-11h-7z" 
+                />
+              </svg>
+            </div>
+            <h1 className="text-2xl font-bold text-gray-900 mb-2">
+              BVA Integration
+            </h1>
             <p className="text-sm text-gray-600">
-              BVA wants to access your shop data
-            </p>
-          </div>
-          
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-            <p className="text-sm text-gray-700 mb-2">
-              <strong>Shop:</strong> {shop.name}
-            </p>
-            <p className="text-sm text-gray-700 mb-3">
-              <strong>Account:</strong> {(user as any).email}
+              Business Virtual Assistant
             </p>
           </div>
 
-          <div className="space-y-3 mb-6">
-            <h3 className="font-semibold text-gray-800">BVA will be able to:</h3>
-            <ul className="text-sm text-gray-600 space-y-2 list-disc list-inside">
-              <li>Access your product catalog and inventory</li>
-              <li>View your sales data and order information</li>
-              <li>Sync data for analytics and forecasting</li>
-              <li>Generate AI-powered recommendations</li>
+          {/* Shop Info */}
+          <div className="bg-orange-50 rounded-lg p-4 mb-6">
+            <p className="text-sm text-gray-600 mb-1">Connecting shop:</p>
+            <p className="font-semibold text-gray-900">{shop?.name}</p>
+            <p className="text-xs text-gray-500 mt-1">Owner: {user?.email}</p>
+          </div>
+
+          {/* Permission Details */}
+          <div className="mb-6">
+            <p className="text-sm font-semibold text-gray-900 mb-3">
+              BVA would like to access:
+            </p>
+            <ul className="space-y-2 text-sm text-gray-700">
+              <li className="flex items-start">
+                <svg className="w-5 h-5 text-green-500 mr-2 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                <span>View products and inventory</span>
+              </li>
+              <li className="flex items-start">
+                <svg className="w-5 h-5 text-green-500 mr-2 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                <span>View sales and orders</span>
+              </li>
+              <li className="flex items-start">
+                <svg className="w-5 h-5 text-green-500 mr-2 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                <span>Receive real-time updates</span>
+              </li>
+              <li className="flex items-start">
+                <svg className="w-5 h-5 text-green-500 mr-2 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                <span>Generate analytics and insights</span>
+              </li>
             </ul>
           </div>
 
-          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-6">
-            <p className="text-xs text-yellow-800">
-              <strong>Note:</strong> Your data will be processed securely. You can revoke this permission at any time from BVA Settings.
+          {/* Important Note */}
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+            <p className="text-sm text-blue-800">
+              <strong>📌 Important:</strong> BVA will only <strong>read</strong> your data. 
+              It will never modify, delete, or create products/orders in Lazada.
             </p>
           </div>
 
+          {/* Action Buttons */}
           <div className="flex gap-3">
             <button
-              onClick={handleDenyPermission}
-              className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
-            >
-              Deny
-            </button>
-            <button
               onClick={handleGrantPermission}
-              className="flex-1 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+              className="flex-1 bg-orange-500 hover:bg-orange-600 text-white font-semibold py-3 px-4 rounded-lg transition duration-200 shadow-md hover:shadow-lg"
             >
               Grant Permission
             </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // If authenticated and permission granted, show connecting
-  if (isLoggedIn && user && hasRequestedPermission && shop) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-        <div className="bg-white rounded-lg shadow-lg p-6 text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
-          <p className="text-gray-700">Connecting to BVA...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Show login if no shop
-  return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        <div className="bg-white rounded-lg shadow-lg p-6">
-          <h2 className="text-2xl font-bold text-center mb-4 text-gray-800">
-            Login to Lazada-Clone
-          </h2>
-          <p className="text-sm text-center text-gray-600 mb-6">
-            Please login with your seller account to connect with BVA
-          </p>
-          <div className="text-center">
-            <a 
-              href="/seller-login" 
-              className="inline-block px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            <button
+              onClick={handleDeny}
+              className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold py-3 px-4 rounded-lg transition duration-200"
             >
-              Go to Login
-            </a>
+              Deny
+            </button>
           </div>
+
+          {/* Footer */}
+          <p className="text-xs text-center text-gray-500 mt-6">
+            You can disconnect this integration at any time from BVA Settings
+          </p>
         </div>
       </div>
-    </div>
-  );
-};
+    );
+  }
 
-export default BVAIntegrationCheck;
+  return null;
+}
 

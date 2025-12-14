@@ -40,14 +40,18 @@ export default function SellerDashboardPage() {
         const userData = profileResponse.data;
         setUser(userData);
 
-        // Get shop ID from user's shops
+        // Get shop ID from user's shops - prioritize LAZADA shops for Lazada Clone
         if (userData.shops && userData.shops.length > 0) {
-          const shop = userData.shops[0];
+          // First try to find a LAZADA shop, fall back to first shop
+          const lazadaShop = userData.shops.find((s: any) => s.platform === 'LAZADA');
+          const shop = lazadaShop || userData.shops[0];
           setShopId(shop.id);
 
           // Fetch dashboard metrics
           const dashboardResponse = await sellerAPI.getDashboard(shop.id);
           const dashboardData = dashboardResponse.data.data || dashboardResponse.data;
+
+          console.log('📊 Dashboard metrics:', dashboardData.metrics);
 
           setMetrics({
             revenue: dashboardData.metrics?.totalRevenue || 0,
@@ -58,6 +62,11 @@ export default function SellerDashboardPage() {
             totalRevenue: dashboardData.metrics?.totalRevenue || 0,
             monthlyRevenue: dashboardData.metrics?.monthlyRevenue || 0,
             weeklyRevenue: dashboardData.metrics?.weeklyRevenue || 0,
+          });
+
+          console.log('✅ Metrics set:', {
+            totalRevenue: dashboardData.metrics?.totalRevenue || 0,
+            totalOrders: dashboardData.metrics?.totalOrders || 0,
           });
         }
       } catch (error) {

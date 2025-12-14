@@ -19,3 +19,21 @@ export function useProducts(shopId: string) {
     refetchOnWindowFocus: true, // Refetch when user returns to tab
   });
 }
+
+/**
+ * Hook to fetch products from all shops the user has access to (owned + linked)
+ * Use this when you need to show products across all integrated platforms
+ */
+export function useAllUserProducts() {
+  return useQuery<Product[]>({
+    queryKey: ["products", "all-user"],
+    queryFn: async () => {
+      console.log(`📦 useAllUserProducts: Fetching products from all accessible shops`);
+      const products = await productService.fetchAllUserProducts();
+      console.log(`✅ useAllUserProducts: Fetched ${products.length} products`);
+      return products;
+    },
+    staleTime: 30 * 1000, // 30 seconds - products can be cached briefly
+    refetchOnWindowFocus: true, // Refetch when user returns to tab
+  });
+}

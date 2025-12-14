@@ -19,8 +19,8 @@ export function useIntegration() {
     queryKey: ["integrations"],
     queryFn: () => integrationService.getIntegrations(),
     enabled: isAuthenticated && hasShop, // Only fetch when authenticated and has shop
-    staleTime: 5 * 60 * 1000, // 5 minutes - cache for 5 minutes
-    gcTime: 10 * 60 * 1000, // 10 minutes - keep in cache for 10 minutes
+    staleTime: 0, // Always fetch fresh data
+    gcTime: 1 * 60 * 1000, // 1 minute - keep in cache for 1 minute
     retry: 2, // Retry failed requests twice
     refetchOnWindowFocus: true, // Refetch when window regains focus
     refetchOnMount: true, // Refetch when component mounts (ensures fresh data on login)
@@ -46,11 +46,35 @@ export function useIntegration() {
     return settings?.termsAccepted === true && settings?.isActive !== false;
   });
 
+  // Get connected platforms (which platforms have active integrations)
+  // Only include platforms where termsAccepted is true and isActive is not false
+  const connectedPlatforms = new Set(
+    integrations
+      ?.filter((integration) => {
+        const settings = integration.settings as any;
+        return settings?.termsAccepted === true && settings?.isActive !== false;
+      })
+      .map((integration) => integration.platform) || []
+  );
+
+  // Debug logging
+  console.log('🔌 Integration Status:', {
+    integrations: integrations?.length || 0,
+    integrationsDetail: integrations?.map(i => ({
+      platform: i.platform,
+      shopId: i.shopId,
+      settings: i.settings
+    })),
+    connectedPlatforms: Array.from(connectedPlatforms),
+    hasActiveIntegration,
+  });
+
   return {
     integrations: integrations || [],
     hasActiveIntegration,
     isPlatformConnected, // True if integration exists OR linked shops exist
     activeIntegration,
+    connectedPlatforms, // Set of connected platform names (e.g., "SHOPEE", "LAZADA")
     isLoading,
     error,
     refetch, // Expose refetch for manual refresh if needed

@@ -8,13 +8,13 @@ export default function BuyerLayout({
   children: React.ReactNode;
 }) {
   return (
-    <>
+    <div className="min-h-screen flex flex-col bg-white text-gray-900">
       <Header />
       <Sidebar />
-      <main className="flex-grow">
+      <main className="flex-grow bg-gray-50">
         {children}
       </main>
       <Footer />
-    </>
+    </div>
   );
 }

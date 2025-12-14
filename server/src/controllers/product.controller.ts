@@ -1,16 +1,56 @@
 import { Request, Response } from "express";
 import * as productService from "../service/product.service";
 import { getShopIdFromRequest, verifyShopAccess } from "../utils/requestHelpers";
+import * as socketService from "../services/socket.service";
 
 export const getAllProducts = async (req: Request, res: Response) => {
   try {
-    const products = await productService.getAllProducts();
+    // Support platform filtering via query parameter
+    // ?platform=LAZADA or ?platform=SHOPEE or ?platform=TIKTOK
+    const platform = req.query.platform as string | undefined;
+    
+    const products = await productService.getAllProducts(platform);
+    
+    console.log(`📦 getAllProducts: Returning ${products.length} products${platform ? ` for platform ${platform}` : ''}`);
+    
     res.json({
       success: true,
       data: products,
     });
   } catch (error: any) {
     console.error("Error in getAllProducts:", error);
+    res.status(500).json({
+      success: false,
+      error: error.message || "Internal Server Error",
+    });
+  }
+};
+
+/**
+ * Get all products from shops the user has access to (owned + linked)
+ * GET /api/products/user
+ */
+export const getUserProducts = async (req: Request, res: Response) => {
+  try {
+    const user = (req as any).user;
+    if (!user || !user.userId) {
+      return res.status(401).json({
+        success: false,
+        error: "Authentication required",
+      });
+    }
+
+    const platform = req.query.platform as string | undefined;
+    const products = await productService.getProductsForUser(user.userId, platform);
+    
+    console.log(`📦 getUserProducts: Returning ${products.length} products for user ${user.userId}${platform ? ` (platform: ${platform})` : ''}`);
+    
+    res.json({
+      success: true,
+      data: products,
+    });
+  } catch (error: any) {
+    console.error("Error in getUserProducts:", error);
     res.status(500).json({
       success: false,
       error: error.message || "Internal Server Error",
@@ -46,9 +86,10 @@ export const getProductsByShop = async (req: Request, res: Response) => {
       });
     }
 
-    const products = await productService.getProductsByShop(shopId);
+    const platform = req.query.platform as string | undefined;
+    const products = await productService.getProductsByShop(shopId, platform);
     
-    console.log(`📦 getProductsByShop: Returning ${products.length} products for shop ${shopId}`);
+    console.log(`📦 getProductsByShop: Returning ${products.length} products for shop ${shopId}${platform ? ` (platform: ${platform})` : ''}`);
     
     res.json({
       success: true,
@@ -67,6 +108,7 @@ export const getProductsByShop = async (req: Request, res: Response) => {
 export const getProductsByShopPublic = async (req: Request, res: Response) => {
   try {
     const { shopId } = req.params;
+    const platform = req.query.platform as string | undefined;
 
     if (!shopId) {
       return res.status(400).json({
@@ -75,10 +117,10 @@ export const getProductsByShopPublic = async (req: Request, res: Response) => {
       });
     }
 
-    const products = await productService.getProductsByShop(shopId);
-    
-    console.log(`📦 getProductsByShopPublic: Returning ${products.length} products for shop ${shopId}`);
-    
+    const products = await productService.getProductsByShop(shopId, platform);
+
+    console.log(`📦 getProductsByShopPublic: Returning ${products.length} products for shop ${shopId}${platform ? ` (platform: ${platform})` : ''}`);
+
     res.json({
       success: true,
       data: products,
@@ -136,6 +178,10 @@ export const createProduct = async (req: Request, res: Response) => {
       ...req.body,
       shopId,
     });
+
+    // Notify clients about the new product
+    socketService.notifyNewProduct(product);
+
     res.status(201).json({
       success: true,
       data: product,

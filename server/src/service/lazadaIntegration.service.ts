@@ -482,7 +482,7 @@ class LazadaIntegrationService {
               total, // Required: Reports, Dashboard
               revenue, // Required: Reports, Dashboard
               profit, // Required: Reports, Restock Planner profit optimization
-              status: order.status || "completed",
+              status: (order.status as any) || "COMPLETED",
               customerName: order.customerName || null,
               customerEmail: order.customerEmail || null,
               // Only update createdAt if it's a new record (not in update)
@@ -496,7 +496,7 @@ class LazadaIntegrationService {
               total, // Required: Reports, Dashboard
               revenue, // Required: Reports, Dashboard
               profit, // Required: Reports, Restock Planner profit optimization
-              status: order.status || "completed",
+              status: (order.status as any) || "COMPLETED",
               customerName: order.customerName || null,
               customerEmail: order.customerEmail || null,
               // Use time-traveled date for ML service historical data

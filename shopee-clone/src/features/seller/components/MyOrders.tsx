@@ -197,7 +197,16 @@ const MyOrders = () => {
       }
       
       const data = await apiClient.getSellerOrders(shopId, { status: statusFilter });
-      setOrders(data || []);
+      
+      // Normalize order statuses from backend (TO_SHIP -> to-ship, TO_RECEIVE -> to-receive, etc.)
+      const normalizedOrders = (data || []).map((order: Order) => ({
+        ...order,
+        status: order.status?.toLowerCase().replace(/_/g, '-') || order.status
+      }));
+      
+      console.log('📦 Fetched orders with normalized statuses:', normalizedOrders.map(o => ({ id: o.id, status: o.status })));
+      
+      setOrders(normalizedOrders);
     } catch (err: any) {
       console.error('Error fetching orders:', err);
       setError(err.message || 'Failed to load orders');
@@ -223,14 +232,67 @@ const MyOrders = () => {
 
   const handleShipNow = async (orderId: string) => {
     try {
-      await apiClient.updateOrderStatus(orderId, 'to-receive');
+      console.log('🚢 Attempting to ship order:', orderId);
+      
+      // Check if user is authenticated
+      const token = apiClient.getToken();
+      if (!token) {
+        console.error('❌ No token found');
+        alert('You must be logged in to ship orders. Please login again.');
+        window.location.href = '/login';
+        return;
+      }
+
+      console.log('✅ Token found, updating order status to TO_RECEIVE');
+      
+      // Backend expects enum-style status
+      const result = await apiClient.updateOrderStatus(orderId, 'TO_RECEIVE');
+      console.log('✅ Order status updated successfully:', result);
+      
       // Send webhook to BVA server
       const { webhookService } = await import('../../../services/webhook.service');
-      await webhookService.sendOrderStatusChanged(orderId, 'to-receive');
-      fetchOrders(); // Refresh orders
+      try {
+        await webhookService.sendOrderStatusChanged(orderId, 'TO_RECEIVE');
+        console.log('✅ Webhook sent: Order status changed to TO_RECEIVE');
+      } catch (webhookError) {
+        console.warn('⚠️ Webhook failed, but order status updated locally:', webhookError);
+        // Don't fail the whole operation if webhook fails
+      }
+      
+      // Refresh orders
+      await fetchOrders();
+      console.log('✅ Orders refreshed');
+      
       alert('Order shipped! The buyer will be notified.');
     } catch (err: any) {
-      alert(err.message || 'Failed to ship order');
+      console.error('❌ Error shipping order:', err);
+      console.error('❌ Error details:', {
+        message: err.message,
+        response: err.response?.data,
+        status: err.response?.status,
+        statusText: err.response?.statusText,
+        stack: err.stack,
+      });
+      
+      // Check if it's an authentication error
+      if (err.response?.status === 401 || err.message?.includes('Unauthorized')) {
+        alert('Your session has expired. Please login again.');
+        window.location.href = '/login';
+      } else if (err.response?.status === 403) {
+        const errorMsg = err.response?.data?.error || err.message || 'You don\'t have permission to ship this order. Make sure you own the shop for this order.';
+        alert(errorMsg);
+        console.error('❌ Permission denied:', errorMsg);
+      } else if (err.response?.status === 404) {
+        alert('Order not found. Please refresh the page and try again.');
+      } else if (err.response?.status === 400) {
+        const errorMsg = err.response?.data?.error || err.message || 'Invalid request. Please check the order status.';
+        alert(errorMsg);
+        console.error('❌ Bad request:', errorMsg);
+      } else {
+        const errorMessage = err.response?.data?.error || err.message || 'Failed to ship order. Please try again.';
+        alert(`Error: ${errorMessage}\n\nCheck the browser console for more details.`);
+        console.error('❌ Unknown error:', errorMessage);
+      }
     }
   };
 
@@ -242,12 +304,12 @@ const MyOrders = () => {
     
     try {
       // Update order status in shopee-clone
-      await apiClient.updateOrderStatus(orderId, 'completed');
+          await apiClient.updateOrderStatus(orderId, 'COMPLETED');
       
       // Send webhook to BVA server to update income
       const { webhookService } = await import('../../../services/webhook.service');
       try {
-        await webhookService.sendOrderStatusChanged(orderId, 'completed');
+            await webhookService.sendOrderStatusChanged(orderId, 'COMPLETED');
         console.log('✅ Webhook sent: Order status changed to completed');
       } catch (webhookError) {
         console.error('⚠️  Webhook failed, but order status updated locally:', webhookError);
@@ -295,19 +357,24 @@ const MyOrders = () => {
   });
 
   const getStatusLabel = (status: string) => {
-    switch (status) {
+    // Normalize status to lowercase with hyphens for consistent matching
+    const normalizedStatus = status?.toLowerCase().replace(/_/g, '-');
+    
+    switch (normalizedStatus) {
+      case 'pending':
       case 'to-pay':
         return 'To Pay';
       case 'to-ship':
         return 'To Ship';
       case 'to-receive':
-        return 'To Receive';
       case 'shipping':
         return 'Shipping';
       case 'completed':
         return 'Completed';
       case 'cancelled':
         return 'Cancelled';
+      case 'returned':
+      case 'refunded':
       case 'return-refund':
         return 'Return/Refund';
       default:
@@ -316,19 +383,24 @@ const MyOrders = () => {
   };
 
   const getStatusColor = (status: string) => {
-    switch (status) {
+    // Normalize status to lowercase with hyphens for consistent matching
+    const normalizedStatus = status?.toLowerCase().replace(/_/g, '-');
+    
+    switch (normalizedStatus) {
+      case 'pending':
       case 'to-pay':
         return '#ff9800';
       case 'to-ship':
         return '#ff9800';
       case 'to-receive':
-        return '#9c27b0';
       case 'shipping':
         return '#2196f3';
       case 'completed':
         return '#4caf50';
       case 'cancelled':
         return '#f44336';
+      case 'returned':
+      case 'refunded':
       case 'return-refund':
         return '#ff9800';
       default:

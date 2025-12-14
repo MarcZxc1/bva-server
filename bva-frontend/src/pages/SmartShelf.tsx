@@ -8,7 +8,7 @@ import { AlertTriangle, Package, TrendingDown, Calendar, Loader2, PackageOpen, P
 import { useAtRiskInventory } from "@/hooks/useSmartShelf";
 import { useAuth } from "@/contexts/AuthContext";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { useProducts } from "@/hooks/useProducts";
+import { useAllUserProducts } from "@/hooks/useProducts";
 import { useIntegration } from "@/hooks/useIntegration";
 import { AlertCircle } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -88,7 +88,7 @@ export default function SmartShelf() {
   
   const { hasActiveIntegration, isLoading: isLoadingIntegration } = useIntegration();
   const { data: atRiskData, isLoading, refetch } = useAtRiskInventory(shopId || "", hasShop);
-  const { data: products, isLoading: isLoadingProducts, error: productsError } = useProducts(shopId || "");
+  const { data: products, isLoading: isLoadingProducts, error: productsError } = useAllUserProducts();
   
   const [selectedItem, setSelectedItem] = useState<any>(null);
   const [promotionsData, setPromotionsData] = useState<PromotionResponse | null>(null);

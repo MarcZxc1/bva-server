@@ -2,12 +2,13 @@
 import prisma from "../lib/prisma";
 
 type Platform = "SHOPEE" | "TIKTOK" | "LAZADA" | "OTHER";
-type UserPlatform = "SHOPEE_CLONE" | "TIKTOK_CLONE" | "BVA";
+type UserPlatform = "SHOPEE_CLONE" | "TIKTOK_CLONE" | "LAZADA_CLONE" | "BVA";
 
 /**
  * Maps UserPlatform to Shop Platform
  * SHOPEE_CLONE -> SHOPEE
  * TIKTOK_CLONE -> TIKTOK
+ * LAZADA_CLONE -> LAZADA
  * BVA -> SHOPEE (default)
  */
 function mapUserPlatformToShopPlatform(userPlatform: UserPlatform): Platform {
@@ -16,6 +17,8 @@ function mapUserPlatformToShopPlatform(userPlatform: UserPlatform): Platform {
       return "SHOPEE";
     case "TIKTOK_CLONE":
       return "TIKTOK";
+    case "LAZADA_CLONE":
+      return "LAZADA";
     case "BVA":
     default:
       return "SHOPEE";
@@ -37,7 +40,7 @@ export class ShopSeedService {
   ) {
     // Convert UserPlatform to Shop Platform if needed
     const shopPlatform: Platform =
-      platform === "SHOPEE_CLONE" || platform === "TIKTOK_CLONE" || platform === "BVA"
+      platform === "SHOPEE_CLONE" || platform === "TIKTOK_CLONE" || platform === "LAZADA_CLONE" || platform === "BVA"
         ? mapUserPlatformToShopPlatform(platform as UserPlatform)
         : (platform as Platform);
 
@@ -161,7 +164,7 @@ export class ShopSeedService {
   ) {
     // Convert UserPlatform to Shop Platform if needed
     const shopPlatform: Platform =
-      platform === "SHOPEE_CLONE" || platform === "TIKTOK_CLONE" || platform === "BVA"
+      platform === "SHOPEE_CLONE" || platform === "TIKTOK_CLONE" || platform === "LAZADA_CLONE" || platform === "BVA"
         ? mapUserPlatformToShopPlatform(platform as UserPlatform)
         : (platform as Platform);
 

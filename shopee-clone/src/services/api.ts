@@ -116,15 +116,45 @@ class ApiClient {
       // Handle wrapped responses { success: boolean, data: T }
       if (data.success !== undefined) {
         if (!data.success) {
-          throw new Error(data.error || data.message || 'Request failed');
+          const errorMessage = data.error || data.message || 'Request failed';
+          const error = new Error(errorMessage) as any;
+          // Attach response data for better debugging (fetch API style)
+          error.response = { 
+            data: data, 
+            status: response.status,
+            statusText: response.statusText 
+          };
+          error.status = response.status;
+          throw error;
         }
         return data.data as T;
       }
 
+      // If response is not OK, throw error with response data
+      if (!response.ok) {
+        const errorMessage = data.error || data.message || `Request failed with status ${response.status}`;
+        const error = new Error(errorMessage) as any;
+        error.response = { 
+          data: data, 
+          status: response.status,
+          statusText: response.statusText 
+        };
+        error.status = response.status;
+        throw error;
+      }
+
       return data as T;
-    } catch (error) {
+    } catch (error: any) {
       console.error(`API Error [${endpoint}]:`, error);
-      throw error;
+      // If it's already our custom error with response, throw it as-is
+      if (error.message && error.response) {
+        throw error;
+      }
+      // If it's a network error or other fetch error, wrap it
+      const apiError = new Error(error.message || `API request failed: ${endpoint}`) as any;
+      apiError.response = error.response || { status: error.status || 0 };
+      apiError.status = error.status || 0;
+      throw apiError;
     }
   }
 
@@ -201,10 +231,10 @@ class ApiClient {
   // Product endpoints
   async getProducts(shopId?: string) {
     if (shopId) {
-      return this.request<any[]>(`/api/products/shop/${shopId}`);
+      return this.request<any[]>(`/api/products/shop/${shopId}?platform=SHOPEE`);
     }
-    // Get all products (for buyer landing page)
-    return this.request<any[]>('/api/products');
+    // Get all products (for buyer landing page) - filter by SHOPEE platform
+    return this.request<any[]>('/api/products?platform=SHOPEE');
   }
 
   async getProductById(productId: string) {
@@ -266,14 +296,14 @@ class ApiClient {
   }
 
   async getMyOrders() {
-    return this.request<any[]>('/api/orders/my');
+    return this.request<any[]>('/api/orders/my?platform=SHOPEE');
   }
 
   async getOrderById(orderId: string) {
     return this.request<any>(`/api/orders/${orderId}`);
   }
 
-  // Seller order endpoints
+  // Seller order endpoints - use new dedicated seller routes
   async getSellerOrders(shopId: string, filters?: {
     status?: string;
     startDate?: string;
@@ -289,10 +319,47 @@ class ApiClient {
   }
 
   async updateOrderStatus(orderId: string, status: string) {
-    return this.request<any>(`/api/orders/${orderId}/status`, {
-      method: 'PATCH',
-      body: JSON.stringify({ status }),
-    });
+    // Check if token exists before making request
+    if (!this.token) {
+      throw new Error('Authentication required. Please login again.');
+    }
+
+    // Normalize to backend enum format (uppercase with underscores)
+    const normalizedStatus = status.includes('-')
+      ? status.toUpperCase().replace(/-/g, '_')
+      : status.toUpperCase();
+
+    console.log(`📤 [API] Updating order ${orderId} status to ${normalizedStatus} via seller endpoint`);
+    
+    try {
+      // Use new seller-specific endpoint
+      const result = await this.request<any>(`/api/orders/seller/${orderId}/status`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status: normalizedStatus }),
+      });
+      console.log(`✅ [API] Order status updated successfully:`, result);
+      return result;
+    } catch (error: any) {
+      console.error(`❌ [API] Error updating order status:`, {
+        message: error.message,
+        status: error.response?.status,
+        data: error.response?.data,
+        endpoint: `/api/orders/seller/${orderId}/status`,
+        statusValue: normalizedStatus,
+      });
+      
+      // If authentication error, clear token
+      if (error.response?.status === 401 || error.message?.includes('Unauthorized')) {
+        this.setToken(null);
+      }
+      
+      // Re-throw with better error message
+      throw error;
+    }
+  }
+
+  async getSellerOrderById(orderId: string) {
+    return this.request<any>(`/api/orders/seller/order/${orderId}`);
   }
 
   // Income/Revenue endpoints

@@ -64,7 +64,7 @@ export class ReportsService {
           gte: startDate,
           lte: endDate,
         },
-        status: "completed", // Only count completed sales
+        status: "COMPLETED", // Only count completed sales
       },
       select: {
         id: true,
@@ -253,7 +253,7 @@ export class ReportsService {
         const whereClause: Prisma.SaleWhereInput = {
       shopId, // Always filter by shopId - ensures user-specific data
       // Removed platform filter - show all sales for the shop
-      status: "completed",
+      status: "COMPLETED",
     };
 
     if (startDate || endDate) {
@@ -370,7 +370,7 @@ export class ReportsService {
       async () => {
         const whereClause: any = {
       shopId, // Critical: ensures user-specific data only
-      status: "completed",
+      status: "COMPLETED",
     };
 
     if (startDate || endDate) {

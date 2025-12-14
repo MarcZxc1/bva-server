@@ -58,7 +58,13 @@ export function AppSidebar() {
   const [showLogoutDialog, setShowLogoutDialog] = useState(false);
 
   // Check integration status
-  const { hasActiveIntegration, isLoading: isLoadingIntegration } = useIntegration();
+  const { hasActiveIntegration, connectedPlatforms, isLoading: isLoadingIntegration } = useIntegration();
+
+  // Debug: Log platform status
+  console.log('📊 Sidebar Platform Status:', {
+    connectedPlatforms: connectedPlatforms ? Array.from(connectedPlatforms) : [],
+    platformDefinitions: platformDefinitions.map(p => p.platform),
+  });
 
   const getNavClass = ({ isActive }: { isActive: boolean }) =>
     isActive 
@@ -143,9 +149,8 @@ export function AppSidebar() {
             ) : isCollapsed ? (
               <div className="flex flex-col gap-1.5">
                 {platformDefinitions.map((platformDef) => {
-                  // For Shopee, check if there's an active integration
-                  // Default to NOT connected unless explicitly connected
-                  const isConnected = platformDef.platform === "SHOPEE" ? hasActiveIntegration : false;
+                  // Check if this specific platform is connected
+                  const isConnected = connectedPlatforms?.has(platformDef.platform as "SHOPEE" | "LAZADA" | "TIKTOK" | "OTHER") || false;
                   const statusColor = isConnected ? "bg-green-500" : "bg-orange-500";
                   return (
                     <div
@@ -166,9 +171,8 @@ export function AppSidebar() {
             ) : (
               <div className="space-y-1">
                 {platformDefinitions.map((platformDef) => {
-                  // For Shopee, check if there's an active integration
-                  // Default to NOT connected unless explicitly connected
-                  const isConnected = platformDef.platform === "SHOPEE" ? hasActiveIntegration : false;
+                  // Check if this specific platform is connected
+                  const isConnected = connectedPlatforms?.has(platformDef.platform as "SHOPEE" | "LAZADA" | "TIKTOK" | "OTHER") || false;
                   const statusColor = isConnected ? "bg-green-500" : "bg-orange-500";
                   return (
                     <div

@@ -13,7 +13,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useAtRiskInventory } from "@/hooks/useSmartShelf";
-import { useProducts } from "@/hooks/useProducts";
+import { useAllUserProducts } from "@/hooks/useProducts";
 import { useAuth } from "@/contexts/AuthContext";
 import { PageHeader } from "@/components/PageHeader";
 import { toast } from "sonner";
@@ -166,7 +166,7 @@ export default function Inventory() {
   const [searchQuery, setSearchQuery] = useState("");
   
   const { data: atRiskData, isLoading, error, refetch } = useAtRiskInventory(shopId || "", hasShop);
-  const { data: productsData } = useProducts(shopId || "");
+  const { data: productsData } = useAllUserProducts();
 
   // Use API data if available
   const atRiskItems = atRiskData?.at_risk || [];

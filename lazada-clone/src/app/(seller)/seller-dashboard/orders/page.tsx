@@ -2,8 +2,12 @@
 
 import { useAuthStore } from '@/store';
 import { useOrders } from '@/hooks/useOrders';
-import { useState, useMemo } from 'react';
+import { useRealtimeOrders } from '@/hooks/useRealtimeOrders';
+import { useQueryClient } from '@tanstack/react-query';
+import { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
+import { orderAPI, authAPI } from '@/lib/api';
+import { toast } from 'sonner';
 
 // 1. Define types clearly
 type OrderStatus = 'all' | 'unpaid' | 'to-ship' | 'shipping' | 'delivered' | 'failed-delivery' | 'cancellation' | 'return-refund';
@@ -30,8 +34,77 @@ interface Order {
 
 export default function OrdersPage() {
   const user = useAuthStore((state) => state.user);
-  const shopId = user?.shopId;
+  const shops = useAuthStore((state) => state.shops);
+  const setUser = useAuthStore((state) => state.setUser);
+  const [profileRefreshed, setProfileRefreshed] = useState(false);
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [showOrderModal, setShowOrderModal] = useState(false);
+  
+  // Refresh profile data on mount to ensure we have latest shop info
+  useEffect(() => {
+    const refreshProfile = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        if (!token) {
+          console.error('❌ No token found');
+          setProfileRefreshed(true);
+          return;
+        }
+
+        console.log('🔄 Refreshing profile...');
+        const response = await authAPI.getProfile();
+        const userData = response.data;
+        const userShops = userData.shops || [];
+        
+        console.log('✅ Profile refreshed - Email:', userData.email, '| Shops:', userShops.length);
+        if (userShops.length > 0) {
+          console.log('   Shops:', userShops.map((s: any) => `${s.platform}-${s.id.slice(0, 8)}`).join(', '));
+        }
+        
+        setUser(userData, token, userShops);
+        setProfileRefreshed(true);
+      } catch (error: any) {
+        console.error('❌ Profile refresh failed:', error?.message || error);
+        toast.error('Failed to load shop data. Please refresh the page.');
+        setProfileRefreshed(true);
+      }
+    };
+    refreshProfile();
+  }, [setUser]);
+  
+  // Get all shops from user.shops or store shops
+  const allShops = user?.shops || shops || [];
+  
+  console.log('🔍 All userShops:', allShops);
+  console.log('🔍 First shop detail:', allShops[0]);
+  
+  // For Lazada Clone: Prioritize LAZADA shops, but fall back to any shop
+  const lazadaShops = allShops.filter((s: any) => s.platform === 'LAZADA');
+  console.log('🔍 Filtered LAZADA shops:', lazadaShops);
+  
+  const shopId = lazadaShops[0]?.id || allShops[0]?.id || user?.shopId;
+  
+  console.log('🔍 Orders Page Debug:', {
+    profileRefreshed,
+    allShopsCount: allShops.length,
+    lazadaShopsCount: lazadaShops.length,
+    selectedShopId: shopId,
+    userId: user?.id,
+    userEmail: user?.email,
+    userPlatform: user?.platform,
+    fallbackShop: allShops[0]
+  });
+  
   const { data: ordersData, isLoading, isError } = useOrders(shopId || '');
+  const queryClient = useQueryClient();
+
+  useRealtimeOrders({
+    shopId: shopId,
+    enabled: !!shopId,
+    onOrderUpdate: () => {
+      queryClient.invalidateQueries({ queryKey: ['orders', shopId] });
+    }
+  });
   
   const [activeTab, setActiveTab] = useState<OrderStatus>('all');
   const [dateFilter, setDateFilter] = useState<DateFilter>('today');
@@ -46,26 +119,81 @@ export default function OrdersPage() {
   const [sortBy, setSortBy] = useState('newest');
   const [showMoreFilters, setShowMoreFilters] = useState(false);
 
+  const handleUpdateStatus = async (orderId: string, newStatus: OrderStatus) => {
+    console.log(`🚢 [Seller] Updating order ${orderId} to status: ${newStatus}`);
+    try {
+      // Map frontend status to backend status
+      const statusMap: Record<string, string> = {
+        'shipping': 'TO_RECEIVE',
+        'delivered': 'COMPLETED',
+        'to-ship': 'TO_SHIP',
+        'unpaid': 'PENDING',
+        'cancellation': 'CANCELLED',
+      };
+      
+      const backendStatus = statusMap[newStatus] || newStatus.toUpperCase().replace('-', '_');
+      
+      await orderAPI.updateStatus(orderId, backendStatus);
+      
+      const displayStatus = newStatus.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase());
+      toast.success(`Order status updated to ${displayStatus}`);
+      
+      queryClient.invalidateQueries({ queryKey: ['orders', shopId] });
+    } catch (error) {
+      console.error('Failed to update status:', error);
+      toast.error('Failed to update status');
+    }
+  };
+
   // 2. Add explicit return type (Order[]) so downstream usage knows the type
   const orders = useMemo((): Order[] => {
-    if (!ordersData?.data) return [];
-    return ordersData.data.map((order: any) => ({
-      ...order,
-      orderDate: new Date(order.createdAt),
-      productName: order.items[0]?.productName || 'Unknown Product',
-      quantity: order.items[0]?.quantity || 0,
-      totalAmount: order.total,
-      orderNumber: order.id,
-      // Ensure required fields exist or have defaults
-      trackingNumber: order.trackingNumber || '',
-      productImage: order.productImage || '',
-      variant: order.variant || '',
-      customerName: order.customerName || 'Guest',
-      shippingAddress: order.shippingAddress || '',
-      deliveryOption: order.deliveryOption || 'Standard',
-      orderType: order.orderType || 'normal',
-      paymentMethod: order.paymentMethod || 'Online',
-    }));
+    if (!ordersData?.data) {
+      return [];
+    }
+    
+    try {
+      const processed = ordersData.data.map((order: any) => {
+        // Map backend status to frontend format
+        const statusMap: Record<string, OrderStatus> = {
+          'TO_SHIP': 'to-ship',
+          'TO_RECEIVE': 'shipping',
+          'COMPLETED': 'delivered',
+          'CANCELLED': 'cancellation',
+          'PENDING': 'unpaid',
+          'RETURNED': 'return-refund',
+          'REFUNDED': 'return-refund',
+          'FAILED': 'failed-delivery',
+        };
+        
+        return {
+          ...order,
+          id: order.id,
+          status: statusMap[order.status] || order.status?.toLowerCase() || 'to-ship',
+          orderDate: new Date(order.createdAt),
+          productName: order.items[0]?.productName || 'Unknown Product',
+          quantity: order.items[0]?.quantity || 0,
+          totalAmount: order.total || 0,
+          orderNumber: order.id,
+          trackingNumber: order.trackingNumber || '',
+          productImage: order.productImage || '',
+          variant: order.variant || '',
+          customerName: order.customerName || 'Guest',
+          shippingAddress: order.shippingAddress || '',
+          deliveryOption: order.deliveryOption || 'Standard',
+          orderType: order.orderType || 'normal',
+          paymentMethod: order.paymentMethod || 'Online',
+        };
+      });
+      
+      if (processed.length > 0) {
+        console.log('✅ Loaded', processed.length, 'orders');
+      }
+      return processed;
+    } catch (error) {
+      console.error('❌ Error processing orders:', error);
+      toast.error('Error loading orders');
+      return [];
+    }
   }, [ordersData]);
 
   // Filter orders based on date
@@ -194,10 +322,69 @@ export default function OrdersPage() {
     alert(`Exporting ${selectedOrders.length > 0 ? selectedOrders.length : filteredOrders.length} orders`);
   };
 
+  // Show loading while profile is being refreshed
+  if (!profileRefreshed) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading your shop data...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show error if no shop ID found after refresh
+  if (!shopId) {
+    const handleClearCacheAndRefresh = () => {
+      // Clear localStorage
+      localStorage.removeItem('user');
+      localStorage.removeItem('shops');
+      localStorage.removeItem('token');
+      
+      // Show toast
+      toast.success('Cache cleared! Reloading...');
+      
+      // Reload after a short delay
+      setTimeout(() => {
+        window.location.reload();
+      }, 500);
+    };
+
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <div className="text-center bg-white p-8 rounded-lg shadow-md max-w-md">
+          <div className="text-red-600 text-5xl mb-4">⚠️</div>
+          <h2 className="text-xl font-bold text-gray-800 mb-2">No Shop Found</h2>
+          <p className="text-gray-600 mb-4">
+            We couldn't find a LAZADA shop for your account.
+          </p>
+          <p className="text-sm text-gray-500 mb-4">
+            Available shops: {allShops.map((s: any) => s.platform).join(', ') || 'None'}
+          </p>
+          <div className="flex gap-3 justify-center">
+            <button
+              onClick={handleClearCacheAndRefresh}
+              className="bg-orange-600 text-white px-6 py-2 rounded-lg hover:bg-orange-700 transition-colors"
+            >
+              Clear Cache & Refresh
+            </button>
+            <button
+              onClick={() => window.location.reload()}
+              className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              Refresh Page
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="flex h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50">
       {/* Main Content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex flex-col">
         {/* Header */}
         <div className="bg-white border-b border-gray-200 px-6 py-4">
           <div className="flex items-center gap-2 text-sm mb-2">
@@ -360,7 +547,7 @@ export default function OrdersPage() {
         </div>
 
         {/* Table */}
-        <div className="flex-1 overflow-auto bg-white">
+        <div className="bg-white">
           <div className="px-6 py-4">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-4">
@@ -473,7 +660,63 @@ export default function OrdersPage() {
                           </span>
                       </td>
                       <td className="px-4 py-4">
-                        <button className="text-blue-600 text-sm hover:underline">View</button>
+                        <div className="flex flex-col gap-2 min-w-[140px]">
+                          {/* Unpaid - View only */}
+                          {order.status === 'unpaid' && (
+                            <button className="text-sm text-blue-600 hover:text-blue-700 text-left font-medium">
+                              📋 View Details
+                            </button>
+                          )}
+                          
+                          {/* To Ship - Ship Now button */}
+                          {order.status === 'to-ship' && (
+                            <>
+                              <button 
+                                onClick={() => handleUpdateStatus(order.id, 'shipping')}
+                                className="text-sm bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 font-medium shadow-sm transition-all flex items-center justify-center gap-2"
+                              >
+                                🚚 Ship Now
+                              </button>
+                              <button className="text-xs text-blue-600 hover:text-blue-700 font-medium">
+                                View Details
+                              </button>
+                            </>
+                          )}
+                          
+                          {/* Shipping - Confirm Delivery button */}
+                          {order.status === 'shipping' && (
+                            <>
+                              <button 
+                                onClick={() => handleUpdateStatus(order.id, 'delivered')}
+                                className="text-sm bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 font-medium shadow-sm transition-all flex items-center justify-center gap-2"
+                              >
+                                ✓ Confirm Delivery
+                              </button>
+                              <button className="text-xs text-blue-600 hover:text-blue-700 font-medium">
+                                View Details
+                              </button>
+                            </>
+                          )}
+                          
+                          {/* Delivered - Completed */}
+                          {order.status === 'delivered' && (
+                            <div className="flex flex-col gap-1">
+                              <span className="text-sm text-green-600 font-semibold flex items-center gap-1">
+                                ✓ Delivered
+                              </span>
+                              <button className="text-xs text-blue-600 hover:text-blue-700 font-medium text-left">
+                                View Details
+                              </button>
+                            </div>
+                          )}
+                          
+                          {/* Other statuses */}
+                          {(order.status === 'cancellation' || order.status === 'return-refund' || order.status === 'failed-delivery') && (
+                            <button className="text-sm text-blue-600 hover:text-blue-700 text-left font-medium">
+                              📋 View Details
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))

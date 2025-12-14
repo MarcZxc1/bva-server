@@ -8,6 +8,12 @@
  * Run with: ts-node prisma/clear-db.ts
  */
 
+import dotenv from "dotenv";
+import path from "path";
+
+// Load environment variables before importing prisma
+dotenv.config({ path: path.join(__dirname, "../.env") });
+
 import prisma from "../src/lib/prisma";
 
 async function clearDatabase() {
@@ -54,6 +60,14 @@ async function clearDatabase() {
       console.log(`  ⚠️  Found ${remainingSales} remaining sales, deleting them...`);
       await prisma.sale.deleteMany();
     }
+
+    console.log("Deleting ShopAccess...");
+    const shopAccess = await prisma.shopAccess.deleteMany();
+    console.log(`  ✅ Deleted ${shopAccess.count} shop access records`);
+
+    console.log("Deleting SocialMediaAccount...");
+    const socialMediaAccounts = await prisma.socialMediaAccount.deleteMany();
+    console.log(`  ✅ Deleted ${socialMediaAccounts.count} social media accounts`);
 
     console.log("Deleting Shop...");
     const shops = await prisma.shop.deleteMany();

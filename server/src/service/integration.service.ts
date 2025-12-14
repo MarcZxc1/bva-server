@@ -20,6 +20,46 @@ interface UpdateIntegrationInput {
 
 class IntegrationService {
   /**
+   * Get the correct shop ID for a user based on the platform
+   * This ensures each platform integration uses the right shop
+   */
+  async getShopIdByPlatform(userId: string, platform: Platform): Promise<string | null> {
+    // First, try to find a shop owned by the user with matching platform
+    const ownedShop = await prisma.shop.findFirst({
+      where: {
+        ownerId: userId,
+        platform: platform,
+      },
+      select: { id: true },
+    });
+
+    if (ownedShop) {
+      return ownedShop.id;
+    }
+
+    // If not owned, try to find a linked shop with matching platform
+    const linkedShop = await prisma.shopAccess.findFirst({
+      where: {
+        userId: userId,
+        Shop: {
+          platform: platform,
+        },
+      },
+      include: {
+        Shop: {
+          select: { id: true },
+        },
+      },
+    });
+
+    if (linkedShop) {
+      return linkedShop.Shop.id;
+    }
+
+    return null;
+  }
+
+  /**
    * Create a new platform integration or update existing one
    * Returns existing integration if it already exists (idempotent)
    */
@@ -61,6 +101,21 @@ class IntegrationService {
         data: { settings: updatedSettings },
       });
 
+      // Automatically sync data after updating integration
+      console.log(`🔄 Auto-syncing data for updated ${data.platform} integration...`);
+      try {
+        if (data.platform === Platform.SHOPEE && data.shopeeToken) {
+          await shopeeIntegrationService.syncAllData(data.shopId, data.shopeeToken);
+          console.log(`✅ Auto-sync completed for Shopee integration`);
+        } else if (data.platform === Platform.LAZADA && data.lazadaToken) {
+          await lazadaIntegrationService.syncAllData(data.shopId, data.lazadaToken);
+          console.log(`✅ Auto-sync completed for Lazada integration`);
+        }
+      } catch (syncError) {
+        console.error(`⚠️ Auto-sync failed (integration still updated):`, syncError);
+        // Don't fail the integration update if sync fails
+      }
+
       return updated;
     }
 
@@ -90,6 +145,22 @@ class IntegrationService {
       },
     });
 
+    // Automatically sync data after creating integration
+    console.log(`🔄 Auto-syncing data for new ${data.platform} integration...`);
+    try {
+      if (data.platform === Platform.SHOPEE && data.shopeeToken) {
+        await shopeeIntegrationService.syncAllData(data.shopId, data.shopeeToken);
+        console.log(`✅ Auto-sync completed for Shopee integration`);
+      } else if (data.platform === Platform.LAZADA && data.lazadaToken) {
+        await lazadaIntegrationService.syncAllData(data.shopId, data.lazadaToken);
+        console.log(`✅ Auto-sync completed for Lazada integration`);
+      }
+    } catch (syncError) {
+      console.error(`⚠️ Auto-sync failed (integration still created):`, syncError);
+      // Don't fail the integration creation if sync fails
+      // User can manually sync later
+    }
+
     return integration;
   }
 
@@ -99,6 +170,52 @@ class IntegrationService {
   async getShopIntegrations(shopId: string) {
     return prisma.integration.findMany({
       where: { shopId },
+      include: {
+        Shop: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+    });
+  }
+
+  /**
+   * Get all integrations from all shops the user has access to (owned + linked)
+   */
+  async getUserIntegrations(userId: string) {
+    // Get all shops the user owns
+    const ownedShops = await prisma.shop.findMany({
+      where: { ownerId: userId },
+      select: { id: true },
+    });
+
+    // Get all shops the user has access to via ShopAccess
+    const linkedShops = await prisma.shopAccess.findMany({
+      where: { userId: userId },
+      include: {
+        Shop: {
+          select: { id: true },
+        },
+      },
+    });
+
+    // Combine all shop IDs
+    const allShopIds = [
+      ...ownedShops.map(s => s.id),
+      ...linkedShops.map(sa => sa.Shop.id),
+    ];
+
+    if (allShopIds.length === 0) {
+      return [];
+    }
+
+    // Get all integrations from these shops
+    return prisma.integration.findMany({
+      where: {
+        shopId: { in: allShopIds },
+      },
       include: {
         Shop: {
           select: {
@@ -165,6 +282,17 @@ class IntegrationService {
    * Delete integration
    */
   async deleteIntegration(id: string) {
+    // Check if integration exists first
+    const existing = await prisma.integration.findUnique({
+      where: { id },
+    });
+
+    if (!existing) {
+      // Integration doesn't exist - treat as success (idempotent delete)
+      console.log(`⚠️ Integration ${id} not found, treating delete as success`);
+      return null;
+    }
+
     return prisma.integration.delete({
       where: { id },
     });

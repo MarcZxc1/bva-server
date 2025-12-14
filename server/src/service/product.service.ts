@@ -1,13 +1,24 @@
 import prisma from "../lib/prisma";
 import { hasActiveIntegration } from "../utils/integrationCheck";
 
-export async function getAllProducts() {
+export async function getAllProducts(platform?: string) {
+  // Build where clause with optional platform filter
+  const whereClause: any = {};
+  
+  if (platform && ['LAZADA', 'SHOPEE', 'TIKTOK'].includes(platform.toUpperCase())) {
+    whereClause.Shop = {
+      platform: platform.toUpperCase()
+    };
+  }
+  
   const products = await prisma.product.findMany({
+    where: whereClause,
     include: {
       Shop: {
         select: {
           id: true,
           name: true,
+          platform: true,
         },
       },
       Inventory: {
@@ -41,30 +52,32 @@ export async function getAllProducts() {
   }));
 }
 
-export async function getProductsByShop(shopId: string) {
-  // For shopee-clone sellers, show ALL products (both synced and locally created)
-  // This endpoint is primarily used by shopee-clone, so we show all products
-  // BVA frontend can filter on its side if needed
-  
-  // Get shop integrations to determine platform (for platform assignment)
-  const integrations = await prisma.integration.findMany({
-    where: { shopId },
+export async function getProductsByShop(shopId: string, platform?: string) {
+  // Get the shop to verify its platform
+  const shop = await prisma.shop.findUnique({
+    where: { id: shopId },
     select: { platform: true },
   });
 
-  // Get platform values from integrations
-  const integrationPlatforms = integrations.map(integration => integration.platform);
+  if (!shop) {
+    throw new Error('Shop not found');
+  }
 
-  // Get ALL products for the shop (both synced from integrations and locally created)
-  // This allows BVA to display all products for the shop
-  // Products with externalId are synced from Shopee-Clone
-  // Products without externalId are created directly in BVA
+  // Build where clause - filter by shopId and optionally by platform
+  const whereClause: any = { shopId };
+  
+  // If platform is specified in query, verify it matches the shop's platform
+  // This prevents cross-platform product leakage
+  if (platform && platform.toUpperCase() !== shop.platform) {
+    console.log(`⚠️ Platform mismatch: requested ${platform}, shop is ${shop.platform}`);
+    return []; // Return empty array if platform doesn't match
+  }
+
+  // Get ALL products for the shop that match the shop's platform
+  // Products created in Lazada-clone will only appear in Lazada shops
+  // Products created in Shopee-clone will only appear in Shopee shops
   const products = await prisma.product.findMany({
-    where: { 
-      shopId,
-      // No filter - show all products regardless of externalId
-      // This ensures BVA frontend can see all products
-    },
+    where: whereClause,
     include: {
       Inventory: {
         take: 1,
@@ -102,27 +115,27 @@ export async function getProductsByShop(shopId: string) {
     }
   });
 
-  // Default platform (first integration or null)
-  const defaultPlatform = integrations.length > 0 && integrations[0] ? integrations[0].platform : null;
+  // Use the shop's platform as default
+  const defaultPlatform = shop.platform;
 
   return products.map((product) => {
-    // Determine platform: from sales data, externalId pattern, or default
-    let platform: string | null = productPlatformMap.get(product.id) || null;
+    // Determine platform: from sales data, externalId pattern, or shop platform
+    let productPlatform: string | null = productPlatformMap.get(product.id) || null;
     
     // If no platform from sales, check externalId pattern
-    if (!platform && product.externalId) {
+    if (!productPlatform && product.externalId) {
       if (product.externalId.includes('SHOPEE') || product.externalId.startsWith('SHOPEE')) {
-        platform = 'SHOPEE';
+        productPlatform = 'SHOPEE';
       } else if (product.externalId.includes('LAZADA') || product.externalId.startsWith('LAZADA')) {
-        platform = 'LAZADA';
+        productPlatform = 'LAZADA';
       } else if (product.externalId.includes('TIKTOK') || product.externalId.startsWith('TIKTOK')) {
-        platform = 'TIKTOK';
+        productPlatform = 'TIKTOK';
       }
     }
 
-    // Use default platform if still no platform found
-    if (!platform) {
-      platform = defaultPlatform;
+    // Use shop platform if still no platform found
+    if (!productPlatform) {
+      productPlatform = defaultPlatform;
     }
 
     return {
@@ -137,7 +150,7 @@ export async function getProductsByShop(shopId: string) {
       expiryDate: product.expiryDate ? product.expiryDate.toISOString() : null,
       category: product.category,
       imageUrl: product.imageUrl,
-      platform: platform,
+      platform: productPlatform,
       createdAt: product.createdAt.toISOString(),
       updatedAt: product.updatedAt.toISOString(),
     };
@@ -206,6 +219,107 @@ export async function getProductById(productId: string) {
     createdAt: product.createdAt,
     updatedAt: product.updatedAt,
   };
+}
+
+/**
+ * Get products from all shops accessible to a user (owned + linked)
+ */
+export async function getProductsForUser(userId: string, platform?: string) {
+  // Get all shops the user owns
+  const ownedShops = await prisma.shop.findMany({
+    where: { ownerId: userId },
+    select: { id: true, platform: true },
+  });
+
+  // Get all shops the user has access to via ShopAccess
+  const linkedShops = await prisma.shopAccess.findMany({
+    where: { userId: userId },
+    include: {
+      Shop: {
+        select: { id: true, platform: true },
+      },
+    },
+  });
+
+  // Combine all shop IDs
+  const allShopIds = [
+    ...ownedShops.map(s => s.id),
+    ...linkedShops.map(sa => sa.Shop.id),
+  ];
+
+  if (allShopIds.length === 0) {
+    return [];
+  }
+
+  // Build where clause
+  const where: any = {
+    shopId: { in: allShopIds },
+  };
+
+  // Fetch all products from accessible shops
+  const products = await prisma.product.findMany({
+    where,
+    include: {
+      Shop: {
+        select: {
+          id: true,
+          name: true,
+          platform: true,
+        },
+      },
+      Inventory: {
+        take: 1,
+        orderBy: {
+          updatedAt: "desc",
+        },
+      },
+    },
+    orderBy: {
+      createdAt: "desc",
+    },
+  });
+
+  console.log(`📦 getProductsForUser: Found ${products.length} products across ${allShopIds.length} shops for user ${userId}`);
+
+  // Map products with inferred platform
+  return products.map((product) => {
+    // Get shop's platform as default
+    const defaultPlatform = product.Shop.platform;
+
+    // Try to infer platform from externalId if available
+    let productPlatform = defaultPlatform;
+    if (product.externalId) {
+      if (product.externalId.includes('SHOPEE') || product.externalId.startsWith('SPE')) {
+        productPlatform = 'SHOPEE';
+      } else if (product.externalId.includes('LAZADA') || product.externalId.startsWith('LAZ')) {
+        productPlatform = 'LAZADA';
+      } else if (product.externalId.includes('TIKTOK') || product.externalId.startsWith('TIKTOK')) {
+        productPlatform = 'TIKTOK';
+      }
+    }
+
+    // Use shop platform if still no platform found
+    if (!productPlatform) {
+      productPlatform = defaultPlatform;
+    }
+
+    return {
+      id: product.id,
+      sku: product.sku,
+      name: product.name,
+      description: product.description,
+      price: product.price,
+      cost: product.cost,
+      stock: product.stock,
+      quantity: product.Inventory[0]?.quantity || product.stock || 0,
+      expiryDate: product.expiryDate ? product.expiryDate.toISOString() : null,
+      category: product.category,
+      imageUrl: product.imageUrl,
+      platform: productPlatform,
+      createdAt: product.createdAt.toISOString(),
+      updatedAt: product.updatedAt.toISOString(),
+    };
+  });
 }
 
 import { notifyNewProduct } from "../services/socket.service";

@@ -166,26 +166,10 @@ const BuyerCheckout: React.FC = () => {
           const orders = Array.isArray(orderResponse) ? orderResponse : [orderResponse];
           createdOrders.push(...orders);
 
+          console.log('✅ Order created successfully:', orders);
+          
           // NOTE: No webhook needed here - order is already created in BVA database via createOrder API
           // Webhooks are only for syncing orders created outside of BVA (e.g., seller dashboard)
-
-          // Also add to local order context for immediate UI update
-          items.forEach(item => {
-            addOrder({
-              product: {
-                name: item.name,
-                fullName: item.fullName,
-                image: item.image,
-              },
-              price: item.unitPrice,
-              quantity: item.quantity,
-              totalPrice: item.unitPrice * item.quantity,
-              shopName: item.shopName,
-              variations: item.variations,
-              unitPrice: item.unitPrice,
-              paymentMethod: paymentMethod === 'Cash on Delivery' ? 'cash' : 'online',
-            });
-          });
         } catch (shopError: any) {
           console.error(`Error creating order for shop ${shopName}:`, shopError);
           // Continue with other shops even if one fails
@@ -194,8 +178,15 @@ const BuyerCheckout: React.FC = () => {
       }
 
       if (createdOrders.length > 0) {
+        console.log('🎯 Navigating to purchase page with to-pay tab');
+        console.log('📦 Created orders:', createdOrders);
         removeSelectedItems();
-        navigate('/purchase', { state: { activeTab: 'to-pay' } });
+        
+        // Small delay to ensure order is committed to database
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        // Navigate to purchase page - orders will be fetched from API there
+        navigate('/purchase', { state: { activeTab: 'to-pay', refresh: true } });
       } else {
         setError('Failed to create any orders. Please try again.');
       }

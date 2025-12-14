@@ -2,45 +2,17 @@ import prisma from "../lib/prisma";
 import { hasActiveIntegration } from "../utils/integrationCheck";
 
 export async function getSellerDashboard(shopId: string) {
-  // Check if shop has active integration with terms accepted
-  const hasIntegration = await hasActiveIntegration(shopId);
-  
-  if (!hasIntegration) {
-    // Return empty/default data if no active integration
-    return {
-      Shop: {
-        id: shopId,
-        name: "Your Shop",
-      },
-      metrics: {
-        totalProducts: 0,
-        totalOrders: 0,
-        totalRevenue: 0,
-        monthlyRevenue: 0,
-        weeklyRevenue: 0,
-        totalProfit: 0,
-        monthlyProfit: 0,
-        profitMargin: 0,
-      },
-      recentOrders: [],
-      lowStockProducts: [],
-    };
-  }
   const now = new Date();
   const thirtyDaysAgo = new Date(now);
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
   const sevenDaysAgo = new Date(now);
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
-  // Get shop info (only products from integrations)
+  // Get shop info with ALL products (both synced and locally created)
   const shop = await prisma.shop.findUnique({
     where: { id: shopId },
     include: {
-      Product: {
-        where: {
-          externalId: { not: null }, // Only products synced from integrations
-        },
-      },
+      Product: true, // Include all products, not just those with externalId
     },
   });
 
@@ -52,6 +24,16 @@ export async function getSellerDashboard(shopId: string) {
   const allSales = await prisma.sale.findMany({
     where: { shopId },
   });
+
+  console.log(`📊 Dashboard - Shop ${shopId}: Found ${allSales.length} sales`);
+  if (allSales.length > 0) {
+    console.log('   First sale:', {
+      id: allSales[0].id,
+      total: allSales[0].total,
+      revenue: allSales[0].revenue,
+      status: allSales[0].status,
+    });
+  }
 
   const recentSales = await prisma.sale.findMany({
     where: {
@@ -74,11 +56,18 @@ export async function getSellerDashboard(shopId: string) {
   const totalProfit = allSales.reduce((sum, sale) => sum + (sale.profit || 0), 0);
   const monthlyProfit = monthlySales.reduce((sum, sale) => sum + (sale.profit || 0), 0);
 
+  console.log(`💰 Calculated metrics:`, {
+    totalOrders: allSales.length,
+    totalRevenue,
+    monthlyRevenue,
+    weeklyRevenue,
+  });
+
   // Get pending orders
   const pendingOrders = await prisma.sale.findMany({
     where: {
       shopId,
-      status: "pending",
+      status: "PENDING",
     },
     orderBy: {
       createdAt: "desc",
@@ -86,11 +75,10 @@ export async function getSellerDashboard(shopId: string) {
     take: 10,
   });
 
-  // Get low stock products (only from integrations)
+  // Get low stock products (all products, not just synced ones)
   const lowStockProducts = await prisma.product.findMany({
     where: {
       shopId,
-      externalId: { not: null }, // Only products synced from integrations
       OR: [
         { stock: { lte: 10 } },
         {
@@ -143,7 +131,7 @@ export async function getSellerIncome(
     status?: "pending" | "released";
   }
 ) {
-  // First, get ALL sales for the shop to calculate accurate totals
+  // First, get ALL sales and orders for the shop to calculate accurate totals
   // This ensures totals reflect all sold products, not just filtered ones
   const allSalesWhere: any = { shopId };
   const allSales = await prisma.sale.findMany({
@@ -177,11 +165,11 @@ export async function getSellerIncome(
   // Also include orders with status "to-receive" as they're essentially completed from seller's perspective
   if (filters?.status === "pending") {
     where.status = { 
-      notIn: ["completed", "to-receive"] 
+      notIn: ["COMPLETED", "TO_RECEIVE"] 
     };
   } else if (filters?.status === "released") {
     where.status = { 
-      in: ["completed", "to-receive"] 
+      in: ["COMPLETED", "TO_RECEIVE"] 
     };
   }
 
@@ -195,14 +183,14 @@ export async function getSellerIncome(
   // Calculate totals from ALL sales (not just filtered ones)
   // This ensures the income overview shows the complete picture
   const pendingTotal = allSales
-    .filter(sale => sale.status !== "completed" && sale.status !== "to-receive")
+    .filter(sale => sale.status !== "COMPLETED" && sale.status !== "TO_RECEIVE")
     .reduce((sum, sale) => {
       const amount = sale.revenue || sale.total || 0;
       return sum + amount;
     }, 0);
 
   const releasedTotal = allSales
-    .filter(sale => sale.status === "completed" || sale.status === "to-receive")
+    .filter(sale => sale.status === "COMPLETED" || sale.status === "TO_RECEIVE")
     .reduce((sum, sale) => {
       const amount = sale.revenue || sale.total || 0;
       return sum + amount;
@@ -217,10 +205,10 @@ export async function getSellerIncome(
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
   const thisWeekSales = allSales.filter(
-    sale => (sale.status === "completed" || sale.status === "to-receive") && new Date(sale.createdAt) >= weekStart
+    sale => (sale.status === "COMPLETED" || sale.status === "TO_RECEIVE") && new Date(sale.createdAt) >= weekStart
   );
   const thisMonthSales = allSales.filter(
-    sale => (sale.status === "completed" || sale.status === "to-receive") && new Date(sale.createdAt) >= monthStart
+    sale => (sale.status === "COMPLETED" || sale.status === "TO_RECEIVE") && new Date(sale.createdAt) >= monthStart
   );
 
   const thisWeekTotal = thisWeekSales.reduce(
@@ -241,22 +229,22 @@ export async function getSellerIncome(
   return {
     pending: {
       total: pendingTotal,
-      orders: allSales.filter(sale => sale.status !== "completed" && sale.status !== "to-receive").length,
+      orders: allSales.filter(sale => sale.status !== "COMPLETED" && sale.status !== "TO_RECEIVE").length,
     },
     released: {
       total: releasedTotal,
       thisWeek: thisWeekTotal,
       thisMonth: thisMonthTotal,
-      orders: allSales.filter(sale => sale.status === "completed" || sale.status === "to-receive").length,
+      orders: allSales.filter(sale => sale.status === "COMPLETED" || sale.status === "TO_RECEIVE").length,
     },
     orders: sales.map(sale => {
-      const isReleased = sale.status === "completed" || sale.status === "to-receive";
+      const isReleased = sale.status === "COMPLETED" || sale.status === "TO_RECEIVE";
       return {
         id: sale.id,
         orderId: sale.platformOrderId || sale.externalId || sale.id,
         payoutReleasedOn: isReleased ? sale.createdAt : null,
         status: sale.status,
-        paymentMethod: "Bank Transfer", // Default
+        paymentMethod: "Bank Transfer",
         releasedAmount: isReleased ? (sale.revenue || sale.total) : 0,
         createdAt: sale.createdAt,
       };

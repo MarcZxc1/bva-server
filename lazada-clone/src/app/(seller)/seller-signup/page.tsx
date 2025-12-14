@@ -78,12 +78,13 @@ export default function SellerSignupPage() {
     }
 
     try {
-      // Register as SELLER
+      // Register as SELLER with LAZADA_CLONE platform
       const response = await authAPI.register({
         name: name,
         email: email,
         password: password,
         role: 'SELLER',
+        platform: 'LAZADA_CLONE', // Specify Lazada platform
       });
       
       // Server returns { success: true, data: { user, shops, token } }
@@ -340,6 +341,7 @@ export default function SellerSignupPage() {
                   const state = encodeURIComponent(JSON.stringify({ 
                     redirectUrl: baseUrl,
                     role: 'SELLER',
+                    platform: 'LAZADA_CLONE',
                   }));
                   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api';
                   window.location.href = `${API_URL}/auth/google?state=${state}&role=SELLER`;

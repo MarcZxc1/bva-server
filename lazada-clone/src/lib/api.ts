@@ -23,6 +23,24 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+// Handle 401 errors (unauthorized) - clear token and redirect to login
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401 && typeof window !== 'undefined') {
+      // Clear token on 401
+      localStorage.removeItem('token');
+      // Only redirect if we're not already on the login page
+      if (!window.location.pathname.includes('/login') && !window.location.pathname.includes('/register')) {
+        // Store current path for redirect after login
+        const currentPath = window.location.pathname;
+        window.location.href = `/login?callbackUrl=${encodeURIComponent(currentPath)}`;
+      }
+    }
+    return Promise.reject(error);
+  }
+);
+
 export const authAPI = {
   register: (data: any) => api.post('/auth/register', data),
   login: (data: any) => api.post('/auth/login', data),
@@ -31,9 +49,9 @@ export const authAPI = {
 };
 
 export const productAPI = {
-  getAll: (params?: any) => api.get('/products', { params }),
+  getAll: (params?: any) => api.get('/products', { params: { ...params, platform: 'LAZADA' } }),
   getById: (id: string) => api.get(`/products/${id}`),
-  getFeatured: () => api.get('/products/featured'),
+  getFeatured: () => api.get('/products/featured', { params: { platform: 'LAZADA' } }),
 };
 
 export const cartAPI = {
@@ -46,11 +64,14 @@ export const cartAPI = {
 };
 
 export const orderAPI = {
+  // Buyer endpoints (for lazada-clone buyers)
   create: (data: any) => api.post('/orders', data),
-  getAll: () => api.get('/orders'),
+  getAll: () => api.get('/orders', { params: { platform: 'LAZADA' } }),
   getById: (id: string) => api.get(`/orders/${id}`),
-  cancel: (id: string) => api.put(`/orders/${id}/cancel`),
-  updateStatus: (id: string, status: string) => api.patch(`/orders/${id}/status`, { status }),
+  cancel: (id: string) => api.put(`/orders/${id}/cancel`), // Legacy endpoint
+  
+  // Seller endpoints (for lazada-clone sellers)
+  updateStatus: (id: string, status: string) => api.patch(`/orders/seller/${id}/status`, { status }),
   getSellerOrders: (shopId: string) => api.get(`/orders/seller/${shopId}`),
 };
 

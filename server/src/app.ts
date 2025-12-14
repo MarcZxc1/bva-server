@@ -45,7 +45,7 @@ app.use(cors({
   ],
   credentials: true,
   methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"]
+  allowedHeaders: ["Content-Type", "Authorization", "x-platform"]
 }));
 // Increase body parser limit to handle large base64 images (10MB limit)
 app.use(express.json({ limit: '10mb' }));

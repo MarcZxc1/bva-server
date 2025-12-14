@@ -9,6 +9,7 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { PaymentModal } from '@/components/PaymentModal';
+import { webhookService } from '@/services/webhook.service';
 
 export default function CartPage() {
   const router = useRouter();
@@ -23,6 +24,13 @@ export default function CartPage() {
   const total = cartItems.reduce((sum: number, item: any) => sum + (item.price * item.quantity), 0);
 
   const handleInitialCheckout = () => {
+    // Require login before showing payment modal
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    if (!token) {
+      toast.error('Please login before checking out');
+      router.push('/login');
+      return;
+    }
     setShowPaymentModal(true);
   };
 
@@ -31,12 +39,26 @@ export default function CartPage() {
     setLoading(true);
     
     try {
-      // Create order with status 'to-pay'
-      await orderAPI.create({
+      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+      if (!token) {
+        toast.error('Session expired. Please login again');
+        router.push('/login');
+        return;
+      }
+      
+      // Validate cart has items
+      if (!cartItems || cartItems.length === 0) {
+        toast.error('Your cart is empty');
+        setLoading(false);
+        return;
+      }
+
+      // Create order with status 'to-pay' and platform info
+      const orderResponse = await orderAPI.create({
         items: cartItems.map((item: any) => ({
           productId: item.id || item._id,
-          quantity: item.quantity,
-          price: item.price,
+          quantity: item.quantity || 1,
+          price: item.price || 0,
         })),
         total,
         shippingAddress: {
@@ -47,14 +69,41 @@ export default function CartPage() {
           zipCode: '12345',
         },
         paymentMethod: method, // 'COD' or 'Online Bank'
+        platform: 'LAZADA', // Ensure platform is set for Lazada
       });
+      
+      const createdOrder = orderResponse.data?.data || orderResponse.data;
+      
+      if (!createdOrder) {
+        throw new Error('Order creation failed: No order returned from server');
+      }
+
+      // Send webhook to BVA Server for real-time sync
+      if (createdOrder) {
+        try {
+          await webhookService.sendOrderCreated(createdOrder);
+          console.log('✅ Webhook sent to BVA: Order created');
+        } catch (webhookError) {
+          console.warn('⚠️ Failed to send webhook to BVA:', webhookError);
+          // Don't fail the order creation if webhook fails
+        }
+      }
 
       clearCart();
       toast.success('Order placed! Please confirm payment.');
       router.push('/orders'); // Redirect to Orders page ("To Pay" tab)
-    } catch (error) {
+    } catch (error: any) {
       console.error('Checkout failed:', error);
-      toast.error('Checkout failed. Please try again.');
+      // Check if it's an authentication error
+      if (error.response?.status === 401 || error.response?.status === 403) {
+        toast.error('Your session has expired. Please login again.');
+        localStorage.removeItem('token');
+        router.push('/login');
+      } else if (error.response?.data?.error) {
+        toast.error(error.response.data.error);
+      } else {
+        toast.error(error.message || 'Checkout failed. Please try again.');
+      }
     } finally {
       setLoading(false);
     }

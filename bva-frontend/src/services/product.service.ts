@@ -36,4 +36,21 @@ export const productService = {
       throw error;
     }
   },
+
+  /**
+   * Fetch products from all shops the user has access to (owned + linked)
+   */
+  fetchAllUserProducts: async (): Promise<Product[]> => {
+    try {
+      console.log(`📦 productService: Fetching all user products from /api/products/user/all`);
+      // API client already unwraps the response, so it returns Product[] directly
+      const products = await apiClient.get<Product[]>(`/api/products/user/all`);
+      console.log(`✅ productService: Received ${products?.length || 0} products from all accessible shops`);
+      return products || [];
+    } catch (error: any) {
+      console.error(`❌ productService: Error fetching all user products:`, error);
+      console.error(`   Error details:`, error.message, error.response?.data);
+      throw error;
+    }
+  },
 };

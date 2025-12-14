@@ -24,13 +24,16 @@ interface CartStore {
 // FIXED: Added 'persist' middleware to automatically save/load user from localStorage
 export const useAuthStore = create<AuthStore>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       user: null,
       token: null,
       isLoggedIn: false,
       shops: [],
       isHydrated: false,
-      setUser: (user, token, shops) => set({ user, token, isLoggedIn: !!token, shops }),
+      setUser: (user, token, shops) => {
+        console.log('🔐 Setting user in store:', { user, token: !!token, shops });
+        set({ user, token, isLoggedIn: !!token, shops, isHydrated: true });
+      },
       logout: () => {
         // Clear manual storage items just in case
         if (typeof window !== 'undefined') {
@@ -45,6 +48,7 @@ export const useAuthStore = create<AuthStore>()(
     {
       name: 'auth-storage', // unique name for localStorage key
       storage: createJSONStorage(() => localStorage),
+      skipHydration: true, // IMPORTANT: Skip auto-hydration to avoid SSR mismatch
       // Only persist these fields
       partialize: (state) => ({ 
         user: state.user, 
@@ -53,6 +57,7 @@ export const useAuthStore = create<AuthStore>()(
         shops: state.shops 
       }),
       onRehydrateStorage: () => (state) => {
+        console.log('💧 Zustand auth store rehydrated:', state);
         if (state) {
           state.isHydrated = true;
         }
@@ -91,6 +96,7 @@ export const useCartStore = create<CartStore>()(
     {
       name: 'cart-storage',
       storage: createJSONStorage(() => localStorage),
+      skipHydration: true, // IMPORTANT: Skip auto-hydration to avoid SSR mismatch
     }
   )
 );

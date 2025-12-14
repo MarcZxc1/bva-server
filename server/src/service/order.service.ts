@@ -1,5 +1,5 @@
 import prisma from "../lib/prisma";
-import { Platform } from "../generated/prisma";
+import { Platform, OrderStatus } from "../generated/prisma";
 import { getSocketIO } from "../services/socket.service";
 import { CacheService } from "../lib/redis";
 
@@ -9,10 +9,17 @@ export async function createOrder(data: {
     productId: string;
     quantity: number;
     price: number;
-  }>;                                                                                                                                                                                   
+  }>;
   total: number;
-  shippingAddress?: string;
+  shippingAddress?: string | {
+    name?: string;
+    phone?: string;
+    address?: string;
+    city?: string;
+    zipCode?: string;
+  };
   paymentMethod?: string;
+  platform?: string; // Add platform support
 }) {
   // Get user email for customerEmail field
   const user = await prisma.user.findUnique({
@@ -38,7 +45,7 @@ export async function createOrder(data: {
       shopId: true, 
       stock: true,
       cost: true,
-      Shop: { select: { name: true } } 
+      Shop: { select: { name: true, platform: true } } // Include platform
     },
   });
 
@@ -57,7 +64,7 @@ export async function createOrder(data: {
         shopId: true, 
         stock: true,
         cost: true,
-        Shop: { select: { name: true } } 
+        Shop: { select: { name: true, platform: true } } // Include platform
       },
     });
     
@@ -128,20 +135,36 @@ export async function createOrder(data: {
       }
     }
 
+    // Get the shop's platform from the product or request data
+    // Priority: 1) data.platform 2) product's shop platform 3) default SHOPEE
+    let shopPlatform: Platform = Platform.SHOPEE;
+    if (data.platform) {
+      // Map platform string to enum
+      const platformMap: Record<string, Platform> = {
+        'LAZADA': Platform.LAZADA,
+        'SHOPEE': Platform.SHOPEE,
+        'TIKTOK': Platform.TIKTOK,
+        'OTHER': Platform.OTHER,
+      };
+      shopPlatform = platformMap[data.platform.toUpperCase()] || product?.Shop?.platform || Platform.SHOPEE;
+    } else {
+      shopPlatform = product?.Shop?.platform || Platform.SHOPEE;
+    }
+
     // Use transaction to ensure atomicity
     const order = await prisma.$transaction(async (tx) => {
       // Create sale record
       const sale = await tx.sale.create({
         data: {
           shopId,
-          platform: Platform.SHOPEE,
+          platform: shopPlatform, // Use shop's actual platform (SHOPEE, LAZADA, etc.)
           items: items as any,
           total: shopTotal,
           revenue: shopTotal,
           profit,
           customerEmail: user.email, // Use actual user email, not userId
           customerName: user.name || null,
-          status: "to-pay", // Initial status: buyer needs to confirm payment
+          // Note: omitting 'status' field to use database default value
         },
       });
 
@@ -295,7 +318,7 @@ export async function createOrder(data: {
   return createdOrders;
 }
 
-export async function getMyOrders(userId: string) {
+export async function getMyOrders(userId: string, platform?: string) {
   // Get user's shops
   const user = await prisma.user.findUnique({
     where: { id: userId },
@@ -339,10 +362,18 @@ export async function getMyOrders(userId: string) {
   // If user is a buyer, get orders where customerEmail matches
   // If user is a seller, get orders from their shops
   if (user.role === "BUYER") {
+    // Build where clause with platform filter if provided
+    const whereClause: any = {
+      customerEmail: user.email, // Use user's email to match orders
+    };
+    
+    // Add platform filter if specified
+    if (platform) {
+      whereClause.platform = platform.toUpperCase();
+    }
+
     const orders = await prisma.sale.findMany({
-      where: {
-        customerEmail: user.email, // Use user's email to match orders
-      },
+      where: whereClause,
       include: {
         Shop: {
           select: {
@@ -392,10 +423,19 @@ export async function getMyOrders(userId: string) {
   } else {
     // Seller: get orders from their shops
     const shopIds = user.Shop.map(shop => shop.id);
+    
+    // Build where clause with platform filter if provided
+    const whereClause: any = {
+      shopId: { in: shopIds },
+    };
+    
+    // Add platform filter if specified
+    if (platform) {
+      whereClause.platform = platform.toUpperCase();
+    }
+
     const orders = await prisma.sale.findMany({
-      where: {
-        shopId: { in: shopIds },
-      },
+      where: whereClause,
       include: {
         Shop: {
           select: {
@@ -463,7 +503,24 @@ export async function getSellerOrders(
   const where: any = { shopId };
 
   if (filters?.status) {
-    where.status = filters.status;
+    // Normalize status from kebab-case (to-ship) or lowercase (to_ship) to enum format (TO_SHIP)
+    let normalizedStatus = filters.status;
+    
+    // Convert kebab-case to uppercase with underscores
+    if (normalizedStatus.includes('-')) {
+      normalizedStatus = normalizedStatus.toUpperCase().replace(/-/g, '_');
+    } else {
+      normalizedStatus = normalizedStatus.toUpperCase();
+    }
+    
+    // Map frontend status names to enum values
+    const statusMap: Record<string, string> = {
+      'TO_PAY': 'PENDING',
+      'UNPAID': 'PENDING',
+    };
+    
+    const mappedStatus = statusMap[normalizedStatus] || normalizedStatus;
+    where.status = mappedStatus;
   }
 
   if (filters?.startDate || filters?.endDate) {
@@ -561,7 +618,7 @@ export async function getSellerOrders(
   return enrichedOrders;
 }
 
-export async function updateOrderStatus(orderId: string, status: string) {
+export async function updateOrderStatus(orderId: string, status: OrderStatus) {
   // Get the order first to restore stock if cancelling/returning
   const order = await prisma.sale.findUnique({
     where: { id: orderId },
@@ -578,8 +635,8 @@ export async function updateOrderStatus(orderId: string, status: string) {
 
   // If order is being cancelled or returned, restore stock
   const shouldRestoreStock = 
-    (status === 'cancelled' || status === 'return-refund') &&
-    (order.status !== 'cancelled' && order.status !== 'return-refund');
+    (status === OrderStatus.CANCELLED || status === OrderStatus.RETURNED || status === OrderStatus.REFUNDED) &&
+    (order.status !== OrderStatus.CANCELLED && order.status !== OrderStatus.RETURNED && order.status !== OrderStatus.REFUNDED);
 
   if (shouldRestoreStock) {
     // Parse items
@@ -649,7 +706,7 @@ export async function updateOrderStatus(orderId: string, status: string) {
               data: {
                 inventoryId: inventory.id,
                 delta: item.quantity,
-                reason: `Order ${status === 'cancelled' ? 'cancelled' : 'returned'}`,
+                reason: `Order ${status === OrderStatus.CANCELLED ? 'cancelled' : 'returned'}`,
               },
             });
           }

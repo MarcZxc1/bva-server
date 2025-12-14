@@ -42,11 +42,11 @@ export const webhookMiddleware = async (
       if (!shopId && decoded.userId) {
         const user = await prisma.user.findUnique({
           where: { id: decoded.userId },
-          include: { shops: { take: 1, select: { id: true } } },
+          include: { Shop: { take: 1, select: { id: true } } },
         });
         
-        if (user?.shops?.[0]?.id) {
-          shopId = user.shops[0].id;
+        if (user?.Shop?.[0]?.id) {
+          shopId = user.Shop[0].id;
         }
       }
       

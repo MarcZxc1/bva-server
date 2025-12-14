@@ -151,7 +151,7 @@ export class AuthController {
       const user = await authService.getUserById(userId);
       console.log(`🔍 getProfile: Retrieved user ${userId}, role: ${user.role}, platform: ${(user as any).platform}`);
       
-      let shops: Array<{ id: string; name: string }> = [];
+      let shops: Array<{ id: string; name: string; platform: string }> = [];
       try {
         const userPlatform = (user as any).platform || "BVA";
         shops = await authService.getUserShops(userId, userPlatform);
@@ -163,8 +163,8 @@ export class AuthController {
           try {
             const userPlatform = (user as any).platform || "BVA";
             const shop = await shopSeedService.getOrCreateShopForUser(userId, userPlatform);
-            if (shop && shop.id && shop.name) {
-              shops = [{ id: shop.id, name: shop.name }];
+            if (shop && shop.id && shop.name && shop.platform) {
+              shops = [{ id: shop.id, name: shop.name, platform: shop.platform }];
             } else {
               shops = [];
             }
@@ -180,9 +180,9 @@ export class AuthController {
       // Include linked shops
       try {
         const linkedShops = await shopAccessService.getLinkedShops(userId);
-        const shopMap = new Map<string, { id: string; name: string }>();
+        const shopMap = new Map<string, { id: string; name: string; platform: string }>();
         shops.forEach(shop => shopMap.set(shop.id, shop));
-        linkedShops.forEach(shop => shopMap.set(shop.id, { id: shop.id, name: shop.name }));
+        linkedShops.forEach(shop => shopMap.set(shop.id, { id: shop.id, name: shop.name, platform: shop.platform }));
         shops = Array.from(shopMap.values());
       } catch (linkError: any) {
         console.error(`❌ getProfile: Error fetching linked shops:`, linkError);
@@ -232,7 +232,7 @@ export class AuthController {
       const user = await authService.getUserById(userId);
       console.log(`🔍 getMe: Retrieved user ${userId}, role: ${user.role}, platform: ${(user as any).platform}`);
       
-      let shops: Array<{ id: string; name: string }> = [];
+      let shops: Array<{ id: string; name: string; platform: string }> = [];
       try {
         // Pass user's platform to getUserShops to get platform-specific shop
         const userPlatform = (user as any).platform || "BVA";
@@ -249,8 +249,8 @@ export class AuthController {
             const userPlatform = (user as any).platform || "BVA";
             console.log(`🔄 Attempting direct shop creation for user ${userId} on platform ${userPlatform}...`);
             const shop = await shopSeedService.getOrCreateShopForUser(userId, userPlatform);
-            if (shop && shop.id && shop.name) {
-              shops = [{ id: shop.id, name: shop.name }];
+            if (shop && shop.id && shop.name && shop.platform) {
+              shops = [{ id: shop.id, name: shop.name, platform: shop.platform }];
               console.log(`✅ Direct shop creation succeeded: ${shop.id}`);
             } else {
               console.error(`❌ Direct shop creation returned invalid shop object`);
@@ -272,9 +272,9 @@ export class AuthController {
         console.log(`🔍 getMe: Found ${linkedShops.length} linked shops for user ${userId}`);
         
         // Merge owned and linked shops, avoiding duplicates
-        const shopMap = new Map<string, { id: string; name: string }>();
+        const shopMap = new Map<string, { id: string; name: string; platform: string }>();
         shops.forEach(shop => shopMap.set(shop.id, shop));
-        linkedShops.forEach(shop => shopMap.set(shop.id, { id: shop.id, name: shop.name }));
+        linkedShops.forEach(shop => shopMap.set(shop.id, { id: shop.id, name: shop.name, platform: shop.platform }));
         shops = Array.from(shopMap.values());
         
         console.log(`🔍 getMe: Total shops (owned + linked): ${shops.length}`);
@@ -304,7 +304,7 @@ export class AuthController {
             ownerId: userId,
             platform: shopPlatform,
           },
-          select: { id: true, name: true },
+          select: { id: true, name: true, platform: true },
         });
         if (directShops.length > 0) {
           console.log(`   ⚠️ Found ${directShops.length} ${shopPlatform} shop(s) via direct query! Using these instead.`);

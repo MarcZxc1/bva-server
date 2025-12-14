@@ -113,7 +113,7 @@ model Sale {
   externalId      String?
   profit          Float?
   revenue         Float?
-  status          String   @default("completed")
+  status          OrderStatus @default(PENDING)
   Shop            Shop     @relation(fields: [shopId], references: [id])
 
   @@unique([platform, platformOrderId])
@@ -208,6 +208,18 @@ enum Role {
 
 enum UserPlatform {
   SHOPEE_CLONE
+  LAZADA_CLONE
   TIKTOK_CLONE
   BVA
+}
+
+enum OrderStatus {
+  PENDING
+  TO_SHIP
+  TO_RECEIVE
+  COMPLETED
+  CANCELLED
+  RETURNED
+  REFUNDED
+  FAILED
 }

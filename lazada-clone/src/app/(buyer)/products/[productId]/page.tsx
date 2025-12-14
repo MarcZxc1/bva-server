@@ -11,6 +11,7 @@ import { useAuthStore } from '@/store';
 import { useProductStore } from '@/store/products';
 import { Product } from '@/lib/types';
 import { toast } from 'sonner';
+import { webhookService } from '@/services/webhook.service';
 
 export default function ProductDetailsPage() {
   const { productId } = useParams();
@@ -36,6 +37,7 @@ export default function ProductDetailsPage() {
         try {
           setLoading(true);
           const response = await productAPI.getById(productId as string);
+          console.log('📦 Fetched product:', response.data);
           setProduct(response.data);
           if (response.data.images && response.data.images.length > 0) {
             setMainImage(response.data.images[0]);
@@ -77,22 +79,107 @@ export default function ProductDetailsPage() {
       router.push(`/login?callbackUrl=${encodeURIComponent(pathname)}`);
       return;
     }
+
+    // Check token
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    if (!token) {
+      toast.error('Your session has expired. Please login again.');
+      router.push(`/login?callbackUrl=${encodeURIComponent(pathname)}`);
+      return;
+    }
     
-    if (!product) return;
+    if (!product) {
+      toast.error('Product information is missing');
+      return;
+    }
+
+    // Validate stock
+    if (product.stock !== undefined && product.stock < quantity) {
+      toast.error(`Only ${product.stock} items available in stock`);
+      return;
+    }
 
     setIsSubmitting(true);
     try {
-      await orderAPI.create({
-        items: [{ productId: product.id || product._id, quantity, price: product.price }],
+      console.log('🛒 Creating order with data:', {
+        items: [{ 
+          productId: product.id || product._id, 
+          quantity: quantity, 
+          price: product.price 
+        }],
         total: product.price * quantity,
-        shippingAddress: '123 Main St, Anytown, USA',
-        paymentMethod: 'Credit Card',
+        platform: 'LAZADA',
       });
+      
+      const orderResponse = await orderAPI.create({
+        items: [{ 
+          productId: product.id || product._id, 
+          quantity: quantity, 
+          price: product.price 
+        }],
+        total: product.price * quantity,
+        shippingAddress: {
+          name: user.name || 'User',
+          phone: '1234567890',
+          address: '123 Main St, Anytown, USA',
+          city: 'Sample City',
+          zipCode: '12345',
+        },
+        paymentMethod: 'Credit Card',
+        platform: 'LAZADA', // Ensure platform is set for Lazada
+      });
+      
+      console.log('📦 Order creation response:', orderResponse);
+      
+      let createdOrders = orderResponse.data?.data || orderResponse.data;
+      
+      // Handle both single order and array of orders
+      if (!createdOrders) {
+        console.error('❌ No order returned from server. Response:', orderResponse);
+        throw new Error('Order creation failed: No order returned from server');
+      }
+      
+      // Ensure it's an array
+      if (!Array.isArray(createdOrders)) {
+        createdOrders = [createdOrders];
+      }
+      
+      if (createdOrders.length === 0) {
+        console.error('❌ Empty orders array returned from server');
+        throw new Error('Order creation failed: No orders created');
+      }
+      
+      console.log('✅ Order(s) created successfully:', createdOrders);
+      
+      // Send webhook to BVA Server for real-time sync for each order
+      for (const order of createdOrders) {
+        try {
+          await webhookService.sendOrderCreated(order);
+          console.log('✅ Webhook sent to BVA: Order created', order.id);
+        } catch (webhookError) {
+          console.warn('⚠️ Failed to send webhook to BVA:', webhookError);
+          // Don't fail the order creation if webhook fails
+        }
+      }
+      
       toast.success('Order placed successfully!');
+      
+      // Small delay to ensure order is saved before redirecting
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
       router.push('/orders');
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to create order:', err);
-      toast.error('Failed to place order. Please try again.');
+      // Check if it's an authentication error
+      if (err.response?.status === 401 || err.response?.status === 403) {
+        toast.error('Your session has expired. Please login again.');
+        localStorage.removeItem('token');
+        router.push(`/login?callbackUrl=${encodeURIComponent(pathname)}`);
+      } else if (err.response?.data?.error) {
+        toast.error(err.response.data.error);
+      } else {
+        toast.error(err.message || 'Failed to place order. Please try again.');
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -102,7 +189,13 @@ export default function ProductDetailsPage() {
     setQuantity(prev => {
       const newQuantity = prev + amount;
       if (newQuantity < 1) return 1;
-      if (product && newQuantity > product.stock) return product.stock;
+      // Check stock limit
+      if (product?.stock !== undefined && product.stock !== null) {
+        if (newQuantity > product.stock) {
+          toast.warning(`Only ${product.stock} items available`);
+          return product.stock;
+        }
+      }
       return newQuantity;
     });
   };
@@ -215,10 +308,27 @@ export default function ProductDetailsPage() {
           <div className="flex items-center gap-4 mb-6">
             <h3 className="font-semibold text-gray-800">Quantity:</h3>
             <div className="flex items-center border border-gray-300 rounded">
-              <button onClick={() => handleQuantityChange(-1)} className="px-3 py-1 text-gray-600 hover:bg-gray-100">-</button>
-              <span className="px-3 py-1 border-l border-r border-gray-300">{quantity}</span>
-              <button onClick={() => handleQuantityChange(1)} className="px-3 py-1 text-gray-600 hover:bg-gray-100">+</button>
+              <button 
+                onClick={() => handleQuantityChange(-1)} 
+                disabled={quantity <= 1}
+                className="px-3 py-1 text-gray-600 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                -
+              </button>
+              <span className="px-3 py-1 border-l border-r border-gray-300 min-w-[3rem] text-center">{quantity}</span>
+              <button 
+                onClick={() => handleQuantityChange(1)} 
+                disabled={product?.stock !== undefined && quantity >= product.stock}
+                className="px-3 py-1 text-gray-600 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                +
+              </button>
             </div>
+            {product?.stock !== undefined && (
+              <span className="text-sm text-gray-600">
+                {product.stock} available
+              </span>
+            )}
           </div>
 
           <div className="flex gap-4">

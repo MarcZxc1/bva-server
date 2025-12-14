@@ -13,9 +13,11 @@ const BuyerPurchase: React.FC = () => {
   const { isAuthenticated, user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const [activeTab, setActiveTab] = useState<OrderStatus>(
-    (location.state as any)?.activeTab || 'all'
-  );
+  const [activeTab, setActiveTab] = useState<OrderStatus>(() => {
+    const tab = (location.state as any)?.activeTab || 'all';
+    console.log('🎯 Initial activeTab from navigation state:', tab);
+    return tab;
+  });
   const [orders, setOrders] = useState<Order[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
@@ -24,6 +26,26 @@ const BuyerPurchase: React.FC = () => {
   
   const userName = user?.name || user?.username || user?.email || 'Guest User';
 
+  // Map backend status to frontend status
+  const mapBackendStatus = (backendStatus: string): OrderStatus => {
+    const statusMap: Record<string, OrderStatus> = {
+      'PENDING': 'to-pay',
+      'TO_SHIP': 'to-ship',
+      'TO_RECEIVE': 'to-receive',
+      'COMPLETED': 'completed',
+      'CANCELLED': 'cancelled',
+      'RETURN_REFUND': 'return-refund',
+      // Also handle lowercase variants
+      'pending': 'to-pay',
+      'to-ship': 'to-ship',
+      'to-receive': 'to-receive',
+      'completed': 'completed',
+      'cancelled': 'cancelled',
+      'return-refund': 'return-refund',
+    };
+    return statusMap[backendStatus] || 'to-pay';
+  };
+
   // Fetch orders function
   const fetchOrders = React.useCallback(async () => {
     if (!isAuthenticated) return;
@@ -31,6 +53,8 @@ const BuyerPurchase: React.FC = () => {
     try {
       setIsLoading(true);
       const apiOrders = await apiClient.getMyOrders();
+      console.log('📦 Fetched orders from API:', apiOrders);
+      
       // Transform API orders to OrderContext format
       if (apiOrders && Array.isArray(apiOrders)) {
         const transformedOrders: Order[] = apiOrders.map((apiOrder: any) => {
@@ -38,6 +62,10 @@ const BuyerPurchase: React.FC = () => {
           const firstItem = items[0] || {};
           // Get image from first item, fallback to emoji if not available
           const productImage = firstItem.imageUrl || firstItem.image || '📦';
+          const mappedStatus = mapBackendStatus(apiOrder.status || 'PENDING');
+          
+          console.log(`🔄 Mapping order ${apiOrder.id}: ${apiOrder.status} → ${mappedStatus}`);
+          
           return {
             id: apiOrder.id,
             product: {
@@ -45,7 +73,7 @@ const BuyerPurchase: React.FC = () => {
               fullName: firstItem.productName || 'Product',
               image: productImage,
             },
-            status: (apiOrder.status || 'to-pay') as OrderStatus,
+            status: mappedStatus,
             price: firstItem.price || apiOrder.total || 0,
             quantity: firstItem.quantity || 1,
             totalPrice: apiOrder.total || 0,
@@ -56,6 +84,7 @@ const BuyerPurchase: React.FC = () => {
             paymentMethod: 'cash',
           };
         });
+        console.log('✅ Transformed orders:', transformedOrders);
         setOrders(transformedOrders);
       }
     } catch (error) {
@@ -71,7 +100,15 @@ const BuyerPurchase: React.FC = () => {
       return;
     }
     fetchOrders();
-  }, [isAuthenticated, navigate, fetchOrders]);
+    
+    // If coming from checkout with refresh flag, refetch after a moment
+    if ((location.state as any)?.refresh) {
+      console.log('🔄 Refresh flag detected, refetching orders after delay...');
+      setTimeout(() => {
+        fetchOrders();
+      }, 1000);
+    }
+  }, [isAuthenticated, navigate, fetchOrders, location.state]);
 
   // Real-time updates for buyers - listen to order status changes
   // Note: Buyers don't have a shopId, but we can still listen to global updates
@@ -115,9 +152,28 @@ const BuyerPurchase: React.FC = () => {
     ? orders 
     : orders.filter(order => order.status === activeTab);
 
+  console.log('🔍 Current tab:', activeTab);
+  console.log('📋 Total orders:', orders.length);
+  console.log('📋 Filtered orders:', filteredOrders.length);
+  console.log('📊 Order statuses:', orders.map(o => ({ id: o.id.slice(0, 8), status: o.status })));
+
   const handlePayNow = (orderId: string) => {
     setSelectedOrderId(orderId);
     setShowPaymentModal(true);
+  };
+
+  // Map frontend status to backend status
+  const mapFrontendStatus = (frontendStatus: OrderStatus): string => {
+    const statusMap: Record<OrderStatus, string> = {
+      'all': '',
+      'to-pay': 'PENDING',
+      'to-ship': 'TO_SHIP',
+      'to-receive': 'TO_RECEIVE',
+      'completed': 'COMPLETED',
+      'cancelled': 'CANCELLED',
+      'return-refund': 'RETURN_REFUND',
+    };
+    return statusMap[frontendStatus] || 'PENDING';
   };
 
   const handleConfirmPayment = async () => {
@@ -127,7 +183,7 @@ const BuyerPurchase: React.FC = () => {
     }
 
     try {
-      await apiClient.updateOrderStatus(selectedOrderId, 'to-ship');
+      await apiClient.updateOrderStatus(selectedOrderId, 'TO_SHIP');
       updateOrderStatus(selectedOrderId, 'to-ship');
       // Refresh orders to get latest status
       await fetchOrders();
@@ -147,8 +203,10 @@ const BuyerPurchase: React.FC = () => {
     }
 
     try {
-      await apiClient.updateOrderStatus(orderId, 'cancelled');
+      await apiClient.updateOrderStatus(orderId, 'CANCELLED');
       updateOrderStatus(orderId, 'cancelled');
+      // Refresh orders to get latest status
+      await fetchOrders();
     } catch (err: any) {
       alert(err.message || 'Failed to cancel order');
     }
@@ -160,8 +218,10 @@ const BuyerPurchase: React.FC = () => {
 
     try {
       // Update order status to return-refund
-      await apiClient.updateOrderStatus(orderId, 'return-refund');
+      await apiClient.updateOrderStatus(orderId, 'RETURN_REFUND');
       updateOrderStatus(orderId, 'return-refund');
+      // Refresh orders to get latest status
+      await fetchOrders();
       alert(`Your ${type} request has been submitted. The seller will review it shortly.`);
     } catch (err: any) {
       alert(err.message || `Failed to submit ${type} request`);

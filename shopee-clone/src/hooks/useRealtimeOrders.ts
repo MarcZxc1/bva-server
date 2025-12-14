@@ -52,19 +52,27 @@ export function useRealtimeOrders({
       socket.emit("join_shop", shopId);
     }
 
-    // Listen for order updates
+    // Listen for order updates (seller-specific)
     socket.on("dashboard_update", (update: any) => {
       if (update.type === "new_order" || update.type === "order_status_changed" || update.type === "order_updated") {
-        console.log("📦 Order update received:", update);
+        console.log("📦 [Seller] Order update received:", update);
         if (onOrderUpdate) {
           onOrderUpdate();
         }
       }
     });
 
-    // Also listen to global order updates (for buyers without shopId)
-    socket.on("order_status_changed", (data: any) => {
-      console.log("📦 Global order status changed:", data);
+    // Listen for order status updates (seller-specific)
+    socket.on("order_status_updated", (data: any) => {
+      console.log("📦 [Seller] Order status updated:", data);
+      if (onOrderUpdate) {
+        onOrderUpdate();
+      }
+    });
+
+    // Listen for new orders (seller-specific)
+    socket.on("order_created", (data: any) => {
+      console.log("📦 [Seller] New order created:", data);
       if (onOrderUpdate) {
         onOrderUpdate();
       }

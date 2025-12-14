@@ -343,30 +343,37 @@ class AuthService {
 
     console.log(`🔍 getUserShops: Fetching ${shopPlatform} shops for user ${userId} (${user.email}, user platform: ${user.platform})`);
 
-    // Query shops filtered by platform
-    let shops: Array<{ id: string; name: string }> = await prisma.shop.findMany({
+    // Query ALL shops owned by the user (not filtered by platform)
+    // This allows users to see all their shops in the frontend
+    let shops: Array<{ id: string; name: string; platform: any }> = await prisma.shop.findMany({
       where: { 
         ownerId: userId,
-        platform: shopPlatform,
       },
       select: {
         id: true,
         name: true,
+        platform: true,
       },
+      orderBy: {
+        createdAt: 'asc' // LAZADA shop should come first since it was created first
+      }
     });
 
-    console.log(`📊 getUserShops: Found ${shops.length} ${shopPlatform} shop(s) for user ${userId}`);
+    console.log(`📊 getUserShops: Found ${shops.length} shop(s) for user ${userId}`);
     if (shops.length > 0) {
-      console.log(`   Shop IDs: ${shops.map(s => `${s.id} (${s.name})`).join(', ')}`);
+      console.log(`   Shop IDs: ${shops.map(s => `${s.id} (${s.name}) [${s.platform}]`).join(', ')}`);
     }
 
-    // If SELLER has no shop for this platform, create one
-    if (user.role === "SELLER" && shops.length === 0) {
+    // Check if user has a shop for their primary platform
+    const hasPrimaryPlatformShop = shops.some(s => s.platform === shopPlatform);
+    
+    // If SELLER has no shop for their primary platform, create one
+    if (user.role === "SELLER" && !hasPrimaryPlatformShop) {
       console.log(`⚠️ No ${shopPlatform} shop found for SELLER ${userId} (${user.email}), creating one...`);
       try {
         const shop = await shopSeedService.getOrCreateShopForUser(userId, shopPlatform);
         if (shop && shop.id && shop.name) {
-          shops = [{ id: shop.id, name: shop.name }] as Array<{ id: string; name: string }>;
+          shops.push({ id: shop.id, name: shop.name, platform: shop.platform });
           console.log(`✅ ${shopPlatform} shop created/retrieved for user ${userId}: shop ID ${shop.id}, name: ${shop.name}`);
         } else {
           throw new Error("Shop creation returned invalid shop object");
@@ -381,14 +388,14 @@ class AuthService {
         throw new Error(`Failed to create ${shopPlatform} shop for seller account: ${shopError.message || 'Unknown error'}`);
       }
     } else if (user.role === "SELLER" && shops.length > 0) {
-      console.log(`✅ SELLER ${userId} has ${shops.length} ${shopPlatform} shop(s):`, shops.map(s => `${s.id} (${s.name})`).join(', '));
+      console.log(`✅ SELLER ${userId} has ${shops.length} shop(s):`, shops.map(s => `${s.id} (${s.name}) [${s.platform}]`).join(', '));
     } else if (user.role !== "SELLER") {
       console.log(`ℹ️ User ${userId} is not a SELLER (role: ${user.role}), no shop needed`);
     }
 
-    // Final validation: ensure shops array is properly formatted
-    const finalShops = Array.isArray(shops) ? shops.map(s => ({ id: s.id, name: s.name })) : [];
-    console.log(`📤 getUserShops returning ${finalShops.length} ${shopPlatform} shop(s) for user ${userId}`);
+    // Final validation: ensure shops array is properly formatted with platform info
+    const finalShops = Array.isArray(shops) ? shops.map(s => ({ id: s.id, name: s.name, platform: s.platform })) : [];
+    console.log(`📤 getUserShops returning ${finalShops.length} shop(s) for user ${userId}`);
     if (finalShops.length > 0) {
       console.log(`   Final shops: ${JSON.stringify(finalShops)}`);
     }

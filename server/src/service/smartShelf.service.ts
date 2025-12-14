@@ -368,7 +368,7 @@ export async function getDashboardAnalytics(shopId: string) {
       const allSales = await prisma.sale.findMany({
         where: {
           shopId,
-          status: 'completed', // Only completed sales count toward revenue
+          status: 'COMPLETED', // Only completed sales count toward revenue
           // Removed platform filter - show all sales for the shop
           // This ensures BVA can display data from all sources
         },

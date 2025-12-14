@@ -5,6 +5,7 @@ import { useState, useEffect } from 'react';
 
 import { useProductStore } from '@/store/products';
 import { sellerAPI } from '@/lib/api';
+import { webhookService } from '@/services/webhook.service';
 
 interface ProductData {
   productName: string;
@@ -76,6 +77,15 @@ export default function AddProductPage() {
           addProduct(created);
         } catch (e) {
           console.warn('Failed to add product to local store', e);
+        }
+        
+        // Send webhook to BVA Server for real-time sync
+        try {
+          await webhookService.sendProductCreated(created);
+          console.log('✅ Webhook sent to BVA: Product created');
+        } catch (webhookError) {
+          console.warn('⚠️ Failed to send webhook to BVA:', webhookError);
+          // Don't fail the product creation if webhook fails
         }
       }
 

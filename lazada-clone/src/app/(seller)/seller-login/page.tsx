@@ -62,7 +62,8 @@ export default function SellerLoginPasswordPage() {
       // Login - server will check if user is SELLER
       const response = await authAPI.login({ 
         email: identifier, // Can be email or phone
-        password: password 
+        password: password,
+        platform: 'LAZADA_CLONE' // Specify Lazada platform
       });
       
       // Server returns { success: true, data: { user, shops, token } }
@@ -253,6 +254,7 @@ export default function SellerLoginPasswordPage() {
                   const state = encodeURIComponent(JSON.stringify({ 
                     redirectUrl: baseUrl,
                     role: 'SELLER',
+                    platform: 'LAZADA_CLONE',
                   }));
                   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api';
                   window.location.href = `${API_URL}/auth/google?state=${state}&role=SELLER`;

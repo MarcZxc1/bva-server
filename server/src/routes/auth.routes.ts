@@ -59,6 +59,78 @@ const authMiddleware = async (req: Request, res: Response, next: Function) => {
 // ==========================================
 
 /**
+ * @route   GET /api/auth/buyer-login
+ * @desc    Initiate Google OAuth authentication for BUYER (Lazada Clone specific)
+ * @access  Public
+ */
+router.get("/buyer-login", (req: Request, res: Response, next) => {
+  // Check if Google OAuth is configured
+  if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
+    console.error("❌ Google OAuth not configured: Missing GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET");
+    const redirectUrl = 'http://localhost:3001';
+    return res.redirect(`${redirectUrl}/login?error=google_auth_failed&details=${encodeURIComponent('Google OAuth is not configured on the server')}`);
+  }
+  
+  const redirectUrl = req.query.redirectUrl as string || 'http://localhost:3001';
+  
+  const stateData = {
+    redirectUrl,
+    role: 'BUYER',
+    platform: 'LAZADA_CLONE'
+  };
+  
+  const encodedState = Buffer.from(JSON.stringify(stateData)).toString('base64');
+  
+  console.log(`🔵 Buyer Google OAuth initiated - Redirect: ${redirectUrl}`);
+  
+  const authenticator = passport.authenticate("google", {
+    scope: ["profile", "email"],
+    session: false,
+    state: encodedState,
+    accessType: 'offline',
+    prompt: 'select_account',
+  });
+
+  authenticator(req, res, next);
+});
+
+/**
+ * @route   GET /api/auth/buyer-register
+ * @desc    Initiate Google OAuth authentication for BUYER registration (Lazada Clone specific)
+ * @access  Public
+ */
+router.get("/buyer-register", (req: Request, res: Response, next) => {
+  // Check if Google OAuth is configured
+  if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
+    console.error("❌ Google OAuth not configured: Missing GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET");
+    const redirectUrl = 'http://localhost:3001';
+    return res.redirect(`${redirectUrl}/register?error=google_auth_failed&details=${encodeURIComponent('Google OAuth is not configured on the server')}`);
+  }
+  
+  const redirectUrl = req.query.redirectUrl as string || 'http://localhost:3001';
+  
+  const stateData = {
+    redirectUrl,
+    role: 'BUYER',
+    platform: 'LAZADA_CLONE'
+  };
+  
+  const encodedState = Buffer.from(JSON.stringify(stateData)).toString('base64');
+  
+  console.log(`🔵 Buyer Google OAuth registration initiated - Redirect: ${redirectUrl}`);
+  
+  const authenticator = passport.authenticate("google", {
+    scope: ["profile", "email"],
+    session: false,
+    state: encodedState,
+    accessType: 'offline',
+    prompt: 'select_account',
+  });
+
+  authenticator(req, res, next);
+});
+
+/**
  * @route   GET /api/auth/google
  * @desc    Initiate Google OAuth authentication
  * @access  Public
@@ -196,7 +268,12 @@ router.get("/google/callback", (req, res, next) => {
 
   try {
     if (state) {
-      decodedState = JSON.parse(Buffer.from(state, 'base64').toString('utf-8'));
+      // Try URL-encoded JSON first (new format), then fall back to base64 (old format)
+      try {
+        decodedState = JSON.parse(decodeURIComponent(state));
+      } catch {
+        decodedState = JSON.parse(Buffer.from(state, 'base64').toString('utf-8'));
+      }
       if (decodedState) {
         if (decodedState.redirectUrl) {
           // Validate redirect URL is in allowed list
@@ -266,6 +343,7 @@ router.get("/google/callback", (req, res, next) => {
         }
         if (decodedState.platform) {
           platform = decodedState.platform;
+          console.log(`🔍 Platform extracted from state: ${platform}`);
           // If platform is TIKTOK_CLONE, ensure redirectUrl is port 5174
           if (platform === 'TIKTOK_CLONE' && !redirectUrl.includes('5174') && !redirectUrl.includes('5175') && !redirectUrl.includes('tiktokseller-clone.vercel.app')) {
             redirectUrl = 'http://localhost:5174';
@@ -276,6 +354,8 @@ router.get("/google/callback", (req, res, next) => {
             redirectUrl = 'http://localhost:3001';
             console.log(`🔧 Platform LAZADA_CLONE detected, setting redirectUrl to port 3001: ${redirectUrl}`);
           }
+        } else {
+          console.log(`⚠️ No platform found in state, current platform: ${platform}`);
         }
       }
     }
@@ -297,6 +377,20 @@ router.get("/google/callback", (req, res, next) => {
     } else {
       // Default to shopee-clone (port 5173) instead of bva-frontend
       redirectUrl = FRONTEND_URL.includes('5173') ? FRONTEND_URL : 'http://localhost:5173';
+    }
+  }
+  
+  // CRITICAL: If platform is still 'BVA' after state parsing, detect it from redirectUrl
+  if (platform === 'BVA') {
+    if (redirectUrl.includes('3001') || redirectUrl.includes('lazada')) {
+      platform = 'LAZADA_CLONE';
+      console.log(`🔍 Platform detected from redirectUrl: LAZADA_CLONE`);
+    } else if (redirectUrl.includes('5174') || redirectUrl.includes('5175') || redirectUrl.includes('tiktokseller')) {
+      platform = 'TIKTOK_CLONE';
+      console.log(`🔍 Platform detected from redirectUrl: TIKTOK_CLONE`);
+    } else if (redirectUrl.includes('5173') || redirectUrl.includes('shopee')) {
+      platform = 'SHOPEE_CLONE';
+      console.log(`🔍 Platform detected from redirectUrl: SHOPEE_CLONE`);
     }
   }
   
@@ -362,7 +456,7 @@ router.get("/google/callback", (req, res, next) => {
 
       // CRITICAL: Platform isolation - Check if user exists for THIS platform
       // If user from passport strategy exists but for different platform, create new user for this platform
-      const userPlatform = (platform as "SHOPEE_CLONE" | "TIKTOK_CLONE" | "BVA") || "BVA";
+      const userPlatform = (platform as "SHOPEE_CLONE" | "TIKTOK_CLONE" | "LAZADA_CLONE" | "BVA") || "BVA";
       
       // Find user for this specific platform
       let platformUser = await prisma.user.findUnique({
@@ -394,15 +488,21 @@ router.get("/google/callback", (req, res, next) => {
 
         // Create shop if seller - MUST be created in transaction
         if (platformUser.role === 'SELLER') {
-          console.log(`🛍️ Creating shop for new SELLER user ${platformUser.id} on platform ${userPlatform}`);
+          // Map user platform to shop platform
+          const shopPlatform = userPlatform === 'SHOPEE_CLONE' ? 'SHOPEE' 
+            : userPlatform === 'TIKTOK_CLONE' ? 'TIKTOK'
+            : userPlatform === 'LAZADA_CLONE' ? 'LAZADA'
+            : 'SHOPEE'; // Default
+          console.log(`🛍️ Creating ${shopPlatform} shop for new SELLER user ${platformUser.id} on platform ${userPlatform}`);
           try {
             await prisma.shop.create({
               data: {
-                name: `${platformUser.name || platformUser.firstName || platformUser.email?.split("@")[0] || "My"}'s Shop`,
+                name: `${platformUser.name || platformUser.firstName || platformUser.email?.split("@")[0] || "My"}'s ${shopPlatform} Shop`,
                 ownerId: platformUser.id,
+                platform: shopPlatform as any,
               },
             });
-            console.log(`✅ Shop created successfully for user ${platformUser.id}`);
+            console.log(`✅ ${shopPlatform} Shop created successfully for user ${platformUser.id}`);
           } catch (shopError: any) {
             console.error(`❌ Failed to create shop for user ${platformUser.id}:`, shopError);
             // Re-throw to prevent user creation without shop
@@ -422,23 +522,33 @@ router.get("/google/callback", (req, res, next) => {
           });
         }
         
-        // Create shop if seller and doesn't have one
-        // Note: We don't delete shops when user logs in as BUYER - shop remains for when they log in as SELLER again
+        // Create shop if seller and doesn't have one FOR THIS PLATFORM
+        // Map user platform to shop platform first
+        const shopPlatform = userPlatform === 'SHOPEE_CLONE' ? 'SHOPEE' 
+          : userPlatform === 'TIKTOK_CLONE' ? 'TIKTOK'
+          : userPlatform === 'LAZADA_CLONE' ? 'LAZADA'
+          : 'SHOPEE'; // Default
+        
+        // Check for platform-specific shops to avoid duplicates
         const existingShops = await prisma.shop.findMany({
-          where: { ownerId: platformUser.id },
-          select: { id: true, name: true },
+          where: { 
+            ownerId: platformUser.id,
+            platform: shopPlatform as any
+          },
+          select: { id: true, name: true, platform: true },
         });
         
         if (platformUser.role === 'SELLER' && existingShops.length === 0) {
-          console.log(`🛍️ Creating shop for SELLER user ${platformUser.id} who doesn't have one`);
+          console.log(`🛍️ Creating ${shopPlatform} shop for SELLER user ${platformUser.id} who doesn't have one`);
           try {
             await prisma.shop.create({
               data: {
-                name: `${platformUser.name || platformUser.firstName || platformUser.email?.split("@")[0] || "My"}'s Shop`,
+                name: `${platformUser.name || platformUser.firstName || platformUser.email?.split("@")[0] || "My"}'s ${shopPlatform} Shop`,
                 ownerId: platformUser.id,
+                platform: shopPlatform as any,
               },
             });
-            console.log(`✅ Shop created successfully for user ${platformUser.id}`);
+            console.log(`✅ ${shopPlatform} Shop created successfully for user ${platformUser.id}`);
           } catch (shopError: any) {
             console.error(`❌ Failed to create shop for user ${platformUser.id}:`, shopError);
             throw new Error(`Failed to create shop: ${shopError.message}`);
@@ -448,21 +558,32 @@ router.get("/google/callback", (req, res, next) => {
 
       // Ensure shop exists for SELLER (final safety check)
       if (platformUser.role === 'SELLER') {
+        // Map user platform to shop platform
+        const shopPlatform = userPlatform === 'SHOPEE_CLONE' ? 'SHOPEE' 
+          : userPlatform === 'TIKTOK_CLONE' ? 'TIKTOK'
+          : userPlatform === 'LAZADA_CLONE' ? 'LAZADA'
+          : 'SHOPEE'; // Default
+        
+        // Check for platform-specific shops to avoid duplicates
         const existingShops = await prisma.shop.findMany({
-          where: { ownerId: platformUser.id },
-          select: { id: true, name: true },
+          where: { 
+            ownerId: platformUser.id,
+            platform: shopPlatform as any
+          },
+          select: { id: true, name: true, platform: true },
         });
         
         if (existingShops.length === 0) {
-          console.log(`⚠️ Final safety check: No shop found for SELLER ${platformUser.id}, creating one...`);
+          console.log(`⚠️ Final safety check: No shop found for SELLER ${platformUser.id}, creating ${shopPlatform} shop...`);
           try {
             await prisma.shop.create({
               data: {
-                name: `${platformUser.name || platformUser.firstName || platformUser.email?.split("@")[0] || "My"}'s Shop`,
+                name: `${platformUser.name || platformUser.firstName || platformUser.email?.split("@")[0] || "My"}'s ${shopPlatform} Shop`,
                 ownerId: platformUser.id,
+                platform: shopPlatform as any,
               },
             });
-            console.log(`✅ Shop created in final safety check for user ${platformUser.id}`);
+            console.log(`✅ ${shopPlatform} Shop created in final safety check for user ${platformUser.id}`);
           } catch (shopError: any) {
             console.error(`❌ CRITICAL: Failed to create shop in final safety check for user ${platformUser.id}:`, shopError);
             // This is critical - user cannot proceed without shop
@@ -471,10 +592,19 @@ router.get("/google/callback", (req, res, next) => {
         }
       }
 
-      // Get shops for the platform user (should always have at least one if SELLER)
+      // Get shops for the platform user - filter by the correct shop platform
+      // Map user platform to shop platform for filtering
+      const queryShopPlatform = userPlatform === 'SHOPEE_CLONE' ? 'SHOPEE' 
+        : userPlatform === 'TIKTOK_CLONE' ? 'TIKTOK'
+        : userPlatform === 'LAZADA_CLONE' ? 'LAZADA'
+        : undefined; // Don't filter by platform for BVA
+      
       const shops = await prisma.shop.findMany({
-        where: { ownerId: platformUser.id },
-        select: { id: true, name: true },
+        where: { 
+          ownerId: platformUser.id,
+          ...(queryShopPlatform && { platform: queryShopPlatform as any }),
+        },
+        select: { id: true, name: true, platform: true },
       });
 
       // Final verification - if SELLER and no shops, this is a critical error

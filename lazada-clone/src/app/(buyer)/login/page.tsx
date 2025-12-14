@@ -23,16 +23,18 @@ export default function LoginPage() {
     const errorDetails = urlParams.get('details');
 
     if (token) {
-      // Store token and fetch user
+      console.log('🔑 OAuth token received:', token);
+      // Store token
       localStorage.setItem('token', token);
-      setUser({ token }, token);
       
       // Fetch user profile
       authAPI.getProfile()
         .then((response) => {
+          console.log('👤 User profile fetched:', response.data);
           const userData = response.data;
           const shops = userData.shops || [];
           setUser(userData, token, shops);
+          console.log('✅ User state updated in login');
           
           // Redirect based on role
           if (userData.role === 'SELLER') {
@@ -42,7 +44,7 @@ export default function LoginPage() {
           }
         })
         .catch((err) => {
-          console.error('Failed to fetch user profile:', err);
+          console.error('❌ Failed to fetch user profile:', err);
           setError('Failed to fetch user profile');
         });
       
@@ -60,7 +62,7 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const response = await authAPI.login({ email, password });
+      const response = await authAPI.login({ email, password, platform: 'LAZADA_CLONE' });
       // Server returns { success: true, data: { user, shops, token } }
       const { token, user, shops } = response.data.data;
       setUser(user, token, shops);
@@ -176,12 +178,8 @@ export default function LoginPage() {
             type="button"
             onClick={() => {
               const baseUrl = window.location.origin;
-              const state = encodeURIComponent(JSON.stringify({ 
-                redirectUrl: baseUrl,
-                role: 'BUYER',
-              }));
               const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api';
-              window.location.href = `${API_URL}/auth/google?state=${state}&role=BUYER`;
+              window.location.href = `${API_URL}/auth/buyer-login?redirectUrl=${encodeURIComponent(baseUrl)}`;
             }}
             className="flex-1 flex items-center justify-center gap-2 border border-gray-300 py-2 rounded hover:bg-gray-50 text-sm"
           >

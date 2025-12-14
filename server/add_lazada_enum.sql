@@ -1,0 +1,2 @@
+-- Add LAZADA_CLONE to UserPlatform enum
+ALTER TYPE "UserPlatform" ADD VALUE IF NOT EXISTS 'LAZADA_CLONE';
