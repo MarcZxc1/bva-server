@@ -262,7 +262,7 @@ export default function SmartShelf() {
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-bold text-foreground">
-              {atRiskData?.meta?.total_products || 0}
+              {products?.length || atRiskData?.meta?.total_Product || atRiskData?.meta?.total_products || 0}
             </div>
             <p className="text-xs text-muted-foreground mt-1">In inventory</p>
           </CardContent>
