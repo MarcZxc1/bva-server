@@ -407,26 +407,65 @@ export async function getRestockStrategy(
     }
 
     // 6. Return Response
+    // Group recommendations by product_id to accumulate quantities for duplicate products
+    const productRecommendationMap = new Map<string, {
+      product_id: string;
+      product_name: string;
+      current_stock: number;
+      recommended_qty: number;
+      cost: number;
+      expected_revenue: number;
+      priority: number;
+      reasons: string[];
+    }>();
+
+    mlResponse.items.forEach(item => {
+      const productId = String(item.product_id);
+      const product = products.find(p => String(p.id) === productId);
+      
+      if (productRecommendationMap.has(productId)) {
+        // Product already exists, accumulate quantities and costs
+        const existing = productRecommendationMap.get(productId)!;
+        existing.recommended_qty += (item.qty || 0);
+        existing.cost += (item.total_cost || 0);
+        existing.expected_revenue += (item.expected_revenue || 0);
+        // Keep the highest priority score
+        existing.priority = Math.max(existing.priority, item.priority_score || 0);
+        // Accumulate unique reasons
+        if (item.reasoning && !existing.reasons.includes(item.reasoning)) {
+          existing.reasons.push(item.reasoning);
+        }
+      } else {
+        // New product, add to map
+        productRecommendationMap.set(productId, {
+          product_id: productId,
+          product_name: item.name || product?.name || "Unknown Product",
+          current_stock: product?.Inventory?.[0]?.quantity || 0,
+          recommended_qty: item.qty || 0,
+          cost: item.total_cost || 0,
+          expected_revenue: item.expected_revenue || 0,
+          priority: item.priority_score || 0,
+          reasons: item.reasoning ? [item.reasoning] : []
+        });
+      }
+    });
+
+    // Convert map to array and format reasons
+    const recommendations = Array.from(productRecommendationMap.values())
+      .map(rec => ({
+        ...rec,
+        reason: rec.reasons.length > 0 ? rec.reasons.join('; ') : "No reasoning provided"
+      }))
+      .filter(rec => rec.recommended_qty > 0) // Filter out zero quantity recommendations
+      .sort((a, b) => b.priority - a.priority); // Sort by priority descending
+
     const responseData = {
       success: true,
       data: {
         strategy: mlResponse.strategy || goal,
         shopId: shopId,
         budget: Number(budget),
-        recommendations: mlResponse.items.map(item => {
-            // item.product_id might be string or int, ensure comparison works
-            const product = products.find(p => String(p.id) === String(item.product_id));
-            return {
-                product_id: String(item.product_id),
-                product_name: item.name || "Unknown Product",
-                current_stock: product?.Inventory?.[0]?.quantity || 0,
-                recommended_qty: item.qty || 0,
-                cost: item.total_cost || 0, 
-                expected_revenue: item.expected_revenue || 0,
-                priority: item.priority_score || 0,
-                reason: item.reasoning || "No reasoning provided"
-            };
-        }).filter(rec => rec.recommended_qty > 0), // Filter out zero quantity recommendations
+        recommendations: recommendations,
         summary: {
             total_cost: mlResponse.totals?.total_cost || 0,
             total_items: mlResponse.totals?.total_items || mlResponse.items.length || 0,

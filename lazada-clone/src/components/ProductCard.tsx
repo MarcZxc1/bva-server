@@ -8,14 +8,29 @@ import { orderAPI } from '@/lib/api';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { useState } from 'react';
+// FIX 1: Removed unused 'shallow' import to keep code clean
 
 export function ProductCard({ product }: { product: Product }) {
   const addItemToCart = useCartStore((state: any) => state.addItem);
-  const user = useAuthStore((state: any) => state.user);
+  
+  // FIX 2: Atomic State Selection
+  // Instead of returning an object, we select properties individually.
+  // This prevents the "infinite loop" caused by creating a new object reference on every render.
+  const user = useAuthStore((state) => state.user);
+  const isHydrated = useAuthStore((state) => state.isHydrated);
+
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleBuyNow = async () => {
+    if (!isHydrated) {
+      toast.info('Please wait...');
+      return;
+    }
+    
+    console.log("User state before buy: ", user);
+    console.log("Is logged in before buy: ", !!user);
+    
     if (!user) {
       toast.error('You must be logged in to buy a product.');
       router.push('/login');
@@ -118,7 +133,7 @@ export function ProductCard({ product }: { product: Product }) {
         </div>
         <button
           onClick={handleBuyNow}
-          disabled={isSubmitting}
+          disabled={isSubmitting || !isHydrated}
           className="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700 disabled:opacity-50"
         >
           {isSubmitting ? 'Processing...' : 'Buy Now'}

@@ -35,7 +35,8 @@ app.use(cors({
     "http://localhost:5173", // Shopee Clone
     "http://localhost:5174", // TikTok Seller Clone (Vite default alternate port)
     "http://localhost:5175", // TikTok Seller Clone (if 5174 is taken)
-    "http://localhost:3001", // Lazada Clone (Next.js)
+    "http://localhost:3001", // Make sure this matches your browser URL exactly
+    "http://127.0.0.1:3001", // Add this if you use 127.0.0.1
     "http://localhost:8080", // BVA Frontend
     "https://bva-frontend.vercel.app",
     "https://shopee-clone.vercel.app",

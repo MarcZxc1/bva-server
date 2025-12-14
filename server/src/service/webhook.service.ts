@@ -52,9 +52,7 @@ class WebhookService {
         },
       });
     } else {
-      // Create new product - but first check if SKU would conflict
-      // If SKU exists with different externalId, generate a unique one
-      let finalSku = sku;
+      // Check if a product with this SKU already exists
       const skuConflict = await prisma.product.findUnique({
         where: {
           shopId_sku: {
@@ -65,25 +63,39 @@ class WebhookService {
       });
 
       if (skuConflict) {
-        // Generate unique SKU
-        finalSku = `${sku}-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
-        console.warn(`⚠️ SKU conflict for ${sku}, using ${finalSku} instead`);
+        // Update the existing product with the same SKU instead of creating a duplicate
+        console.log(`✅ Found existing product with SKU ${sku}, updating with new externalId ${externalId}`);
+        product = await prisma.product.update({
+          where: { id: skuConflict.id },
+          data: {
+            name: data.name,
+            description: data.description || null,
+            price: data.price,
+            cost: data.cost || null,
+            category: data.category || null,
+            imageUrl: data.image || data.imageUrl || null,
+            stock: data.stock || 0,
+            externalId: externalId, // Update externalId to new one
+            updatedAt: new Date(),
+          },
+        });
+      } else {
+        // No conflict, create new product
+        product = await prisma.product.create({
+          data: {
+            shopId,
+            externalId: externalId,
+            sku: sku,
+            name: data.name,
+            description: data.description || null,
+            price: data.price,
+            cost: data.cost || null,
+            category: data.category || null,
+            imageUrl: data.image || data.imageUrl || null,
+            stock: data.stock || 0,
+          },
+        });
       }
-
-      product = await prisma.product.create({
-        data: {
-          shopId,
-          externalId: externalId,
-          sku: finalSku,
-          name: data.name,
-          description: data.description || null,
-          price: data.price,
-          cost: data.cost || null,
-          category: data.category || null,
-          imageUrl: data.image || data.imageUrl || null,
-          stock: data.stock || 0,
-        },
-      });
     }
 
     // Create inventory record if it doesn't exist

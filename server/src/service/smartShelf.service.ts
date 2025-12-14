@@ -219,10 +219,13 @@ export async function getAtRiskInventory(
 
     // Convert scores from 0-1 to 0-100 for frontend consistency
     // Map reasons to RiskReason enum
-    const processedAtRisk = response.at_risk.map(item => ({
-      ...item,
-      score: Math.round((item.score || 0) * 100), // Convert 0-1 to 0-100
-      reasons: Array.isArray(item.reasons) 
+    // Also group by product_id to avoid duplicates
+    const atRiskMap = new Map<string, any>();
+    
+    response.at_risk.forEach(item => {
+      const productId = String(item.product_id);
+      const score = Math.round((item.score || 0) * 100); // Convert 0-1 to 0-100
+      const reasons = Array.isArray(item.reasons) 
         ? item.reasons.map((r: any): RiskReason => {
             const reasonStr = typeof r === 'string' ? r : String(r);
             // Map to RiskReason enum
@@ -231,10 +234,32 @@ export async function getAtRiskInventory(
             if (reasonStr === 'slow_moving' || reasonStr === 'SLOW_MOVING') return RiskReason.SLOW_MOVING;
             return RiskReason.LOW_STOCK; // Default fallback
           })
-        : [],
-    }));
+        : [];
+      
+      if (atRiskMap.has(productId)) {
+        // Product already exists, keep the highest score and merge reasons
+        const existing = atRiskMap.get(productId)!;
+        existing.score = Math.max(existing.score, score);
+        // Merge unique reasons
+        reasons.forEach(r => {
+          if (!existing.reasons.includes(r)) {
+            existing.reasons.push(r);
+          }
+        });
+      } else {
+        // New product, add to map
+        atRiskMap.set(productId, {
+          ...item,
+          score,
+          reasons,
+        });
+      }
+    });
 
-    console.log(`✅ ML service returned ${processedAtRisk.length} at-risk items (${processedAtRisk.filter(i => i.score >= 80).length} critical)`);
+    const processedAtRisk = Array.from(atRiskMap.values())
+      .sort((a, b) => b.score - a.score); // Sort by score descending
+
+    console.log(`✅ ML service returned ${processedAtRisk.length} unique at-risk items (${processedAtRisk.filter(i => i.score >= 80).length} critical)`);
 
     return {
       at_risk: processedAtRisk,
@@ -337,12 +362,13 @@ export async function getDashboardAnalytics(shopId: string) {
       const syncedProducts = products.filter(p => p.externalId !== null);
       console.log(`   ${syncedProducts.length} synced from Shopee-Clone, ${products.length - syncedProducts.length} locally created`);
 
-      // 2. Get ALL sales for lifetime metrics (total revenue, total orders)
+      // 2. Get ALL COMPLETED sales for lifetime metrics (total revenue, total orders)
       // Get sales from all platforms (SHOPEE, LAZADA, TIKTOK, etc.)
-      // This ensures we show data even if platform filter is too restrictive
+      // Only count completed sales for revenue metrics (consistent with Reports page)
       const allSales = await prisma.sale.findMany({
         where: {
           shopId,
+          status: 'completed', // Only completed sales count toward revenue
           // Removed platform filter - show all sales for the shop
           // This ensures BVA can display data from all sources
         },
@@ -379,7 +405,7 @@ export async function getDashboardAnalytics(shopId: string) {
       const salesRecords: any[] = [];
 
       allSales.forEach((sale) => {
-        // Count all orders (regardless of status for total count)
+        // Count only completed orders (already filtered by status='completed')
         totalOrders++;
         
         // Use revenue if available, otherwise use total
@@ -571,7 +597,7 @@ export async function getDashboardAnalytics(shopId: string) {
           profitMargin,
           totalItems,
           totalProducts: products.length,
-          totalSales: totalOrders, // All-time total orders count
+          totalSales: totalItems, // Total quantity of items sold (not number of transactions)
         },
         forecast: finalForecast, // Explicitly null or valid structure
         period: {

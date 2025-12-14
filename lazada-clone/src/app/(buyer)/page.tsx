@@ -4,14 +4,19 @@ import { useEffect, useState, useCallback } from 'react';
 import { ProductCard } from '@/components/ProductCard';
 import { productAPI } from '@/lib/api';
 import Image from 'next/image';
-import { useProductStore } from '@/store/products';
 import { useRealtimeProducts } from '@/hooks/useRealtimeProducts';
-
+import { useAuthStore } from '@/store';
 export default function Home() {
   const [products, setProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [currentSlide, setCurrentSlide] = useState(0);
+
+
+const user = useAuthStore((state) => state.user);
+const isHydrated = useAuthStore((state) => state.isHydrated);
+
+
 
   const bannerImages = [
     {
@@ -51,12 +56,14 @@ export default function Home() {
     }
   }, []);
 
+  const handleProductUpdate = useCallback(() => {
+    console.log('🔄 Refreshing products due to real-time update...');
+    fetchProducts();
+  }, [fetchProducts]);
+
   useRealtimeProducts({
     enabled: true,
-    onProductUpdate: () => {
-      console.log('🔄 Refreshing products due to real-time update...');
-      fetchProducts();
-    },
+    onProductUpdate: handleProductUpdate,
   });
 
   useEffect(() => {

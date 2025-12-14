@@ -2,13 +2,12 @@
 
 import { Server as SocketIOServer } from "socket.io";
 import { Server as HTTPServer } from "http";
-import { Product } from "@prisma/client";
 
 let io: SocketIOServer | null = null;
 
 // ... (existing interfaces)
 
-export interface NewProductData extends Product {}
+export interface NewProductData {}
 
 export function initializeSocketIO(httpServer: HTTPServer): SocketIOServer {
   // ... (existing implementation)

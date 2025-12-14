@@ -3,6 +3,7 @@
 
 import { Request, Response, NextFunction } from "express";
 import { authService } from "../service/auth.service";
+import prisma from "../lib/prisma";
 
 /**
  * Webhook middleware to verify JWT token from Shopee-Clone
@@ -30,7 +31,26 @@ export const webhookMiddleware = async (
       const decoded = authService.verifyToken(token) as any;
       (req as any).user = decoded;
       (req as any).userId = decoded.userId;
-      (req as any).shopId = decoded.shopId || null;
+      
+      // Get shopId from multiple sources (priority order):
+      // 1. Request body (sent by shopee-clone webhook)
+      // 2. Decoded token
+      // 3. Look up from database using userId
+      let shopId = req.body?.shopId || decoded.shopId || null;
+      
+      // If no shopId yet, try to get it from user's shops
+      if (!shopId && decoded.userId) {
+        const user = await prisma.user.findUnique({
+          where: { id: decoded.userId },
+          include: { shops: { take: 1, select: { id: true } } },
+        });
+        
+        if (user?.shops?.[0]?.id) {
+          shopId = user.shops[0].id;
+        }
+      }
+      
+      (req as any).shopId = shopId;
       next();
     } catch (error) {
       return res.status(401).json({

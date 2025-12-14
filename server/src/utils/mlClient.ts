@@ -1,16 +1,10 @@
 /**
  * ML Service Client
- * 
- * Centralized client for communicating with the Python ML Service.
+ * * Centralized client for communicating with the Python ML Service.
  * Implements the API Gateway pattern - all ML operations go through this client.
- * 
- * Features:
- * - Ads Generation (MarketMate)
- * - Restock Optimization (Smart Restock Planner)
- * - Analytics & Forecasting (SmartShelf)
  */
 
-import axios, { AxiosInstance } from "axios";
+import axios from "axios"; // Removed { AxiosInstance } to fix module export error
 import {
   RestockStrategyRequest,
   RestockStrategyResponse,
@@ -25,7 +19,8 @@ import {
 } from "../types/promotion.types";
 
 export class MLServiceClient {
-  private client: AxiosInstance;
+  // Fix: Use ReturnType instead of importing AxiosInstance directly
+  private client: ReturnType<typeof axios.create>;
   private baseURL: string;
 
   constructor() {
@@ -92,13 +87,12 @@ export class MLServiceClient {
   /**
    * MarketMate: Generate AI-powered ad image
    * Endpoint: POST /api/v1/ads/generate-image
-   * Uses product image as context if provided
    */
   async generateAdImage(request: {
     product_name: string;
     playbook: string;
     style?: string | undefined;
-    product_image_url?: string | undefined; // Optional: Product image URL to use as context
+    product_image_url?: string | undefined;
   }): Promise<{ image_url: string }> {
     return this.post("/api/v1/ads/generate-image", request);
   }
@@ -190,7 +184,12 @@ export class MLServiceClient {
     uptime?: number;
   }> {
     try {
-      const response = await this.client.get("/health");
+      // FIX: Added generic type parameter to .get() so TypeScript knows the return shape
+      const response = await this.client.get<{
+        status: string;
+        version?: string;
+        uptime?: number;
+      }>("/health");
       return response.data;
     } catch {
       return { status: "unavailable" };
@@ -203,7 +202,6 @@ export class MLServiceClient {
 
   private handleError(error: any): never {
     if (error.response) {
-      // ML-service returned an error response
       const data = error.response.data;
       let detail: string = 'Unknown error';
       
@@ -224,7 +222,6 @@ export class MLServiceClient {
           detail = JSON.stringify(data);
         }
       } catch (parseError) {
-        // If JSON.stringify fails, use a fallback
         detail = `ML Service error (${error.response.status}): Unable to parse error response`;
       }
       
@@ -236,24 +233,20 @@ export class MLServiceClient {
         );
       }
       
-      // Ensure detail is never empty
       if (!detail || detail.trim() === '') {
         detail = `ML Service error (${status}): Unknown error occurred`;
       }
       
       throw new Error(detail);
     } else if (error.request) {
-      // No response received - service is down
       throw new Error(
         `AI Service Unavailable: Cannot reach ML service at ${this.baseURL}. Please ensure the service is running.`
       );
     } else {
-      // Request setup error
       const errorMessage = error?.message || error?.toString() || 'Unknown error';
       throw new Error(`Request failed: ${errorMessage}`);
     }
   }
 }
 
-// Singleton instance
 export const mlClient = new MLServiceClient();

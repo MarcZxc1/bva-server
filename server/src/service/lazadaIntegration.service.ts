@@ -236,11 +236,24 @@ class LazadaIntegrationService {
             },
           });
 
-          // If SKU exists, generate a unique one
-          let finalSku = baseSku;
+          // If SKU exists, update it instead of creating duplicate
           if (existingBySku) {
-            // Generate unique SKU by appending timestamp or random suffix
-            finalSku = `${baseSku}-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
+            await prisma.product.update({
+              where: { id: existingBySku.id },
+              data: {
+                name: product.name,
+                description: product.description || null,
+                price: product.price,
+                cost: product.cost || null,
+                category: product.category || null,
+                imageUrl: product.image || product.image_url || null,
+                stock: product.stock || product.quantity || 0,
+                externalId: product.id, // Update externalId
+                updatedAt: new Date(),
+              },
+            });
+            syncedCount++;
+            continue;
           }
 
           // Create new product with complete data mapping
@@ -248,7 +261,7 @@ class LazadaIntegrationService {
             data: {
               shopId,
               externalId: product.id, // Link to Lazada-Clone
-              sku: finalSku,
+              sku: baseSku,
               name: product.name, // Required: MarketMate, SmartShelf
               description: product.description || null,
               price: product.price, // Required: Restock Planner, MarketMate

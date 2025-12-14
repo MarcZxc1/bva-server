@@ -8,6 +8,22 @@ class WebhookService {
     return localStorage.getItem('auth_token');
   }
 
+  private getUserData(): { shopId: string | null; userId: string | null } {
+    try {
+      const userStr = localStorage.getItem('user');
+      if (!userStr) return { shopId: null, userId: null };
+      
+      const user = JSON.parse(userStr);
+      const shopId = user?.shops?.[0]?.id || null;
+      const userId = user?.id || null;
+      
+      return { shopId, userId };
+    } catch (error) {
+      console.error('Error parsing user data:', error);
+      return { shopId: null, userId: null };
+    }
+  }
+
   /**
    * Send product created webhook to BVA server
    */
@@ -16,6 +32,12 @@ class WebhookService {
       const token = this.getAuthToken();
       if (!token) {
         console.warn('No auth token available for webhook');
+        return;
+      }
+
+      const { shopId } = this.getUserData();
+      if (!shopId) {
+        console.warn('No shop ID available for webhook');
         return;
       }
 
@@ -28,6 +50,7 @@ class WebhookService {
         body: JSON.stringify({
           id: product.id,
           productId: product.id,
+          shopId: shopId, // Include shopId from user context
           name: product.name,
           description: product.description,
           price: product.price,
@@ -56,6 +79,12 @@ class WebhookService {
         return;
       }
 
+      const { shopId } = this.getUserData();
+      if (!shopId) {
+        console.warn('No shop ID available for webhook');
+        return;
+      }
+
       await fetch(`${BVA_WEBHOOK_BASE_URL}/products/updated`, {
         method: 'POST',
         headers: {
@@ -65,6 +94,7 @@ class WebhookService {
         body: JSON.stringify({
           id: product.id,
           productId: product.id,
+          shopId: shopId, // Include shopId from user context
           name: product.name,
           description: product.description,
           price: product.price,
@@ -92,6 +122,12 @@ class WebhookService {
         return;
       }
 
+      const { shopId } = this.getUserData();
+      if (!shopId) {
+        console.warn('No shop ID available for webhook');
+        return;
+      }
+
       await fetch(`${BVA_WEBHOOK_BASE_URL}/products/deleted`, {
         method: 'POST',
         headers: {
@@ -101,6 +137,7 @@ class WebhookService {
         body: JSON.stringify({
           id: productId,
           productId,
+          shopId: shopId, // Include shopId from user context
         }),
       });
     } catch (error) {
@@ -119,6 +156,15 @@ class WebhookService {
         return;
       }
 
+      // Get shopId from order or user context
+      const { shopId: userShopId } = this.getUserData();
+      const shopId = order.shopId || userShopId;
+      
+      if (!shopId) {
+        console.warn('No shop ID available for webhook');
+        return;
+      }
+
       await fetch(`${BVA_WEBHOOK_BASE_URL}/orders/created`, {
         method: 'POST',
         headers: {
@@ -128,7 +174,7 @@ class WebhookService {
         body: JSON.stringify({
           id: order.id,
           orderId: order.id,
-          shopId: order.shopId, // Include shopId from order
+          shopId: shopId, // Include shopId from order or user context
           items: order.items || [],
           total: order.total || order.totalPrice,
           totalPrice: order.total || order.totalPrice,
@@ -154,6 +200,14 @@ class WebhookService {
         return;
       }
 
+      const { shopId: userShopId } = this.getUserData();
+      const shopId = order.shopId || userShopId;
+      
+      if (!shopId) {
+        console.warn('No shop ID available for webhook');
+        return;
+      }
+
       await fetch(`${BVA_WEBHOOK_BASE_URL}/orders/updated`, {
         method: 'POST',
         headers: {
@@ -163,6 +217,7 @@ class WebhookService {
         body: JSON.stringify({
           id: order.id,
           orderId: order.id,
+          shopId: shopId, // Include shopId
           items: order.items || [],
           total: order.total || order.totalPrice,
           totalPrice: order.total || order.totalPrice,
@@ -187,6 +242,12 @@ class WebhookService {
         return;
       }
 
+      const { shopId } = this.getUserData();
+      if (!shopId) {
+        console.warn('No shop ID available for webhook');
+        return;
+      }
+
       await fetch(`${BVA_WEBHOOK_BASE_URL}/orders/status-changed`, {
         method: 'POST',
         headers: {
@@ -196,6 +257,7 @@ class WebhookService {
         body: JSON.stringify({
           id: orderId,
           orderId,
+          shopId: shopId, // Include shopId
           status,
         }),
       });
@@ -215,6 +277,12 @@ class WebhookService {
         return;
       }
 
+      const { shopId } = this.getUserData();
+      if (!shopId) {
+        console.warn('No shop ID available for webhook');
+        return;
+      }
+
       await fetch(`${BVA_WEBHOOK_BASE_URL}/inventory/updated`, {
         method: 'POST',
         headers: {
@@ -223,6 +291,7 @@ class WebhookService {
         },
         body: JSON.stringify({
           productId,
+          shopId: shopId, // Include shopId
           quantity,
           stock: quantity,
           threshold,

@@ -64,6 +64,7 @@ export default function LoginPage() {
       // Server returns { success: true, data: { user, shops, token } }
       const { token, user, shops } = response.data.data;
       setUser(user, token, shops);
+      localStorage.setItem('token', token);
       localStorage.setItem('shops', JSON.stringify(shops));
       router.push('/');
     } catch (err: any) {

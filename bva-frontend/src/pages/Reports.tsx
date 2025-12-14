@@ -49,7 +49,7 @@ export default function Reports() {
   } = useQuery({
     queryKey: ["dashboardMetrics"],
     queryFn: () => reportsService.getMetrics(),
-    enabled: hasShop && isPlatformConnected,
+    enabled: hasShop,
     retry: 2,
   });
 
@@ -62,7 +62,7 @@ export default function Reports() {
   } = useQuery({
     queryKey: ["salesChart", dateRange],
     queryFn: () => reportsService.getSalesChart(dateRange),
-    enabled: hasShop && isPlatformConnected,
+    enabled: hasShop,
     retry: 2,
   });
 
@@ -98,7 +98,7 @@ export default function Reports() {
         endDate.toISOString().split("T")[0]
       );
     },
-    enabled: hasShop && isPlatformConnected,
+    enabled: hasShop,
     retry: 1, // Only retry once for optional data
     retryOnMount: false, // Don't retry on mount if it failed
   });
@@ -141,7 +141,7 @@ export default function Reports() {
       const { start, end } = getDateRange();
       return reportsService.getSalesChart(dateRange, start, end);
     },
-    enabled: hasShop && isPlatformConnected && activeReport === "sales",
+    enabled: hasShop && activeReport === "sales",
   });
 
   const { data: profitReportData, isLoading: profitReportLoading } = useQuery({
@@ -150,7 +150,7 @@ export default function Reports() {
       const { start, end } = getDateRange();
       return reportsService.getProfitAnalysis(start, end);
     },
-    enabled: hasShop && isPlatformConnected && activeReport === "profit",
+    enabled: hasShop && activeReport === "profit",
   });
 
   const { data: stockReportData, isLoading: stockReportLoading } = useQuery({
@@ -159,7 +159,7 @@ export default function Reports() {
       const { start, end } = getDateRange();
       return reportsService.getStockTurnoverReport(start, end);
     },
-    enabled: hasShop && isPlatformConnected && activeReport === "stock",
+    enabled: hasShop && activeReport === "stock",
   });
 
   const { data: platformReportData, isLoading: platformReportLoading } = useQuery({
@@ -168,10 +168,15 @@ export default function Reports() {
       const { start, end } = getDateRange();
       return reportsService.getPlatformStats(start, end);
     },
-    enabled: hasShop && isPlatformConnected && activeReport === "platform",
+    enabled: hasShop && activeReport === "platform",
   });
 
   const handleGenerateReport = (reportType: "sales" | "profit" | "stock" | "platform") => {
+    if (!hasShop) {
+      toast.error("Please create a shop first");
+      return;
+    }
+    // Allow report generation even without active integration (user might have historical data)
     setActiveReport(reportType);
   };
 
@@ -325,49 +330,8 @@ export default function Reports() {
     );
   }
 
-  // Show integration required message if not connected
-  if (!isLoadingIntegration && hasNoIntegration) {
-    return (
-      <div className="space-y-6">
-        <div className="glass-card p-8">
-          <div className="space-y-2">
-            <h1 className="text-4xl font-bold text-foreground">📊 Reports & Analytics</h1>
-            <p className="text-muted-foreground">Comprehensive business reports and insights</p>
-          </div>
-        </div>
-
-        <Card className="glass-card border-primary/20">
-          <CardHeader>
-            <CardTitle className="text-foreground flex items-center gap-2">
-              <AlertCircle className="h-5 w-5 text-warning" />
-              Integration Required
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <p className="text-sm text-muted-foreground">
-                To view reports and analytics, you need to integrate with Shopee-Clone and accept the terms and conditions.
-              </p>
-              <ul className="text-sm text-muted-foreground space-y-2 ml-4">
-                <li>• Go to Settings → Integrations</li>
-                <li>• Connect your Shopee-Clone account</li>
-                <li>• Accept the terms and conditions</li>
-                <li>• Sync your data to see reports and analytics</li>
-              </ul>
-              <div className="pt-2">
-                <Button
-                  onClick={() => window.location.href = '/settings'}
-                  className="gap-2 bg-primary hover:bg-primary/90"
-                >
-                  Go to Settings
-                </Button>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
+  // Note: Removed integration check - users can view reports even without active integration
+  // as long as they have a shop and historical sales data
 
   if (isLoading) {
     return (
@@ -593,7 +557,7 @@ export default function Reports() {
       )}
 
       {/* Report Generation */}
-      <Card className="glass-card">
+      <Card className="glass-card no-print">
         <CardHeader>
           <CardTitle className="text-foreground">📋 Report Generation</CardTitle>
         </CardHeader>
@@ -603,6 +567,7 @@ export default function Reports() {
               variant="outline"
               className="h-auto flex-col items-start p-4 glass-card-sm hover:shadow-glow"
               onClick={() => handleGenerateReport("sales")}
+              disabled={!hasShop}
             >
               <div className="flex items-center gap-2 mb-1">
                 <FileText className="h-4 w-4 text-primary" />
@@ -616,6 +581,7 @@ export default function Reports() {
               variant="outline"
               className="h-auto flex-col items-start p-4 glass-card-sm hover:shadow-glow"
               onClick={() => handleGenerateReport("profit")}
+              disabled={!hasShop}
             >
               <div className="flex items-center gap-2 mb-1">
                 <DollarSign className="h-4 w-4 text-primary" />
@@ -629,6 +595,7 @@ export default function Reports() {
               variant="outline"
               className="h-auto flex-col items-start p-4 glass-card-sm hover:shadow-glow"
               onClick={() => handleGenerateReport("stock")}
+              disabled={!hasShop}
             >
               <div className="flex items-center gap-2 mb-1">
                 <Package className="h-4 w-4 text-primary" />
@@ -642,6 +609,7 @@ export default function Reports() {
               variant="outline"
               className="h-auto flex-col items-start p-4 glass-card-sm hover:shadow-glow"
               onClick={() => handleGenerateReport("platform")}
+              disabled={!hasShop}
             >
               <div className="flex items-center gap-2 mb-1">
                 <BarChart3 className="h-4 w-4 text-primary" />
@@ -840,15 +808,23 @@ export default function Reports() {
                           </tr>
                         </thead>
                         <tbody>
-                          {stockReportData.products.map((product, index) => (
-                            <tr key={index} className="hover:bg-muted/30">
-                              <td className="border border-border px-4 py-2 text-foreground">{product.sku}</td>
-                              <td className="border border-border px-4 py-2 text-foreground">{product.productName}</td>
-                              <td className="border border-border px-4 py-2 text-foreground">{product.currentStock}</td>
-                              <td className="border border-border px-4 py-2 text-foreground">₱{product.inventoryValue.toLocaleString()}</td>
-                              <td className="border border-border px-4 py-2 text-foreground">{product.turnoverRate.toFixed(2)}x</td>
+                          {stockReportData.products && stockReportData.products.length > 0 ? (
+                            stockReportData.products.map((product, index) => (
+                              <tr key={index} className="hover:bg-muted/30">
+                                <td className="border border-border px-4 py-2 text-foreground">{product.sku}</td>
+                                <td className="border border-border px-4 py-2 text-foreground">{product.productName}</td>
+                                <td className="border border-border px-4 py-2 text-foreground">{product.currentStock}</td>
+                                <td className="border border-border px-4 py-2 text-foreground">₱{product.inventoryValue.toLocaleString()}</td>
+                                <td className="border border-border px-4 py-2 text-foreground">{product.turnoverRate.toFixed(2)}x</td>
+                              </tr>
+                            ))
+                          ) : (
+                            <tr>
+                              <td colSpan={5} className="border border-border px-4 py-8 text-center text-muted-foreground">
+                                No product data available
+                              </td>
                             </tr>
-                          ))}
+                          )}
                         </tbody>
                       </table>
                     </div>
@@ -1052,15 +1028,23 @@ export default function Reports() {
                         </tr>
                       </thead>
                       <tbody>
-                        {stockReportData.products.map((product, index) => (
-                          <tr key={index} className="hover:bg-gray-50">
-                            <td className="border border-gray-300 px-4 py-2 text-black">{product.sku}</td>
-                            <td className="border border-gray-300 px-4 py-2 text-black">{product.productName}</td>
-                            <td className="border border-gray-300 px-4 py-2 text-black">{product.currentStock}</td>
-                            <td className="border border-gray-300 px-4 py-2 text-black">₱{product.inventoryValue.toLocaleString()}</td>
-                            <td className="border border-gray-300 px-4 py-2 text-black">{product.turnoverRate.toFixed(2)}x</td>
+                        {stockReportData.products && stockReportData.products.length > 0 ? (
+                          stockReportData.products.map((product, index) => (
+                            <tr key={index} className="hover:bg-gray-50">
+                              <td className="border border-gray-300 px-4 py-2 text-black">{product.sku}</td>
+                              <td className="border border-gray-300 px-4 py-2 text-black">{product.productName}</td>
+                              <td className="border border-gray-300 px-4 py-2 text-black">{product.currentStock}</td>
+                              <td className="border border-gray-300 px-4 py-2 text-black">₱{product.inventoryValue.toLocaleString()}</td>
+                              <td className="border border-gray-300 px-4 py-2 text-black">{product.turnoverRate.toFixed(2)}x</td>
+                            </tr>
+                          ))
+                        ) : (
+                          <tr>
+                            <td colSpan={5} className="border border-gray-300 px-4 py-8 text-center text-gray-700">
+                              No product data available
+                            </td>
                           </tr>
-                        ))}
+                        )}
                       </tbody>
                     </table>
                   </div>

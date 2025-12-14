@@ -166,25 +166,8 @@ const BuyerCheckout: React.FC = () => {
           const orders = Array.isArray(orderResponse) ? orderResponse : [orderResponse];
           createdOrders.push(...orders);
 
-          // Send webhook to BVA server for each order
-          try {
-            const { webhookService } = await import('../../services/webhook.service');
-            for (const order of orders) {
-            await webhookService.sendOrderCreated({
-                ...order,
-                id: order.id,
-                orderId: order.id,
-                shopId: order.shopId, // Include shopId from order response
-              items: orderItems.map((item: any) => ({
-                ...item,
-                productName: items.find((i: any) => String(i.productId) === String(item.productId))?.name || 'Unknown Product',
-              })),
-            });
-            }
-          } catch (webhookError) {
-            console.error('Webhook error (non-critical):', webhookError);
-            // Don't fail the order creation if webhook fails
-          }
+          // NOTE: No webhook needed here - order is already created in BVA database via createOrder API
+          // Webhooks are only for syncing orders created outside of BVA (e.g., seller dashboard)
 
           // Also add to local order context for immediate UI update
           items.forEach(item => {

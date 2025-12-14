@@ -233,11 +233,24 @@ class ShopeeIntegrationService {
             },
           });
 
-          // If SKU exists, generate a unique one
-          let finalSku = baseSku;
+          // If SKU exists, update it instead of creating duplicate
           if (existingBySku) {
-            // Generate unique SKU by appending timestamp or random suffix
-            finalSku = `${baseSku}-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
+            await prisma.product.update({
+              where: { id: existingBySku.id },
+              data: {
+                name: product.name,
+                description: product.description || null,
+                price: product.price,
+                cost: product.cost || null,
+                category: product.category || null,
+                imageUrl: product.image || null,
+                stock: product.stock || 0,
+                externalId: product.id, // Update externalId
+                updatedAt: new Date(),
+              },
+            });
+            syncedCount++;
+            continue;
           }
 
           // Create new product with complete data mapping
@@ -245,7 +258,7 @@ class ShopeeIntegrationService {
             data: {
               shopId,
               externalId: product.id, // Link to Shopee-Clone
-              sku: finalSku,
+              sku: baseSku,
               name: product.name, // Required: MarketMate, SmartShelf
               description: product.description || null,
               price: product.price, // Required: Restock Planner, MarketMate
@@ -312,195 +325,36 @@ class ShopeeIntegrationService {
   }
 
   /**
-   * Fetch and sync sales/orders from Shopee-Clone (READ-ONLY)
-   * This method ONLY READS from Shopee-Clone API and writes to BVA database.
-   * It does NOT write, create, or modify anything in Shopee-Clone.
-   * Purpose: Refresh/update BVA's local copy of Shopee-Clone sales data.
-   * Uses JWT token for authentication (read-only access)
+   * Fetch and sync sales/orders for a shop
+   * Since orders are already stored in the BVA database when created,
+   * this method verifies and counts existing sales records.
+   * Uses JWT token for authentication
    */
   async syncSales(shopId: string, token: string): Promise<number> {
     try {
       console.log(`💰 Syncing sales for shop ${shopId}...`);
 
-      // Use seller orders endpoint with JWT token - try shop-specific first
-      const endpoints = [
-        `/api/orders/seller/${shopId}`,  // Shop-specific seller orders
-        `/api/orders/shop/${shopId}`,    // Alternative shop endpoint
-        "/api/orders/my",                 // My orders (if token has user context)
-        "/api/orders",                    // General orders endpoint
-      ];
+      // Fetch existing sales from database for this shop
+      const existingSales = await prisma.sale.findMany({
+        where: { shopId },
+        orderBy: { createdAt: 'desc' },
+      });
 
-      let orders: ShopeeOrder[] = [];
-
-      for (const endpoint of endpoints) {
-        try {
-          console.log(`💰 Trying endpoint: ${endpoint} (READ-ONLY)`);
-          // READ-ONLY GET request - does NOT modify Shopee-Clone
-          const response = await fetch(`${SHOPEE_CLONE_API_URL}${endpoint}`, {
-            method: "GET", // READ-ONLY - no POST/PUT/PATCH/DELETE
-            headers: {
-              "Content-Type": "application/json",
-              "Authorization": `Bearer ${token}`,
-            },
-          });
-
-          if (response.ok) {
-            const result = await response.json();
-            // Handle both { success: true, data: [...] } and direct array formats
-            if (Array.isArray(result)) {
-              orders = result;
-            } else if (result.data && Array.isArray(result.data)) {
-              orders = result.data;
-            } else if (result.success && result.data && Array.isArray(result.data)) {
-              orders = result.data;
-            }
-            
-            if (orders.length > 0) {
-              console.log(`✅ Found ${orders.length} orders at ${endpoint}`);
-              break;
-            } else {
-              console.log(`⚠️ Endpoint ${endpoint} returned empty array`);
-            }
-          } else {
-            const errorText = await response.text();
-            console.warn(`⚠️ Endpoint ${endpoint} failed: ${response.status} - ${errorText}`);
-          }
-        } catch (error: any) {
-          console.warn(`⚠️ Error trying ${endpoint}:`, error.message);
-          // Try next endpoint
-          continue;
-        }
+      if (existingSales.length > 0) {
+        console.log(`✅ Found ${existingSales.length} existing sales in database`);
+        console.log(`   Total revenue: $${existingSales.reduce((sum, s) => sum + (s.revenue || s.total), 0).toFixed(2)}`);
+        console.log(`   Total profit: $${existingSales.reduce((sum, s) => sum + (s.profit || 0), 0).toFixed(2)}`);
+        return existingSales.length;
       }
 
-      if (!orders || orders.length === 0) {
-        console.log("💰 No sales/orders found in Shopee-Clone");
-        return 0;
-      }
+      console.log("💰 No sales/orders found for this shop yet");
+      console.log("   Sales will appear automatically when:");
+      console.log("   1. Buyers place orders through Shopee-Clone");
+      console.log("   2. Orders are created via the order API");
+      return 0;
 
-      // TIME TRAVEL LOGIC: Distribute orders across the last 30 days
-      // This ensures ML service has historical data for forecasting
-      const now = new Date();
-      const thirtyDaysAgo = new Date(now);
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-      const timeRangeMs = now.getTime() - thirtyDaysAgo.getTime();
-
-      // Upsert each sale with time-traveled dates
-      let syncedCount = 0;
-      for (let i = 0; i < orders.length; i++) {
-        const order = orders[i];
-        if (!order) continue; // Skip if order is undefined
-        
-        try {
-          // Calculate total from different possible fields
-          const total = order.total_price || order.totalPrice || order.total || 0;
-          
-          // Map items to our format
-          const items = order.items?.map((item) => ({
-            productId: item.productId,
-            productName: item.productName,
-            quantity: item.quantity,
-            price: item.price,
-            subtotal: item.quantity * item.price,
-          })) || [];
-
-          // Calculate revenue (same as total for now)
-          const revenue = total;
-          
-          // Calculate profit from actual product costs if available
-          let profit = 0;
-          if (items.length > 0) {
-            // Fetch product costs from database
-            const productIds = items.map(item => item.productId).filter(Boolean);
-            if (productIds.length > 0) {
-              const products = await prisma.product.findMany({
-                where: {
-                  shopId,
-                  OR: [
-                    { id: { in: productIds } },
-                    { externalId: { in: productIds } },
-                  ],
-                },
-                select: { id: true, externalId: true, cost: true },
-              });
-
-              const productCostMap = new Map<string, number>();
-              products.forEach(p => {
-                if (p.id) productCostMap.set(p.id, p.cost || 0);
-                if (p.externalId) productCostMap.set(p.externalId, p.cost || 0);
-              });
-
-              // Calculate actual profit: (price - cost) * quantity
-              profit = items.reduce((sum, item) => {
-                const cost = productCostMap.get(item.productId) || 0;
-                return sum + ((item.price - cost) * item.quantity);
-              }, 0);
-            }
-          }
-          
-          // Fallback to 20% margin if we can't calculate profit
-          if (profit === 0 && revenue > 0) {
-            profit = revenue * 0.2;
-          }
-
-          // TIME TRAVEL: Assign random past date within last 30 days
-          // Distribute evenly across the time range for better ML training
-          const randomOffset = Math.random() * timeRangeMs;
-          const timeTraveledDate = new Date(thirtyDaysAgo.getTime() + randomOffset);
-
-          // DATA MAPPING: Shopee Order -> BVA Sale Table
-          // - order.items -> Sale.items (required for Restock Planner analysis)
-          // - order.total -> Sale.total, Sale.revenue (required for Reports, Dashboard)
-          // - calculated profit -> Sale.profit (required for Reports, Restock Planner)
-          // - order.status -> Sale.status (required for order tracking)
-          // - order.id -> Sale.externalId (links to Shopee-Clone)
-          // - timeTraveledDate -> Sale.createdAt (distributed for ML service historical data)
-          await prisma.sale.upsert({
-            where: {
-              shopId_externalId: {
-                shopId,
-                externalId: order.id,
-              },
-            },
-            update: {
-              items: items, // Required: Restock Planner analyzes item sales
-              total, // Required: Reports, Dashboard
-              revenue, // Required: Reports, Dashboard
-              profit, // Required: Reports, Restock Planner profit optimization
-              status: order.status || "completed",
-              customerName: order.customerName || null,
-              customerEmail: order.customerEmail || null,
-              // Only update createdAt if it's a new record (not in update)
-            },
-            create: {
-              shopId,
-              externalId: order.id, // Link to Shopee-Clone
-              platform: "SHOPEE",
-              platformOrderId: order.orderId || order.id,
-              items: items, // Required: Restock Planner analyzes item sales
-              total, // Required: Reports, Dashboard
-              revenue, // Required: Reports, Dashboard
-              profit, // Required: Reports, Restock Planner profit optimization
-              status: order.status || "completed",
-              customerName: order.customerName || null,
-              customerEmail: order.customerEmail || null,
-              // Use time-traveled date for ML service historical data
-              createdAt: timeTraveledDate,
-            },
-          });
-          syncedCount++;
-          console.log(`✅ Synced sale: ${order.id} (Total: ${total}, Profit: ${profit.toFixed(2)})`);
-        } catch (error) {
-          console.error(`❌ Error syncing order ${order.id}:`, error);
-        }
-      }
-
-      console.log(`💰 Synced ${syncedCount}/${orders.length} sales to BVA database`);
-      if (syncedCount === 0 && orders.length > 0) {
-        console.warn(`⚠️  WARNING: ${orders.length} orders fetched but 0 synced. Check for errors above.`);
-      }
-      return syncedCount;
     } catch (error) {
-      console.error("❌ Error syncing sales from Shopee-Clone:", error);
+      console.error("❌ Error syncing sales:", error);
       return 0;
     }
   }

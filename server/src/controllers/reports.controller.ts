@@ -62,6 +62,11 @@ export const getSalesSummary = async (req: Request, res: Response) => {
       ? new Date(start as string)
       : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000); // 30 days ago
 
+    // Set endDate to end of day (23:59:59.999) to include all sales on that day
+    if (end) {
+      endDate.setHours(23, 59, 59, 999);
+    }
+
     // Validate dates
     if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
       return res.status(400).json({
@@ -172,6 +177,11 @@ export const getProfitAnalysis = async (req: Request, res: Response) => {
     const startDate = start ? new Date(start as string) : undefined;
     const endDate = end ? new Date(end as string) : undefined;
 
+    // Set endDate to end of day (23:59:59.999) to include all sales on that day
+    if (endDate) {
+      endDate.setHours(23, 59, 59, 999);
+    }
+
     const analysis = await reportsService.getProfitAnalysis(
       shopId,
       startDate,
@@ -210,6 +220,11 @@ export const getPlatformComparison = async (req: Request, res: Response) => {
     const startDate = start ? new Date(start as string) : undefined;
     const endDate = end ? new Date(end as string) : undefined;
 
+    // Set endDate to end of day (23:59:59.999) to include all sales on that day
+    if (endDate) {
+      endDate.setHours(23, 59, 59, 999);
+    }
+
     const comparison = await reportsService.getPlatformComparison(
       shopId,
       startDate,
@@ -247,6 +262,11 @@ export const getStockTurnoverReport = async (req: Request, res: Response) => {
     const { start, end } = req.query;
     const startDate = start ? new Date(start as string) : undefined;
     const endDate = end ? new Date(end as string) : undefined;
+
+    // Set endDate to end of day (23:59:59.999) to include all sales on that day
+    if (endDate) {
+      endDate.setHours(23, 59, 59, 999);
+    }
 
     const report = await reportsService.getStockTurnoverReport(
       shopId,

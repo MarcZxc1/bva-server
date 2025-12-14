@@ -2,10 +2,11 @@
 
 import { useEffect, useState } from 'react';
 import { orderAPI, productAPI } from '@/lib/api';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, usePathname } from 'next/navigation'; // Added usePathname
 import Image from 'next/image';
 import Link from 'next/link';
 import { useAuthStore } from '@/store';
+// Removed shallow import (Atomic selectors are better)
 
 import { useProductStore } from '@/store/products';
 import { Product } from '@/lib/types';
@@ -14,8 +15,13 @@ import { toast } from 'sonner';
 export default function ProductDetailsPage() {
   const { productId } = useParams();
   const router = useRouter();
+  const pathname = usePathname(); // Get current URL path
+  
   const products = useProductStore((state) => state.products);
+  
+  // FIX 1: Atomic Selectors (Safe & Stable)
   const user = useAuthStore((state) => state.user);
+  const isHydrated = useAuthStore((state) => state.isHydrated);
 
   const [product, setProduct] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
@@ -58,11 +64,20 @@ export default function ProductDetailsPage() {
   }, [productId, products]);
 
   const handleBuyNow = async () => {
-    if (!user) {
-      toast.error('You must be logged in to buy a product.');
-      router.push('/login');
+    if (!isHydrated) {
+      toast.info('Please wait...');
       return;
     }
+    
+    // FIX 2: Smart Redirect
+    if (!user) {
+      toast.error('You must be logged in to buy a product.');
+      // Send the current page URL as a query parameter (callbackUrl)
+      // Example: /login?callbackUrl=/products/123
+      router.push(`/login?callbackUrl=${encodeURIComponent(pathname)}`);
+      return;
+    }
+    
     if (!product) return;
 
     setIsSubmitting(true);
@@ -70,7 +85,7 @@ export default function ProductDetailsPage() {
       await orderAPI.create({
         items: [{ productId: product.id || product._id, quantity, price: product.price }],
         total: product.price * quantity,
-        shippingAddress: '123 Main St, Anytown, USA', // Example address
+        shippingAddress: '123 Main St, Anytown, USA',
         paymentMethod: 'Credit Card',
       });
       toast.success('Order placed successfully!');
@@ -120,7 +135,6 @@ export default function ProductDetailsPage() {
   return (
     <div className="max-w-7xl mx-auto px-4 py-8 bg-white shadow-lg rounded-lg mt-8">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Left Column - Product Images */}
         <div>
           <div className="relative w-full h-96 bg-gray-100 rounded-lg overflow-hidden flex items-center justify-center mb-4">
             {mainImage ? (
@@ -152,7 +166,6 @@ export default function ProductDetailsPage() {
           </div>
         </div>
 
-        {/* Right Column - Product Details */}
         <div>
           <h1 className="text-3xl font-bold text-gray-900 mb-2">{product.name}</h1>
           <div className="flex items-center gap-2 mb-4">
@@ -211,7 +224,7 @@ export default function ProductDetailsPage() {
           <div className="flex gap-4">
             <button 
               onClick={handleBuyNow}
-              disabled={isSubmitting}
+              disabled={isSubmitting || !isHydrated}
               className="bg-pink-500 text-white px-6 py-3 rounded-lg font-semibold hover:bg-pink-600 flex-1 disabled:opacity-50"
             >
               {isSubmitting ? 'Processing...' : 'Buy Now'}
@@ -223,4 +236,3 @@ export default function ProductDetailsPage() {
     </div>
   );
 }
-

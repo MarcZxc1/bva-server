@@ -10,19 +10,10 @@ export function Header() {
   const logout = useAuthStore((state: any) => state.logout);
   const [isScrolled, setIsScrolled] = useState(false);
 
+  // FIXED: Removed the manual localStorage hydration logic.
+  // The 'persist' middleware in store/index.ts now handles this automatically.
+  
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    const storedUser = localStorage.getItem('user');
-    const storedShops = localStorage.getItem('shops');
-    if (token && storedUser) {
-      useAuthStore.setState({
-        user: JSON.parse(storedUser),
-        token,
-        isLoggedIn: true,
-        shops: storedShops ? JSON.parse(storedShops) : [],
-      });
-    }
-
     // Handle scroll to hide top bar
     const handleScroll = () => {
       setIsScrolled(window.scrollY > 0);
@@ -34,7 +25,7 @@ export function Header() {
 
   return (
     <header className="sticky top-0 z-50 bg-white">
-      {/* Top Bar - Hides on scroll */}
+      {/* ... The rest of your Header JSX code stays exactly the same ... */}
       <div
         className={`bg-white border-b border-gray-200 transition-all duration-300 overflow-hidden ${
           isScrolled ? 'max-h-0' : 'max-h-12'
@@ -52,12 +43,10 @@ export function Header() {
             {isLoggedIn ? (
               <>
                 <Link href="/orders" className="hover:text-blue-600">ORDERS</Link>
-                <Link href="/profile" className="hover:text-blue-600">{user?.name?.toUpperCase()}</Link>
+                <Link href="/profile" className="hover:text-blue-600">{user?.name?.toUpperCase() || 'USER'}</Link>
                 <button
                   onClick={() => {
                     logout();
-                    localStorage.removeItem('token');
-                    localStorage.removeItem('user');
                   }}
                   className="text-red-600 hover:text-red-900"
                 >

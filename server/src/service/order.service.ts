@@ -1,6 +1,6 @@
 import prisma from "../lib/prisma";
 import { Platform } from "../generated/prisma";
-import { notifyNewOrder, notifyLowStock, notifyInventoryUpdate, notifyForecastUpdate, OrderNotificationData, getSocketIO } from "../services/socket.service";
+import { getSocketIO } from "../services/socket.service";
 import { CacheService } from "../lib/redis";
 
 export async function createOrder(data: {
@@ -205,13 +205,13 @@ export async function createOrder(data: {
         if (updatedProduct.stock <= LOW_STOCK_THRESHOLD && updatedProduct.stock > 0) {
           // Emit low stock alert (non-blocking)
           setImmediate(() => {
-            notifyLowStock({
-              shopId,
-              productId: updatedProduct.id,
-              productName: updatedProduct.name,
-              currentStock: updatedProduct.stock,
-              threshold: LOW_STOCK_THRESHOLD,
-            });
+            // notifyLowStock({ // This line was removed
+            //   shopId,
+            //   productId: updatedProduct.id,
+            //   productName: updatedProduct.name,
+            //   currentStock: updatedProduct.stock,
+            //   threshold: LOW_STOCK_THRESHOLD,
+            // });
           });
         }
 
@@ -244,7 +244,7 @@ export async function createOrder(data: {
       // Emit inventory updates
       if (inventoryUpdates.length > 0) {
         setImmediate(() => {
-          notifyInventoryUpdate(shopId, inventoryUpdates);
+          // notifyInventoryUpdate(shopId, inventoryUpdates); // This line was removed
         });
       }
 
@@ -252,30 +252,30 @@ export async function createOrder(data: {
     });
 
     // Prepare order notification data
-    const orderNotificationData: OrderNotificationData = {
-      shopId,
-      orderId: order.id,
-      total: order.total,
-      revenue: order.revenue || order.total,
-      profit: order.profit || 0,
-      items: items.map(item => {
-        const product = productDetails.find(p => p.id === item.productId);
-        return {
-          productId: item.productId,
-          productName: product?.name || "Unknown Product",
-          quantity: item.quantity,
-          price: item.price,
-        };
-      }),
-      customerEmail: data.userId,
-      createdAt: order.createdAt,
-    };
+    // const orderNotificationData: OrderNotificationData = { // This line was removed
+    //   shopId,
+    //   orderId: order.id,
+    //   total: order.total,
+    //   revenue: order.revenue || order.total,
+    //   profit: order.profit || 0,
+    //   items: items.map(item => {
+    //     const product = productDetails.find(p => p.id === item.productId);
+    //     return {
+    //       productId: item.productId,
+    //       productName: product?.name || "Unknown Product",
+    //       quantity: item.quantity,
+    //       price: item.price,
+    //     };
+    //   }),
+    //   customerEmail: data.userId,
+    //   createdAt: order.createdAt,
+    // };
 
     // Emit new order notification (non-blocking)
     setImmediate(() => {
-      notifyNewOrder(orderNotificationData);
+      // notifyNewOrder(orderNotificationData); // This line was removed
       // Also notify about forecast update since sales data has changed
-      notifyForecastUpdate(shopId);
+      // notifyForecastUpdate(shopId); // This line was removed
     });
 
     // Invalidate cache for dashboard analytics immediately

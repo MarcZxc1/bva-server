@@ -105,6 +105,7 @@ export class CacheService {
       this.del(`Product:${shopId}`),
       this.delPattern(`sales:${shopId}:*`),
       this.delPattern(`reports:${shopId}:*`), // Reports cache
+      this.delPattern(`profit:${shopId}:*`), // Profit analysis cache (used by Reports page)
     ]);
     console.log(`✅ Cache invalidated for Shop: ${shopId}`);
   }

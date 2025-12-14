@@ -237,6 +237,7 @@ export class ReportsService {
    * Get comprehensive profit analysis
    * Calculates revenue, COGS (Cost of Goods Sold), profit, and profit margin
    * Returns zeros if no sales data exists (no mock data)
+   * If no date range specified, returns ALL TIME data (lifetime metrics)
    */
   async getProfitAnalysis(
     shopId: string,
@@ -536,7 +537,7 @@ export class ReportsService {
     stockTurnover: number;
     inventoryValue: number;
     cogs: number;
-    Product: Array<{
+    products: Array<{
       productId: string;
       productName: string;
       sku: string;
@@ -604,7 +605,7 @@ export class ReportsService {
       stockTurnover: Math.round(overallTurnover * 100) / 100,
       inventoryValue: totalInventoryValue,
       cogs: profitAnalysis.totalCost,
-      Product: productReports.sort((a, b) => b.turnoverRate - a.turnoverRate),
+      products: productReports.sort((a, b) => b.turnoverRate - a.turnoverRate),
       period: {
         start: start.toISOString().split("T")[0]!,
         end: end.toISOString().split("T")[0]!,

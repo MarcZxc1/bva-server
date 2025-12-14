@@ -15,7 +15,10 @@ export function useDashboardAnalytics(shopId: string, enabled: boolean = true) {
     queryKey: ["dashboard-analytics", shopId],
     queryFn: () => analyticsService.getDashboardStats(shopId),
     enabled: enabled && !!shopId,
+    staleTime: 60000, // Consider data stale after 1 minute
+    cacheTime: 120000, // Keep in cache for 2 minutes
     refetchInterval: 300000, // Refetch every 5 minutes
+    refetchOnWindowFocus: true, // Refetch when user returns to tab
   });
 }
 
