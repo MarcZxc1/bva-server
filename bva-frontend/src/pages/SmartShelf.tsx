@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { AlertTriangle, Package, TrendingDown, Calendar, Loader2, PackageOpen, Pencil, Sparkles, TrendingUp, Clock, Target, RefreshCw } from "lucide-react";
-import { useAtRiskInventory } from "@/hooks/useSmartShelf";
+import { useAllUserAtRiskInventory } from "@/hooks/useSmartShelf";
 import { useAuth } from "@/contexts/AuthContext";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useAllUserProducts } from "@/hooks/useProducts";
@@ -87,7 +87,7 @@ export default function SmartShelf() {
   const hasShop = !!shopId;
   
   const { hasActiveIntegration, isLoading: isLoadingIntegration } = useIntegration();
-  const { data: atRiskData, isLoading, refetch } = useAtRiskInventory(shopId || "", hasShop);
+  const { data: atRiskData, isLoading, refetch } = useAllUserAtRiskInventory(hasShop);
   const { data: products, isLoading: isLoadingProducts, error: productsError } = useAllUserProducts();
   
   const [selectedItem, setSelectedItem] = useState<any>(null);

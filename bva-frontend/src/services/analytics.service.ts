@@ -90,6 +90,26 @@ export interface PromotionResponse {
 }
 
 export const analyticsService = {
+  /**
+   * Get aggregated dashboard stats from all accessible shops (owned + linked)
+   */
+  getAllUserDashboardStats: async (): Promise<DashboardResponse> => {
+    console.log(`📊 Fetching aggregated dashboard stats for all user shops...`);
+    try {
+      const response = await apiClient.get<DashboardResponse>(`/api/smart-shelf/dashboard/user`);
+      console.log("📊 Raw aggregated dashboard response from API:", {
+        hasResponse: !!response,
+        hasMetrics: !!response?.metrics,
+        hasForecast: !!response?.forecast,
+        metrics: response?.metrics,
+      });
+      return response;
+    } catch (error: any) {
+      console.error("❌ Error fetching aggregated dashboard stats:", error);
+      throw error;
+    }
+  },
+
   getDashboardStats: async (shopId: string): Promise<DashboardResponse> => {
     console.log(`📊 Fetching dashboard stats for shop ${shopId}...`);
     try {
@@ -116,6 +136,14 @@ export const analyticsService = {
       console.error("   Error details:", error.message, error.response?.data);
       throw error;
     }
+  },
+
+  /**
+   * Get aggregated at-risk inventory from all accessible shops
+   */
+  getAllUserAtRiskInventory: async (): Promise<AtRiskResponse> => {
+    console.log(`📊 Fetching aggregated at-risk inventory for all user shops...`);
+    return apiClient.get<AtRiskResponse>(`/api/smart-shelf/at-risk/user`);
   },
 
   getAtRiskInventory: async (shopId: string): Promise<AtRiskResponse> => {

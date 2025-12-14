@@ -2,7 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { TrendingUp, TrendingDown, Package, AlertCircle, DollarSign, ShoppingCart, Loader2, PackageOpen, BarChart3, RefreshCw, Wifi, WifiOff } from "lucide-react";
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
-import { useAtRiskInventory, useDashboardAnalytics } from "@/hooks/useSmartShelf";
+import { useAllUserAtRiskInventory, useAllUserDashboardAnalytics } from "@/hooks/useSmartShelf";
 import { useRealtimeDashboard } from "@/hooks/useRealtimeDashboard";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIntegration } from "@/hooks/useIntegration";
@@ -20,8 +20,8 @@ export default function Dashboard() {
   const queryClient = useQueryClient();
   
   const { isPlatformConnected, isLoading: isLoadingIntegration, integrations } = useIntegration();
-  const { data: atRiskData, isLoading: atRiskLoading, refetch: refetchAtRisk } = useAtRiskInventory(shopId || "", hasShop && isPlatformConnected);
-  const { data: analyticsData, isLoading: analyticsLoading, refetch: refetchAnalytics } = useDashboardAnalytics(shopId || "", hasShop && isPlatformConnected);
+  const { data: atRiskData, isLoading: atRiskLoading, refetch: refetchAtRisk } = useAllUserAtRiskInventory(hasShop && isPlatformConnected);
+  const { data: analyticsData, isLoading: analyticsLoading, refetch: refetchAnalytics } = useAllUserDashboardAnalytics(hasShop && isPlatformConnected);
   
   // Enable real-time updates
   const { isConnected } = useRealtimeDashboard({ 

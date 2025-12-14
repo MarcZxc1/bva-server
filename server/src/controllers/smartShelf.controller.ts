@@ -3,7 +3,9 @@ import prisma from "../lib/prisma";
 import { mlClient } from "../utils/mlClient";
 import { 
   getDashboardAnalytics as getDashboardAnalyticsService,
-  getAtRiskInventory as getAtRiskInventoryService
+  getUserDashboardAnalytics as getUserDashboardAnalyticsService,
+  getAtRiskInventory as getAtRiskInventoryService,
+  getUserAtRiskInventory as getUserAtRiskInventoryService
 } from "../service/smartShelf.service";
 import { AdService } from "../service/ad.service";
 
@@ -152,6 +154,43 @@ function detectAtRiskBasic(
 }
 
 /**
+ * GET /api/smart-shelf/dashboard/user
+ * Get aggregated dashboard analytics from all accessible shops
+ */
+export const getUserDashboardAnalytics = async (req: Request, res: Response) => {
+  try {
+    const user = (req as any).user;
+    if (!user || !user.userId) {
+      return res.status(401).json({
+        success: false,
+        error: "Authentication required",
+      });
+    }
+
+    // Use service layer for aggregated dashboard analytics
+    const dashboardData = await getUserDashboardAnalyticsService(user.userId);
+
+    console.log(`📊 getUserDashboardAnalytics controller: Returning aggregated data for user ${user.userId}`, {
+      hasMetrics: !!dashboardData.metrics,
+      hasForecast: !!dashboardData.forecast,
+      metrics: dashboardData.metrics,
+    });
+
+    res.json({
+      success: true,
+      data: dashboardData,
+    });
+
+  } catch (error: any) {
+    console.error("Error in getUserDashboardAnalytics:", error);
+    res.status(500).json({
+      success: false,
+      error: error.message || "Internal Server Error",
+    });
+  }
+};
+
+/**
  * GET /api/smart-shelf/dashboard/:shopId
  * Get comprehensive dashboard analytics merging local stats and AI metrics
  */
@@ -184,6 +223,36 @@ export const getDashboardAnalytics = async (req: Request, res: Response) => {
   } catch (error: any) {
     console.error("Error in getDashboardAnalytics:", error);
     res.status(500).json({
+      success: false,
+      error: error.message || "Internal Server Error",
+    });
+  }
+};
+
+/**
+ * GET /api/smart-shelf/at-risk/user
+ * Get aggregated at-risk inventory from all accessible shops
+ */
+export const getUserAtRiskInventory = async (req: Request, res: Response) => {
+  try {
+    const user = (req as any).user;
+    if (!user || !user.userId) {
+      return res.status(401).json({
+        success: false,
+        error: "Authentication required",
+      });
+    }
+
+    // Use service layer for aggregated at-risk detection
+    const atRiskData = await getUserAtRiskInventoryService(user.userId);
+
+    return res.json({
+      success: true,
+      data: atRiskData,
+    });
+  } catch (error: any) {
+    console.error("Error in getUserAtRiskInventory:", error);
+    return res.status(500).json({
       success: false,
       error: error.message || "Internal Server Error",
     });

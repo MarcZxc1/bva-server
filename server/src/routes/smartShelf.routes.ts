@@ -4,6 +4,20 @@ import { authMiddleware } from "../middlewares/auth.middleware";
 
 const router = Router();
 
+// GET /api/smart-shelf/dashboard/user - Aggregated dashboard for all accessible shops
+router.get(
+  "/dashboard/user",
+  authMiddleware,
+  smartShelfController.getUserDashboardAnalytics
+);
+
+// GET /api/smart-shelf/at-risk/user - Aggregated at-risk inventory for all accessible shops
+router.get(
+  "/at-risk/user",
+  authMiddleware,
+  smartShelfController.getUserAtRiskInventory
+);
+
 // GET /api/smart-shelf/:shopId/at-risk
 router.get(
   "/:shopId/at-risk",

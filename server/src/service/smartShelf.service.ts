@@ -9,6 +9,79 @@ import {
 } from "../types/smartShelf.types";
 
 /**
+ * Get aggregated at-risk inventory from all shops accessible to a user
+ */
+export async function getUserAtRiskInventory(userId: string): Promise<AtRiskResponse> {
+  // Get all shops the user owns
+  const ownedShops = await prisma.shop.findMany({
+    where: { ownerId: userId },
+    select: { id: true },
+  });
+
+  // Get all shops the user has access to via ShopAccess
+  const linkedShops = await prisma.shopAccess.findMany({
+    where: { userId: userId },
+    include: {
+      Shop: {
+        select: { id: true },
+      },
+    },
+  });
+
+  // Combine all shop IDs
+  const allShopIds = [
+    ...ownedShops.map(s => s.id),
+    ...linkedShops.map(sa => sa.Shop.id),
+  ];
+
+  if (allShopIds.length === 0) {
+    return {
+      at_risk: [],
+      meta: {
+        shop_id: "aggregated",
+        total_Product: 0,
+        flagged_count: 0,
+        analysis_date: new Date().toISOString(),
+        thresholds_used: {},
+      },
+    };
+  }
+
+  console.log(`📊 Getting aggregated at-risk inventory for user ${userId} across ${allShopIds.length} shops`);
+
+  // Collect at-risk items from all shops
+  const allAtRiskItems: any[] = [];
+  let totalProducts = 0;
+
+  // Fetch at-risk data from each shop
+  for (const shopId of allShopIds) {
+    try {
+      const shopAtRisk = await getAtRiskInventory(shopId);
+      allAtRiskItems.push(...shopAtRisk.at_risk);
+      totalProducts += shopAtRisk.meta.total_Product || 0;
+    } catch (error) {
+      console.error(`Error fetching at-risk for shop ${shopId}:`, error);
+    }
+  }
+
+  // Sort by score descending
+  allAtRiskItems.sort((a, b) => b.score - a.score);
+
+  console.log(`📊 Aggregated ${allAtRiskItems.length} at-risk items from ${allShopIds.length} shops`);
+
+  return {
+    at_risk: allAtRiskItems,
+    meta: {
+      shop_id: "aggregated",
+      total_Product: totalProducts,
+      flagged_count: allAtRiskItems.length,
+      analysis_date: new Date().toISOString(),
+      thresholds_used: {},
+    },
+  };
+}
+
+/**
  * Fetch inventory and sales data, then call ML service to detect at-risk items.
  * Uses Redis cache for optimization (5 min TTL for real-time inventory data)
  */
@@ -296,6 +369,149 @@ export async function getAtRiskInventory(
     },
     300 // 5 minutes cache TTL for inventory data
   );
+}
+
+/**
+ * Get aggregated dashboard analytics for all shops accessible to a user
+ * Combines data from owned and linked shops
+ */
+export async function getUserDashboardAnalytics(userId: string) {
+  // Get all shops the user owns
+  const ownedShops = await prisma.shop.findMany({
+    where: { ownerId: userId },
+    select: { id: true },
+  });
+
+  // Get all shops the user has access to via ShopAccess
+  const linkedShops = await prisma.shopAccess.findMany({
+    where: { userId: userId },
+    include: {
+      Shop: {
+        select: { id: true },
+      },
+    },
+  });
+
+  // Combine all shop IDs
+  const allShopIds = [
+    ...ownedShops.map(s => s.id),
+    ...linkedShops.map(sa => sa.Shop.id),
+  ];
+
+  if (allShopIds.length === 0) {
+    return {
+      metrics: {
+        totalRevenue: 0,
+        totalProfit: 0,
+        profitMargin: 0,
+        totalItems: 0,
+        totalProducts: 0,
+        totalSales: 0,
+      },
+      forecast: null,
+      period: {
+        start: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString(),
+        end: new Date().toISOString(),
+        days: 60,
+      },
+    };
+  }
+
+  console.log(`📊 Getting aggregated dashboard for user ${userId} across ${allShopIds.length} shops`);
+
+  // Aggregate data from all shops
+  let totalRevenue = 0;
+  let totalProfit = 0;
+  let totalItems = 0;
+  let totalProducts = 0;
+  let totalSales = 0;
+  const allSalesRecords: any[] = [];
+
+  // Get products from all shops
+  const products = await prisma.product.findMany({
+    where: { shopId: { in: allShopIds } },
+    include: { Inventory: { take: 1 } },
+  });
+  totalProducts = products.length;
+
+  // Get sales from all shops (only completed)
+  const sales = await prisma.sale.findMany({
+    where: {
+      shopId: { in: allShopIds },
+      status: 'COMPLETED',
+    },
+    select: {
+      items: true,
+      total: true,
+      revenue: true,
+      profit: true,
+      createdAt: true,
+      platform: true,
+    },
+  });
+
+  totalSales = sales.length;
+
+  // Calculate aggregated metrics
+  const sixtyDaysAgo = new Date();
+  sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
+
+  sales.forEach((sale) => {
+    const saleRevenue = sale.revenue || sale.total || 0;
+    totalRevenue += saleRevenue;
+
+    if (sale.profit !== null && sale.profit !== undefined) {
+      totalProfit += sale.profit;
+    }
+
+    const items = typeof sale.items === "string" ? JSON.parse(sale.items) : sale.items;
+    if (Array.isArray(items)) {
+      items.forEach((item: any) => {
+        totalItems += item.quantity || 0;
+
+        // Add to sales records for forecast if in last 60 days
+        if (sale.createdAt >= sixtyDaysAgo && item.productId) {
+          const dateStr = new Date(sale.createdAt).toISOString().split('T')[0];
+          allSalesRecords.push({
+            product_id: item.productId,
+            date: dateStr,
+            qty: item.quantity || 0,
+          });
+        }
+      });
+    }
+  });
+
+  const profitMargin = totalRevenue > 0 ? (totalProfit / totalRevenue) * 100 : 0;
+
+  // Simple fallback forecast (ML service integration would require more complex aggregation)
+  let forecast: any = null;
+  if (allSalesRecords.length > 0) {
+    const uniqueDates = new Set(allSalesRecords.map((r: any) => r.date));
+    const totalQty = allSalesRecords.reduce((sum: number, r: any) => sum + (r.qty || 0), 0);
+    const avgDailySales = uniqueDates.size > 0 ? totalQty / uniqueDates.size : 0;
+
+    forecast = generateFallbackForecast(avgDailySales, uniqueDates.size);
+  }
+
+  console.log(`📊 Aggregated metrics: ${totalProducts} products, ${totalSales} sales, ₱${totalRevenue.toFixed(2)} revenue across ${allShopIds.length} shops`);
+
+  return {
+    metrics: {
+      totalRevenue,
+      totalProfit,
+      profitMargin,
+      totalItems,
+      totalProducts,
+      totalSales,
+    },
+    forecast,
+    period: {
+      start: sixtyDaysAgo.toISOString(),
+      end: new Date().toISOString(),
+      days: 60,
+    },
+  };
 }
 
 /**
