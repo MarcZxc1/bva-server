@@ -372,6 +372,204 @@ export async function getAtRiskInventory(
 }
 
 /**
+ * Get aggregated at-risk inventory for all shops accessible to a user
+ * Combines data from owned and linked shops
+ */
+export async function getUserAtRiskInventory(userId: string): Promise<AtRiskResponse> {
+  // Get all shops the user owns
+  const ownedShops = await prisma.shop.findMany({
+    where: { ownerId: userId },
+    select: { id: true, platform: true },
+  });
+
+  // Get all shops the user has access to via ShopAccess
+  const linkedShops = await prisma.shopAccess.findMany({
+    where: { userId: userId },
+    include: {
+      Shop: {
+        select: { id: true, platform: true },
+      },
+    },
+  });
+
+  // Combine all shop IDs
+  const allShopIds = [
+    ...ownedShops.map(s => s.id),
+    ...linkedShops.map(sa => sa.Shop.id),
+  ];
+
+  if (allShopIds.length === 0) {
+    return {
+      at_risk: [],
+      meta: {
+        shop_id: 'aggregated',
+        total_Product: 0,
+        flagged_count: 0,
+        analysis_date: new Date().toISOString(),
+        thresholds_used: {},
+      },
+    };
+  }
+
+  console.log(`📊 Getting aggregated at-risk inventory for user ${userId} across ${allShopIds.length} shops`);
+
+  // Fetch all products from all shops
+  const products = await prisma.product.findMany({
+    where: { shopId: { in: allShopIds } },
+    include: {
+      Inventory: { take: 1 },
+      Shop: {
+        select: { platform: true },
+      },
+    },
+  });
+
+  // Fetch all sales from last 60 days
+  const sixtyDaysAgo = new Date();
+  sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
+
+  const sales = await prisma.sale.findMany({
+    where: {
+      shopId: { in: allShopIds },
+      createdAt: { gte: sixtyDaysAgo },
+    },
+    select: {
+      items: true,
+      createdAt: true,
+      platform: true,
+    },
+  });
+
+  // Map to inventory items
+  const inventoryItems: InventoryItem[] = products.map((p) => ({
+    product_id: p.id,
+    sku: p.sku,
+    name: p.name,
+    quantity: p.Inventory[0]?.quantity || 0,
+    expiry_date: p.expiryDate ? p.expiryDate.toISOString() : undefined,
+    price: p.price,
+    categories: p.description ? [p.description] : [],
+  }));
+
+  // Map to sales records
+  const salesRecords: SalesRecord[] = [];
+  sales.forEach((sale) => {
+    const items = typeof sale.items === "string" ? JSON.parse(sale.items) : sale.items;
+    if (Array.isArray(items)) {
+      items.forEach((item: any) => {
+        if (item.productId) {
+          salesRecords.push({
+            product_id: item.productId,
+            date: sale.createdAt.toISOString().split("T")[0],
+            qty: item.quantity || 0,
+          });
+        }
+      });
+    }
+  });
+
+  console.log(`📊 Aggregated at-risk analysis: ${products.length} products, ${sales.length} sales records`);
+
+  // Call ML service for at-risk detection
+  const thresholds = {
+    low_stock: 10,
+    expiry_days: 30,
+    slow_moving_days: 14,
+  };
+
+  try {
+    const request: AtRiskRequest = {
+      shop_id: 'aggregated',
+      inventory: inventoryItems,
+      sales_history: salesRecords,
+      thresholds,
+    };
+
+    const response = await mlClient.post<AtRiskResponse>(
+      "/api/v1/smart-shelf/at-risk",
+      request
+    );
+
+    if (!response || !response.at_risk) {
+      return {
+        at_risk: [],
+        meta: {
+          shop_id: 'aggregated',
+          total_Product: products.length,
+          flagged_count: 0,
+          analysis_date: new Date().toISOString(),
+          thresholds_used: thresholds,
+        },
+      };
+    }
+
+    // Process and normalize scores
+    const atRiskMap = new Map<string, any>();
+    
+    response.at_risk.forEach(item => {
+      const productId = String(item.product_id);
+      const score = Math.round((item.score || 0) * 100);
+      const reasons = Array.isArray(item.reasons) 
+        ? item.reasons.map((r: any): RiskReason => {
+            const reasonStr = typeof r === 'string' ? r : String(r);
+            if (reasonStr === 'low_stock' || reasonStr === 'LOW_STOCK') return RiskReason.LOW_STOCK;
+            if (reasonStr === 'near_expiry' || reasonStr === 'NEAR_EXPIRY') return RiskReason.NEAR_EXPIRY;
+            if (reasonStr === 'slow_moving' || reasonStr === 'SLOW_MOVING') return RiskReason.SLOW_MOVING;
+            return RiskReason.LOW_STOCK;
+          })
+        : [];
+      
+      if (atRiskMap.has(productId)) {
+        const existing = atRiskMap.get(productId)!;
+        existing.score = Math.max(existing.score, score);
+        reasons.forEach(r => {
+          if (!existing.reasons.includes(r)) {
+            existing.reasons.push(r);
+          }
+        });
+      } else {
+        atRiskMap.set(productId, {
+          ...item,
+          score,
+          reasons,
+        });
+      }
+    });
+
+    const processedAtRisk = Array.from(atRiskMap.values())
+      .sort((a, b) => b.score - a.score);
+
+    console.log(`✅ Aggregated at-risk: ${processedAtRisk.length} unique items across all platforms`);
+
+    return {
+      at_risk: processedAtRisk,
+      meta: {
+        shop_id: 'aggregated',
+        total_Product: products.length,
+        flagged_count: processedAtRisk.length,
+        analysis_date: new Date().toISOString(),
+        thresholds_used: thresholds,
+      },
+    };
+  } catch (error: any) {
+    console.error("❌ ML service error for aggregated at-risk detection:", error?.message || error);
+    
+    // Return empty response instead of throwing
+    return {
+      at_risk: [],
+      meta: {
+        shop_id: 'aggregated',
+        total_Product: products.length,
+        flagged_count: 0,
+        analysis_date: new Date().toISOString(),
+        thresholds_used: thresholds,
+        error: "ML service unavailable",
+      },
+    };
+  }
+}
+
+/**
  * Get aggregated dashboard analytics for all shops accessible to a user
  * Combines data from owned and linked shops
  */
