@@ -3,6 +3,7 @@
 .vscode/
 *.swp
 *.swo
+.cursor
 
 # OS Files
 .DS_Store

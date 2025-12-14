@@ -35,11 +35,13 @@ export default function Reports() {
   const hasShop = !!shopId;
   const [dateRange, setDateRange] = useState<DateRange>("30d");
   const [activeReport, setActiveReport] = useState<"sales" | "profit" | "stock" | "platform" | null>(null);
+  const [selectedPlatform, setSelectedPlatform] = useState<'ALL' | 'SHOPEE' | 'LAZADA'>('ALL');
   const reportContentRef = useRef<HTMLDivElement>(null);
   const pdfContentRef = useRef<HTMLDivElement>(null);
 
   // Check for platform connection (integration or linked shops)
-  const { isPlatformConnected, isLoading: isLoadingIntegration } = useIntegration();
+  const { isPlatformConnected, isLoading: isLoadingIntegration, connectedPlatforms } = useIntegration();
+  const platformFilter = selectedPlatform === 'ALL' ? undefined : selectedPlatform;
 
   // Fetch dashboard metrics - enabled if shop exists and platform is connected
   const { 
@@ -47,8 +49,8 @@ export default function Reports() {
     isLoading: metricsLoading,
     error: metricsError 
   } = useQuery({
-    queryKey: ["dashboardMetrics"],
-    queryFn: () => reportsService.getMetrics(),
+    queryKey: ["dashboardMetrics", platformFilter],
+    queryFn: () => reportsService.getMetrics(platformFilter),
     enabled: hasShop,
     retry: 2,
   });
@@ -60,8 +62,8 @@ export default function Reports() {
     error: chartError,
     refetch: refetchChart,
   } = useQuery({
-    queryKey: ["salesChart", dateRange],
-    queryFn: () => reportsService.getSalesChart(dateRange),
+    queryKey: ["salesChart", dateRange, platformFilter],
+    queryFn: () => reportsService.getSalesChart(dateRange, undefined, undefined, "day", platformFilter),
     enabled: hasShop,
     retry: 2,
   });
@@ -136,36 +138,38 @@ export default function Reports() {
 
   // Fetch reports data - only if integration is active
   const { data: salesReportData, isLoading: salesReportLoading } = useQuery({
-    queryKey: ["salesReport", dateRange],
+    queryKey: ["salesReport", dateRange, platformFilter],
     queryFn: () => {
       const { start, end } = getDateRange();
-      return reportsService.getSalesChart(dateRange, start, end);
+      return reportsService.getSalesChart(dateRange, start, end, "day", platformFilter);
     },
     enabled: hasShop && activeReport === "sales",
   });
 
   const { data: profitReportData, isLoading: profitReportLoading } = useQuery({
-    queryKey: ["profitReport", dateRange],
+    queryKey: ["profitReport", dateRange, platformFilter],
     queryFn: () => {
       const { start, end } = getDateRange();
-      return reportsService.getProfitAnalysis(start, end);
+      return reportsService.getProfitAnalysis(start, end, platformFilter);
     },
     enabled: hasShop && activeReport === "profit",
   });
 
   const { data: stockReportData, isLoading: stockReportLoading } = useQuery({
-    queryKey: ["stockReport", dateRange],
+    queryKey: ["stockReport", dateRange, platformFilter],
     queryFn: () => {
       const { start, end } = getDateRange();
-      return reportsService.getStockTurnoverReport(start, end);
+      return reportsService.getStockTurnoverReport(start, end, platformFilter);
     },
     enabled: hasShop && activeReport === "stock",
   });
 
   const { data: platformReportData, isLoading: platformReportLoading } = useQuery({
-    queryKey: ["platformReport", dateRange],
+    queryKey: ["platformReport", dateRange, platformFilter],
     queryFn: () => {
       const { start, end } = getDateRange();
+      // For platform comparison, we still want to see all platforms for comparison
+      // But we respect the platform filter if set
       return reportsService.getPlatformStats(start, end);
     },
     enabled: hasShop && activeReport === "platform",
@@ -378,6 +382,38 @@ export default function Reports() {
             </p>
           </div>
           <div className="flex gap-2 no-print">
+            {/* Platform Filter Buttons */}
+            <div className="flex gap-1 border rounded-md p-1">
+              <Button
+                variant={selectedPlatform === 'ALL' ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => setSelectedPlatform('ALL')}
+                className="h-8"
+              >
+                All Platforms
+              </Button>
+              {connectedPlatforms?.has('SHOPEE') && (
+                <Button
+                  variant={selectedPlatform === 'SHOPEE' ? 'default' : 'ghost'}
+                  size="sm"
+                  onClick={() => setSelectedPlatform('SHOPEE')}
+                  className="h-8"
+                >
+                  Shopee Only
+                </Button>
+              )}
+              {connectedPlatforms?.has('LAZADA') && (
+                <Button
+                  variant={selectedPlatform === 'LAZADA' ? 'default' : 'ghost'}
+                  size="sm"
+                  onClick={() => setSelectedPlatform('LAZADA')}
+                  className="h-8"
+                >
+                  Lazada Only
+                </Button>
+              )}
+            </div>
+
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" className="gap-2 glass-card-sm">

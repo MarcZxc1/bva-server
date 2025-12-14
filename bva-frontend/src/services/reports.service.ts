@@ -46,9 +46,15 @@ export type DateRange = "7d" | "30d" | "90d" | "1y" | "custom";
 class ReportsService {
   /**
    * Get dashboard metrics (revenue, profit margin, stock turnover)
+   * @param platform - Optional platform filter ('SHOPEE' or 'LAZADA')
    */
-  async getMetrics(): Promise<DashboardMetrics> {
-    return apiClient.get<DashboardMetrics>("/api/reports/metrics");
+  async getMetrics(platform?: string): Promise<DashboardMetrics> {
+    const params = new URLSearchParams();
+    if (platform) params.append("platform", platform);
+    
+    const queryString = params.toString();
+    const url = queryString ? `/api/reports/metrics?${queryString}` : "/api/reports/metrics";
+    return apiClient.get<DashboardMetrics>(url);
   }
 
   /**
@@ -57,12 +63,14 @@ class ReportsService {
    * @param startDate - Custom start date (ISO string) - required if period is 'custom'
    * @param endDate - Custom end date (ISO string) - required if period is 'custom'
    * @param interval - 'day' or 'month' aggregation interval
+   * @param platform - Optional platform filter ('SHOPEE' or 'LAZADA')
    */
   async getSalesChart(
     period: DateRange = "30d",
     startDate?: string,
     endDate?: string,
-    interval: "day" | "month" = "day"
+    interval: "day" | "month" = "day",
+    platform?: string
   ): Promise<SalesChartData[]> {
     // Calculate date range based on period
     let start: string;
@@ -104,6 +112,8 @@ class ReportsService {
       end,
       interval,
     });
+    
+    if (platform) params.append("platform", platform);
 
     return apiClient.get<SalesChartData[]>(
       `/api/reports/sales-summary?${params.toString()}`
@@ -157,14 +167,17 @@ class ReportsService {
    * Get profit analysis
    * @param startDate - Optional start date (ISO string)
    * @param endDate - Optional end date (ISO string)
+   * @param platform - Optional platform filter ('SHOPEE' or 'LAZADA')
    */
   async getProfitAnalysis(
     startDate?: string,
-    endDate?: string
+    endDate?: string,
+    platform?: string
   ): Promise<ProfitAnalysis> {
     const params = new URLSearchParams();
     if (startDate) params.append("start", startDate);
     if (endDate) params.append("end", endDate);
+    if (platform) params.append("platform", platform);
 
     const queryString = params.toString();
     const url = queryString
@@ -190,10 +203,12 @@ class ReportsService {
    * Get stock turnover report
    * @param startDate - Optional start date (ISO string)
    * @param endDate - Optional end date (ISO string)
+   * @param platform - Optional platform filter ('SHOPEE' or 'LAZADA')
    */
   async getStockTurnoverReport(
     startDate?: string,
-    endDate?: string
+    endDate?: string,
+    platform?: string
   ): Promise<{
     stockTurnover: number;
     inventoryValue: number;
@@ -214,6 +229,7 @@ class ReportsService {
     const params = new URLSearchParams();
     if (startDate) params.append("start", startDate);
     if (endDate) params.append("end", endDate);
+    if (platform) params.append("platform", platform);
 
     const queryString = params.toString();
     const url = queryString

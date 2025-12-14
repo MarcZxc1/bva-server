@@ -9,6 +9,7 @@
 import prisma from "../lib/prisma";
 import { CacheService } from "../lib/redis";
 import type { Prisma } from "../generated/prisma";
+import { shopAccessService } from "../service/shopAccess.service";
 // Removed hasActiveIntegration import - reports now work with all shops (no integration requirement)
 
 export interface SalesOverTimeData {
@@ -611,6 +612,363 @@ export class ReportsService {
         end: end.toISOString().split("T")[0]!,
       },
     };
+  }
+
+  /**
+   * Get dashboard metrics for all accessible shops (owned + linked) with optional platform filter
+   * Aggregates metrics across all shops accessible to the user
+   */
+  async getDashboardMetricsForUser(
+    userId: string,
+    platform?: string
+  ): Promise<{
+    totalRevenue: number;
+    profitMargin: number;
+    stockTurnover: number;
+    currency: string;
+  }> {
+    // Get all accessible shops (owned + linked)
+    const accessibleShopIds = await shopAccessService.getAccessibleShops(userId);
+
+    if (accessibleShopIds.length === 0) {
+      return {
+        totalRevenue: 0,
+        profitMargin: 0,
+        stockTurnover: 0,
+        currency: "PHP",
+      };
+    }
+
+    // Filter shops by platform if specified
+    let shopIds = accessibleShopIds;
+    if (platform) {
+      const shops = await prisma.shop.findMany({
+        where: {
+          id: { in: accessibleShopIds },
+          platform: platform as any,
+        },
+        select: { id: true },
+      });
+      shopIds = shops.map(s => s.id);
+    }
+
+    if (shopIds.length === 0) {
+      return {
+        totalRevenue: 0,
+        profitMargin: 0,
+        stockTurnover: 0,
+        currency: "PHP",
+      };
+    }
+
+    // Aggregate metrics across all shops
+    const metricsPromises = shopIds.map(shopId => this.getDashboardMetrics(shopId));
+    const allMetrics = await Promise.all(metricsPromises);
+
+    // Sum up revenues and calculate weighted average for profit margin
+    const totalRevenue = allMetrics.reduce((sum, m) => sum + m.totalRevenue, 0);
+    const weightedProfitMargin = allMetrics.reduce((sum, m) => 
+      sum + (m.profitMargin * m.totalRevenue), 0
+    ) / (totalRevenue || 1);
+    const avgStockTurnover = allMetrics.reduce((sum, m) => sum + m.stockTurnover, 0) / allMetrics.length;
+
+    return {
+      totalRevenue,
+      profitMargin: Math.round(weightedProfitMargin * 100) / 100,
+      stockTurnover: Math.round(avgStockTurnover * 100) / 100,
+      currency: "PHP",
+    };
+  }
+
+  /**
+   * Get sales over time for all accessible shops with optional platform filter
+   * Aggregates sales data across all shops accessible to the user
+   */
+  async getSalesOverTimeForUser(
+    userId: string,
+    startDate: Date,
+    endDate: Date,
+    interval: "day" | "month" = "day",
+    platform?: string
+  ): Promise<SalesOverTimeData[]> {
+    // Get all accessible shops (owned + linked)
+    const accessibleShopIds = await shopAccessService.getAccessibleShops(userId);
+
+    if (accessibleShopIds.length === 0) {
+      return [];
+    }
+
+    // Filter shops by platform if specified
+    let shopIds = accessibleShopIds;
+    if (platform) {
+      const shops = await prisma.shop.findMany({
+        where: {
+          id: { in: accessibleShopIds },
+          platform: platform as any,
+        },
+        select: { id: true },
+      });
+      shopIds = shops.map(s => s.id);
+    }
+
+    if (shopIds.length === 0) {
+      return [];
+    }
+
+    // Get sales data from all shops
+    const salesPromises = shopIds.map(shopId =>
+      this.getSalesOverTime(shopId, startDate, endDate, interval)
+    );
+    const allSalesData = await Promise.all(salesPromises);
+
+    // Aggregate sales data by date
+    const aggregatedData = new Map<string, { revenue: number; orders: number; profit: number }>();
+    
+    for (const salesData of allSalesData) {
+      for (const item of salesData) {
+        const existing = aggregatedData.get(item.date) || { revenue: 0, orders: 0, profit: 0 };
+        aggregatedData.set(item.date, {
+          revenue: existing.revenue + item.revenue,
+          orders: existing.orders + item.orders,
+          profit: existing.profit + item.profit,
+        });
+      }
+    }
+
+    // Convert map to array and sort by date
+    return Array.from(aggregatedData.entries())
+      .map(([date, data]) => ({
+        date,
+        revenue: data.revenue,
+        orders: data.orders,
+        profit: data.profit,
+      }))
+      .sort((a, b) => a.date.localeCompare(b.date));
+  }
+
+  /**
+   * Get profit analysis for all accessible shops with optional platform filter
+   */
+  async getProfitAnalysisForUser(
+    userId: string,
+    startDate?: Date,
+    endDate?: Date,
+    platform?: string
+  ): Promise<ProfitAnalysisData> {
+    // Get all accessible shops (owned + linked)
+    const accessibleShopIds = await shopAccessService.getAccessibleShops(userId);
+
+    if (accessibleShopIds.length === 0) {
+      const start = startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+      const end = endDate || new Date();
+      return {
+        totalRevenue: 0,
+        totalCost: 0,
+        totalProfit: 0,
+        profitMargin: 0,
+        period: { start, end },
+      };
+    }
+
+    // Filter shops by platform if specified
+    let shopIds = accessibleShopIds;
+    if (platform) {
+      const shops = await prisma.shop.findMany({
+        where: {
+          id: { in: accessibleShopIds },
+          platform: platform as any,
+        },
+        select: { id: true },
+      });
+      shopIds = shops.map(s => s.id);
+    }
+
+    if (shopIds.length === 0) {
+      const start = startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+      const end = endDate || new Date();
+      return {
+        totalRevenue: 0,
+        totalCost: 0,
+        totalProfit: 0,
+        profitMargin: 0,
+        period: { start, end },
+      };
+    }
+
+    // Aggregate profit analysis across all shops
+    const profitPromises = shopIds.map(shopId => this.getProfitAnalysis(shopId, startDate, endDate));
+    const allProfitData = await Promise.all(profitPromises);
+
+    const totalRevenue = allProfitData.reduce((sum, p) => sum + p.totalRevenue, 0);
+    const totalCost = allProfitData.reduce((sum, p) => sum + p.totalCost, 0);
+    const totalProfit = allProfitData.reduce((sum, p) => sum + p.totalProfit, 0);
+    const profitMargin = totalRevenue > 0 ? (totalProfit / totalRevenue) * 100 : 0;
+
+    const start = startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const end = endDate || new Date();
+
+    return {
+      totalRevenue,
+      totalCost,
+      totalProfit,
+      profitMargin: Math.round(profitMargin * 100) / 100,
+      period: { start, end },
+    };
+  }
+
+  /**
+   * Get stock turnover report for all accessible shops with optional platform filter
+   */
+  async getStockTurnoverReportForUser(
+    userId: string,
+    startDate?: Date,
+    endDate?: Date,
+    platform?: string
+  ): Promise<{
+    stockTurnover: number;
+    inventoryValue: number;
+    cogs: number;
+    products: Array<{
+      productId: string;
+      productName: string;
+      sku: string;
+      currentStock: number;
+      inventoryValue: number;
+      turnoverRate: number;
+    }>;
+    period: {
+      start: string;
+      end: string;
+    };
+  }> {
+    // Get all accessible shops (owned + linked)
+    const accessibleShopIds = await shopAccessService.getAccessibleShops(userId);
+
+    if (accessibleShopIds.length === 0) {
+      const start = startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+      const end = endDate || new Date();
+      return {
+        stockTurnover: 0,
+        inventoryValue: 0,
+        cogs: 0,
+        products: [],
+        period: {
+          start: start.toISOString().split("T")[0]!,
+          end: end.toISOString().split("T")[0]!,
+        },
+      };
+    }
+
+    // Filter shops by platform if specified
+    let shopIds = accessibleShopIds;
+    if (platform) {
+      const shops = await prisma.shop.findMany({
+        where: {
+          id: { in: accessibleShopIds },
+          platform: platform as any,
+        },
+        select: { id: true },
+      });
+      shopIds = shops.map(s => s.id);
+    }
+
+    if (shopIds.length === 0) {
+      const start = startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+      const end = endDate || new Date();
+      return {
+        stockTurnover: 0,
+        inventoryValue: 0,
+        cogs: 0,
+        products: [],
+        period: {
+          start: start.toISOString().split("T")[0]!,
+          end: end.toISOString().split("T")[0]!,
+        },
+      };
+    }
+
+    // Aggregate stock turnover reports across all shops
+    const reportPromises = shopIds.map(shopId => 
+      this.getStockTurnoverReport(shopId, startDate, endDate)
+    );
+    const allReports = await Promise.all(reportPromises);
+
+    // Aggregate metrics
+    const totalInventoryValue = allReports.reduce((sum, r) => sum + r.inventoryValue, 0);
+    const totalCogs = allReports.reduce((sum, r) => sum + r.cogs, 0);
+    const avgStockTurnover = totalInventoryValue > 0 ? totalCogs / totalInventoryValue : 0;
+
+    // Combine all products
+    const allProducts = allReports.flatMap(r => r.products);
+
+    const start = startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const end = endDate || new Date();
+
+    return {
+      stockTurnover: Math.round(avgStockTurnover * 100) / 100,
+      inventoryValue: totalInventoryValue,
+      cogs: totalCogs,
+      products: allProducts.sort((a, b) => b.turnoverRate - a.turnoverRate),
+      period: {
+        start: start.toISOString().split("T")[0]!,
+        end: end.toISOString().split("T")[0]!,
+      },
+    };
+  }
+
+  /**
+   * Get platform comparison for all accessible shops
+   * Aggregates sales data across all shops and groups by platform
+   */
+  async getPlatformComparisonForUser(
+    userId: string,
+    startDate?: Date,
+    endDate?: Date
+  ): Promise<PlatformComparisonData[]> {
+    // Get all accessible shops (owned + linked)
+    const accessibleShopIds = await shopAccessService.getAccessibleShops(userId);
+
+    if (accessibleShopIds.length === 0) {
+      return [];
+    }
+
+    // Get platform comparison for all shops
+    const comparisonPromises = accessibleShopIds.map(shopId => 
+      this.getPlatformComparison(shopId, startDate, endDate)
+    );
+    const allComparisons = await Promise.all(comparisonPromises);
+
+    // Aggregate by platform across all shops
+    const platformMap = new Map<string, PlatformComparisonData>();
+
+    for (const comparison of allComparisons) {
+      for (const platformData of comparison) {
+        const existing = platformMap.get(platformData.platform) || {
+          platform: platformData.platform,
+          revenue: 0,
+          orders: 0,
+          profit: 0,
+          profitMargin: 0,
+        };
+
+        platformMap.set(platformData.platform, {
+          platform: platformData.platform,
+          revenue: existing.revenue + platformData.revenue,
+          orders: existing.orders + platformData.orders,
+          profit: existing.profit + platformData.profit,
+          profitMargin: 0, // Will calculate after aggregation
+        });
+      }
+    }
+
+    // Calculate profit margins and convert to array
+    const result = Array.from(platformMap.values()).map((data) => ({
+      ...data,
+      profitMargin: data.revenue > 0 ? (data.profit / data.revenue) * 100 : 0,
+    }));
+
+    // Sort by revenue descending
+    return result.sort((a, b) => b.revenue - a.revenue);
   }
 }
 

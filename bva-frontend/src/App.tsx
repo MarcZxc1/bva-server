@@ -23,13 +23,13 @@ const App = () => {
   // Create QueryClient inside component to ensure React is loaded
   const queryClient = useMemo(() => {
     return new QueryClient({
-      defaultOptions: {
-        queries: {
-          retry: 1,
-          refetchOnWindowFocus: false,
-        },
-      },
-    });
+  defaultOptions: {
+    queries: {
+      retry: 1,
+      refetchOnWindowFocus: false,
+    },
+  },
+});
   }, []);
 
   return (
@@ -112,7 +112,7 @@ const App = () => {
       </AuthProvider>
     </ThemeProvider>
   </QueryClientProvider>
-  );
+);
 };
 
 export default App;

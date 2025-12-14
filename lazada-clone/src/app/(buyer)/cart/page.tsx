@@ -77,7 +77,7 @@ export default function CartPage() {
       if (!createdOrder) {
         throw new Error('Order creation failed: No order returned from server');
       }
-
+      
       // Send webhook to BVA Server for real-time sync
       if (createdOrder) {
         try {

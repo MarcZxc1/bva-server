@@ -4,21 +4,21 @@ import { getShopIdFromRequest } from "../utils/requestHelpers";
 
 /**
  * Get dashboard metrics (revenue, profit margin, stock turnover)
- * GET /api/reports/metrics
+ * GET /api/reports/metrics?platform=SHOPEE
  */
 export const getDashboardMetrics = async (req: Request, res: Response) => {
   try {
-    // Get shopId from authenticated user
-    const shopId = await getShopIdFromRequest(req);
-
-    if (!shopId) {
-      return res.status(400).json({
+    const user = (req as any).user;
+    if (!user || !user.userId) {
+      return res.status(401).json({
         success: false,
-        error: "Shop ID not found. Please ensure you have a shop associated with your account.",
+        error: "Authentication required",
       });
     }
 
-    const metrics = await reportsService.getDashboardMetrics(shopId);
+    const platform = req.query.platform as string | undefined;
+
+    const metrics = await reportsService.getDashboardMetricsForUser(user.userId, platform);
 
     res.json({
       success: true,
@@ -35,26 +35,26 @@ export const getDashboardMetrics = async (req: Request, res: Response) => {
 
 /**
  * Get sales summary data for charts
- * GET /api/reports/sales-summary?start=2023-01-01&end=2023-12-31&interval=day
+ * GET /api/reports/sales-summary?start=2023-01-01&end=2023-12-31&interval=day&platform=SHOPEE
  * 
  * Query parameters:
  * - start: Start date (ISO string, optional, defaults to 30 days ago)
  * - end: End date (ISO string, optional, defaults to today)
  * - interval: 'day' or 'month' (optional, defaults to 'day')
+ * - platform: 'SHOPEE' or 'LAZADA' (optional, filters by platform)
  */
 export const getSalesSummary = async (req: Request, res: Response) => {
   try {
-    const shopId = await getShopIdFromRequest(req);
-
-    if (!shopId) {
-      return res.status(400).json({
+    const user = (req as any).user;
+    if (!user || !user.userId) {
+      return res.status(401).json({
         success: false,
-        error: "Shop ID not found. Please ensure you have a shop associated with your account.",
+        error: "Authentication required",
       });
     }
 
     // Parse query parameters
-    const { start, end, interval } = req.query;
+    const { start, end, interval, platform } = req.query;
 
     // Default to last 30 days if no dates provided
     const endDate = end ? new Date(end as string) : new Date();
@@ -85,12 +85,13 @@ export const getSalesSummary = async (req: Request, res: Response) => {
     // Validate interval
     const validInterval = interval === "month" ? "month" : "day";
 
-    // Get sales data from service
-    const salesData = await reportsService.getSalesOverTime(
-      shopId,
+    // Get sales data from service (multi-shop with platform filter)
+    const salesData = await reportsService.getSalesOverTimeForUser(
+      user.userId,
       startDate,
       endDate,
-      validInterval
+      validInterval,
+      platform as string | undefined
     );
 
     // Transform data for frontend chart format
@@ -164,16 +165,15 @@ export const getSalesSummary = async (req: Request, res: Response) => {
  */
 export const getProfitAnalysis = async (req: Request, res: Response) => {
   try {
-    const shopId = await getShopIdFromRequest(req);
-
-    if (!shopId) {
-      return res.status(400).json({
+    const user = (req as any).user;
+    if (!user || !user.userId) {
+      return res.status(401).json({
         success: false,
-        error: "Shop ID not found.",
+        error: "Authentication required",
       });
     }
 
-    const { start, end } = req.query;
+    const { start, end, platform } = req.query;
     const startDate = start ? new Date(start as string) : undefined;
     const endDate = end ? new Date(end as string) : undefined;
 
@@ -182,10 +182,11 @@ export const getProfitAnalysis = async (req: Request, res: Response) => {
       endDate.setHours(23, 59, 59, 999);
     }
 
-    const analysis = await reportsService.getProfitAnalysis(
-      shopId,
+    const analysis = await reportsService.getProfitAnalysisForUser(
+      user.userId,
       startDate,
-      endDate
+      endDate,
+      platform as string | undefined
     );
 
     res.json({
@@ -207,12 +208,11 @@ export const getProfitAnalysis = async (req: Request, res: Response) => {
  */
 export const getPlatformComparison = async (req: Request, res: Response) => {
   try {
-    const shopId = await getShopIdFromRequest(req);
-
-    if (!shopId) {
-      return res.status(400).json({
+    const user = (req as any).user;
+    if (!user || !user.userId) {
+      return res.status(401).json({
         success: false,
-        error: "Shop ID not found.",
+        error: "Authentication required",
       });
     }
 
@@ -225,8 +225,8 @@ export const getPlatformComparison = async (req: Request, res: Response) => {
       endDate.setHours(23, 59, 59, 999);
     }
 
-    const comparison = await reportsService.getPlatformComparison(
-      shopId,
+    const comparison = await reportsService.getPlatformComparisonForUser(
+      user.userId,
       startDate,
       endDate
     );
@@ -250,16 +250,15 @@ export const getPlatformComparison = async (req: Request, res: Response) => {
  */
 export const getStockTurnoverReport = async (req: Request, res: Response) => {
   try {
-    const shopId = await getShopIdFromRequest(req);
-
-    if (!shopId) {
-      return res.status(400).json({
+    const user = (req as any).user;
+    if (!user || !user.userId) {
+      return res.status(401).json({
         success: false,
-        error: "Shop ID not found.",
+        error: "Authentication required",
       });
     }
 
-    const { start, end } = req.query;
+    const { start, end, platform } = req.query;
     const startDate = start ? new Date(start as string) : undefined;
     const endDate = end ? new Date(end as string) : undefined;
 
@@ -268,10 +267,11 @@ export const getStockTurnoverReport = async (req: Request, res: Response) => {
       endDate.setHours(23, 59, 59, 999);
     }
 
-    const report = await reportsService.getStockTurnoverReport(
-      shopId,
+    const report = await reportsService.getStockTurnoverReportForUser(
+      user.userId,
       startDate,
-      endDate
+      endDate,
+      platform as string | undefined
     );
 
     res.json({
