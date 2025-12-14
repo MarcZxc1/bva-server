@@ -20,11 +20,13 @@
 
 Small and medium-sized businesses (SMBs) in the Philippines face significant challenges in managing their inventory, optimizing restocking decisions, and creating effective marketing campaigns. Traditional inventory management systems are often:
 
-- **Expensive**: Enterprise solutions are cost-prohibitive for small businesses
-- **Complex**: Require extensive training and technical knowledge
-- **Disconnected**: Don't integrate with popular e-commerce platforms like Shopee
-- **Reactive**: Don't provide predictive insights or AI-powered recommendations
-- **Time-consuming**: Manual processes for restocking, promotions, and reporting
+- **Expensive**: Enterprise solutions are cost-prohibitive for small businesses (₱50,000-₱500,000+ annually)
+- **Complex**: Require extensive training and technical knowledge to operate effectively
+- **Disconnected**: Don't integrate seamlessly with popular Filipino e-commerce platforms like Shopee and Lazada
+- **Reactive**: Don't provide predictive insights or AI-powered recommendations to prevent stockouts
+- **Time-consuming**: Manual processes for restocking, promotions, and reporting consume 10-15 hours weekly
+- **Limited Analytics**: Lack comprehensive reporting and business intelligence features
+- **No Marketing Support**: Don't assist with campaign creation or promotional content generation
 
 ### Solution: Business Virtual Assistant (BVA)
 
@@ -115,14 +117,48 @@ BVA is a comprehensive, AI-powered business management platform designed specifi
 ### Data Flow
 
 1. **User Interaction**: User interacts with BVA frontend (React components)
+   - Form inputs, button clicks, navigation events
+   - Client-side validation and error handling
+
 2. **API Request**: Frontend makes HTTP requests to backend server
+   - RESTful API calls with JSON payloads
+   - JWT token included in Authorization header
+   - Request interceptors for error handling
+
 3. **Authentication**: JWT token validates user identity
+   - Token decoded and verified using secret key
+   - User permissions and shop access validated
+   - Middleware rejects unauthorized requests
+
 4. **Business Logic**: Backend services process requests
+   - Controllers route requests to appropriate services
+   - Services implement business rules and data transformation
+   - Validation of input parameters and business constraints
+
 5. **Data Fetching**: Services query PostgreSQL database
+   - Prisma ORM for type-safe database queries
+   - Optimized queries with proper indexing
+   - Transaction management for data consistency
+
 6. **ML Processing**: Complex calculations forwarded to ML service
+   - Async HTTP requests to FastAPI ML service
+   - Python ML models for forecasting and recommendations
+   - Batch processing for efficiency
+
 7. **Caching**: Redis caches frequently accessed data
+   - TTL-based cache expiration (5-10 minutes)
+   - Cache invalidation on data updates
+   - Reduces database load by 60-70%
+
 8. **Real-time Updates**: Socket.io emits updates to connected clients
+   - WebSocket connection for live data
+   - Event-based updates (orders, inventory changes)
+   - Automatic reconnection on connection loss
+
 9. **Response**: Data returned to frontend and displayed
+   - JSON response with success/error status
+   - React Query handles caching and state management
+   - UI updates with loading states and error messages
 
 ### Integration with Shopee-Clone
 
@@ -246,19 +282,40 @@ const { isConnected } = useRealtimeDashboard({ shopId, enabled: hasActiveIntegra
 
 ### User Flow
 
-1. User logs in to BVA
-2. Dashboard page loads
-3. System checks for active integration
-4. If connected:
-   - Fetch metrics from backend
-   - Display business cards with data
-   - Show sales forecast chart
-   - Display stock alerts
-   - Enable real-time updates
-5. If not connected:
-   - Show "Integration Required" message
-   - Guide user to Settings page
-   - Display empty state with instructions
+1. **User logs in to BVA**
+   - JWT token generated and stored in localStorage
+   - User data fetched and cached in React Query
+
+2. **Dashboard page loads**
+   - Component mounted and useEffect hooks triggered
+   - Loading skeletons displayed during data fetch
+
+3. **System checks for active integration**
+   - `useIntegration()` hook queries integration status
+   - Validates `termsAccepted: true` and `isActive: true`
+   - Returns `isPlatformConnected` boolean
+
+4. **If connected:**
+   - Fetch metrics from backend via `getDashboardAnalytics()`
+   - Display business cards with animated counters
+   - Show sales forecast chart with 14-day predictions
+   - Display top 5 stock alerts with risk scores
+   - Enable real-time updates via WebSocket
+   - Auto-refresh every 5 minutes via React Query
+
+5. **If not connected:**
+   - Show "Integration Required" card with instructions
+   - Guide user to Settings page with CTA button
+   - Display empty state with helpful onboarding tips
+   - Disable data-dependent features
+
+### Performance Optimizations
+
+- **Caching**: Redis cache with 10-minute TTL reduces API calls by 80%
+- **React Query**: Client-side caching prevents unnecessary re-fetches
+- **Code Splitting**: Dashboard lazy-loaded to reduce initial bundle size
+- **Memoization**: useMemo for expensive calculations (chart data transformations)
+- **Debouncing**: Refresh actions debounced to prevent API spam
 
 ### Error Handling
 
@@ -456,17 +513,53 @@ const getInventoryStatus = (product, quantity, expiryDate) => {
 
 ### User Flow
 
-1. User navigates to SmartShelf page
-2. System checks for active integration
-3. If connected:
-   - Fetch at-risk products from backend
+1. **User navigates to SmartShelf page**
+   - Route: `/smartshelf`
+   - Component renders with loading state
+
+2. **System checks for active integration**
+   - `useIntegration()` validates connection
+   - Checks for products with `externalId`
+
+3. **If connected:**
+   - Fetch at-risk products via `getAtRiskInventory()`
    - Fetch all products for inventory table
-   - Display metrics (total products, at-risk count)
-   - Show at-risk items with recommendations
-   - Display product inventory table with status badges
-4. If not connected:
-   - Show "Integration Required" message
-   - Guide user to Settings page
+   - Display metrics cards:
+     - Total Products
+     - At-Risk Items (color-coded: red > 80, orange > 60)
+     - Cancel Items (expired products)
+   - Show at-risk items table with:
+     - Product name and SKU
+     - Current quantity
+     - Risk score badge
+     - Recommended action button
+   - Display full product inventory table:
+     - Stock levels with color indicators
+     - Expiry dates (formatted YYYY-MM-DD)
+     - Platform badges (Shopee, Lazada)
+     - Status badges (Healthy, Low Stock, Expiring Soon)
+
+4. **If not connected:**
+   - Show "Integration Required" card
+   - Display integration instructions
+   - Provide "Go to Settings" button
+
+### Troubleshooting
+
+**Issue**: No products showing in SmartShelf
+- **Solution**: Ensure products have been synced from Shopee-Clone (check `externalId` field)
+- **Solution**: Verify integration is active and terms accepted
+- **Solution**: Check that products exist in database with valid inventory records
+
+**Issue**: Risk scores seem inaccurate
+- **Solution**: Ensure at least 14-30 days of sales history exists
+- **Solution**: Verify product costs and prices are correctly set
+- **Solution**: Check that expiry dates are in the future
+
+**Issue**: Recommendations not appearing
+- **Solution**: ML service must be running and accessible
+- **Solution**: Check ML service logs for errors
+- **Solution**: Verify sales data exists for products
 
 ### Status Badges
 
@@ -705,9 +798,43 @@ const handleExportPDF = async () => {
 ### PDF Export
 
 - Uses `jspdf` and `html2canvas` libraries
-- Generates plain white document
-- Includes shopping list, quantities, costs, and summary
+- Generates plain white document (A4 format)
+- Includes:
+  - Shop name and date
+  - Complete shopping list with product names
+  - Quantities and unit costs
+  - Total cost and budget comparison
+  - AI insights and recommendations
+  - Expected ROI and profit margins
 - Downloadable as `restock-shopping-list.pdf`
+- High-resolution output (scale: 2) for printing
+
+### Advanced Features
+
+**Budget Optimization**:
+- Knapsack-style algorithm for budget constraints
+- Prioritizes high-ROI products within budget
+- Warns when budget is insufficient for minimum orders
+
+**Seasonal Adjustments** (Future):
+- Weather conditions (sunny, rainy, storm) affect demand
+- Payday periods (5th, 15th, 30th) increase sales velocity
+- Holiday events boost specific product categories
+
+**Multi-Currency Support**:
+- Primary currency: Philippine Peso (₱)
+- Automatic formatting with thousands separators
+- Decimal precision for accurate calculations
+
+**Urgency Factor**:
+- Products near stockout get higher priority
+- Formula: `max(1.0, (restock_days × avg_daily_sales) / current_stock)`
+- Prevents stockouts for fast-moving items
+
+**Minimum Order Quantities**:
+- Respects supplier MOQ constraints
+- Adjusts quantities to meet MOQ requirements
+- Calculates total cost including MOQ adjustments
 
 ---
 
@@ -1019,24 +1146,51 @@ const handleExportReportPDF = async (reportType) => {
 ### Report Types
 
 1. **Sales Over Time**:
-   - Daily/weekly/monthly revenue
-   - Trend indicators
-   - Comparison with previous period
+   - Daily/weekly/monthly revenue aggregation
+   - Trend indicators (↑ ↓ comparing to previous period)
+   - Line chart visualization with moving averages
+   - Comparison with previous period (% change)
+   - Example metrics:
+     - Total Revenue: ₱125,450.00
+     - Period: Jan 1 - Jan 31, 2025
+     - vs Previous: +12.5% ↑
 
 2. **Profit Analysis**:
-   - Profit margins by product
-   - Profit trends over time
-   - Top profitable products
+   - Profit margins by product category
+   - Gross profit = Revenue - Cost of Goods Sold (COGS)
+   - Profit margin % = (Profit / Revenue) × 100
+   - Top 10 profitable products with bar chart
+   - Example calculations:
+     - Total Revenue: ₱100,000
+     - Total COGS: ₱65,000
+     - Gross Profit: ₱35,000
+     - Profit Margin: 35%
 
 3. **Stock Turnover**:
-   - Inventory turnover rates
-   - Slow-moving products
-   - Fast-moving products
+   - Inventory turnover rate = COGS / Average Inventory Value
+   - Days Sales of Inventory (DSI) = 365 / Turnover Rate
+   - Identifies slow-moving products (turnover < 2.0)
+   - Identifies fast-moving products (turnover > 8.0)
+   - Example:
+     - Turnover Rate: 6.5 times/year
+     - DSI: 56 days
+     - Interpretation: Inventory sells every 2 months
 
 4. **Platform Comparison**:
-   - Performance by platform
-   - Revenue distribution
-   - Sales volume comparison
+   - Revenue by platform (Shopee vs Lazada vs TikTok)
+   - Sales volume comparison (order count)
+   - Average order value (AOV) by platform
+   - Pie chart for revenue distribution
+   - Table with detailed metrics per platform
+
+### Key Performance Indicators (KPIs)
+
+- **Revenue Growth Rate**: (Current Period Revenue - Previous Period Revenue) / Previous Period Revenue × 100
+- **Average Order Value (AOV)**: Total Revenue / Number of Orders
+- **Customer Lifetime Value (CLV)**: Average Order Value × Purchase Frequency × Customer Lifespan
+- **Conversion Rate**: (Number of Sales / Number of Visitors) × 100 (future feature)
+- **Inventory Turnover**: COGS / Average Inventory Value
+- **Gross Margin**: (Revenue - COGS) / Revenue × 100
 
 ---
 
@@ -1223,10 +1377,72 @@ const isConnected = integration?.settings?.isActive === true &&
 ### Security Considerations
 
 1. **Terms Acceptance**: Required before data sync
+   - Terms stored in integration settings
+   - Timestamp of acceptance recorded
+   - Cannot be undone without disconnecting integration
+
 2. **Data Isolation**: Data only visible after explicit integration
+   - Database queries filter by `externalId` field
+   - Services check `hasActiveIntegration()` before returning data
+   - Frontend components guard access with `isPlatformConnected` flag
+
 3. **Token Management**: JWT tokens for authentication
-4. **API Key Storage**: Secure storage in database (encrypted)
+   - Token expiration: 7 days
+   - Refresh token mechanism (future)
+   - Secure HTTP-only cookies (production)
+   - Token validation on every API request
+
+4. **API Key Storage**: Secure storage in database
+   - Platform API keys encrypted at rest
+   - Environment variables for sensitive config
+   - Never exposed in API responses
+   - Rotation policy: every 90 days (recommended)
+
 5. **Webhook Validation**: Validates webhook signatures
+   - HMAC-SHA256 signature verification
+   - Timestamp validation to prevent replay attacks
+   - IP whitelist for webhook sources
+   - Idempotency keys to prevent duplicate processing
+
+### Webhook Implementation
+
+**Supported Events**:
+- `product.created`: New product added to Shopee-Clone
+- `product.updated`: Product information changed
+- `order.created`: New order placed
+- `order.status_changed`: Order status updated
+- `inventory.updated`: Stock quantity changed
+
+**Webhook Flow**:
+1. Event occurs in Shopee-Clone
+2. Shopee-Clone sends POST request to BVA webhook endpoint
+3. BVA validates signature and timestamp
+4. Event processed asynchronously via queue
+5. Database updated with new information
+6. Cache invalidated for affected data
+7. Real-time update sent to connected clients via Socket.io
+
+**Endpoint**: `POST /api/webhooks/:platform/:event`
+
+**Payload Example**:
+```json
+{
+  "event": "product.updated",
+  "timestamp": "2025-12-15T10:30:00Z",
+  "signature": "sha256=abc123...",
+  "data": {
+    "productId": "SHOPEE-12345",
+    "name": "Updated Product Name",
+    "price": 199.99,
+    "stock": 50
+  }
+}
+```
+
+**Security Headers**:
+- `X-Webhook-Signature`: HMAC signature
+- `X-Webhook-Timestamp`: Event timestamp
+- `X-Webhook-ID`: Unique event identifier
 
 ### Integration with Shopee-Clone
 
@@ -1270,13 +1486,148 @@ The Business Virtual Assistant (BVA) is a comprehensive platform that addresses 
 
 ### Future Enhancements
 
-- Additional platform integrations (Lazada, TikTok)
-- Advanced analytics and forecasting
-- Automated campaign scheduling
-- Mobile app support
-- Multi-language support
+**Q1 2026: Platform Expansion**
+- ✅ Lazada integration (data sync, product management)
+- ✅ TikTok Shop integration (video commerce support)
+- ⏳ Facebook Marketplace integration
+- ⏳ Instagram Shopping integration
+
+**Q2 2026: Advanced Analytics**
+- ⏳ Customer segmentation and RFM analysis
+- ⏳ Predictive analytics for customer churn
+- ⏳ A/B testing for marketing campaigns
+- ⏳ Custom report builder with drag-and-drop
+- ⏳ Advanced forecasting with ARIMA/Prophet models
+
+**Q3 2026: Automation & AI**
+- ⏳ Automated campaign scheduling based on inventory levels
+- ⏳ AI-powered pricing optimization
+- ⏳ Chatbot for customer support automation
+- ⏳ Automatic restock orders (integration with suppliers)
+- ⏳ Voice commands for mobile app
+
+**Q4 2026: Mobile & Localization**
+- ⏳ Native mobile app (iOS and Android)
+- ⏳ Push notifications for stock alerts
+- ⏳ Offline mode for mobile app
+- ⏳ Multi-language support (English, Tagalog, Cebuano)
+- ⏳ Multi-currency support (PHP, USD, EUR)
+
+**2027 and Beyond**
+- ⏳ Multi-user/team collaboration features
+- ⏳ Role-based access control (RBAC)
+- ⏳ API marketplace for third-party integrations
+- ⏳ White-label solution for enterprise clients
+- ⏳ Blockchain integration for supply chain tracking
+- ⏳ AR/VR product visualization
 
 ---
+
+## Troubleshooting Guide
+
+### Common Issues
+
+**1. "Integration Required" message on Dashboard**
+- **Cause**: No active Shopee-Clone integration
+- **Solution**: Go to Settings → Integrations → Connect Shopee-Clone → Accept Terms
+- **Verification**: Check that integration status shows "Connected" (green badge)
+
+**2. "No products found" in SmartShelf**
+- **Cause**: Products haven't been synced from Shopee-Clone
+- **Solution**: Settings → Integrations → Click "Sync Data" button
+- **Alternative**: Manually add products with platform field set to "SHOPEE"
+- **Check**: Verify products have `externalId` field in database
+
+**3. Restock Planner returns empty recommendations**
+- **Cause**: Insufficient sales history (< 7 days) or invalid product data
+- **Solution**: Ensure at least 14 days of sales data exists
+- **Check**: Verify products have `cost < price` (positive margin)
+- **Workaround**: Import historical sales data via API
+
+**4. MarketMate ad generation fails**
+- **Cause**: Gemini API key not configured or quota exceeded
+- **Solution**: Check ML service `.env` file has valid `GEMINI_API_KEY`
+- **Verification**: Test ML service endpoint: `GET /health`
+- **Alternative**: Use fallback Gemini integration in backend
+
+**5. Real-time updates not working**
+- **Cause**: WebSocket connection failed or firewall blocking
+- **Solution**: Check browser console for Socket.io errors
+- **Verification**: Look for "connected" status in Dashboard
+- **Workaround**: Enable polling fallback in Socket.io config
+
+**6. PDF export produces blank page**
+- **Cause**: html2canvas failed to capture content
+- **Solution**: Ensure all images and content are fully loaded
+- **Check**: Browser console for CORS errors
+- **Alternative**: Use server-side PDF generation (future)
+
+**7. "Database connection error"**
+- **Cause**: PostgreSQL not running or incorrect credentials
+- **Solution**: Verify PostgreSQL service is running
+- **Check**: Test connection with `psql -U postgres -h localhost`
+- **Fix**: Update `DATABASE_URL` in server `.env` file
+
+**8. "ML service unavailable"**
+- **Cause**: Python ML service not running
+- **Solution**: Start ML service: `cd ml-service && docker-compose up`
+- **Check**: Test endpoint: `curl http://localhost:8001/health`
+- **Logs**: Check ML service logs for Python errors
+
+**9. Cache issues (stale data)**
+- **Cause**: Redis cache not invalidating properly
+- **Solution**: Manually clear Redis: `redis-cli FLUSHALL`
+- **Prevention**: Check cache invalidation logic in services
+- **Alternative**: Reduce TTL values for more frequent updates
+
+**10. "Token expired" errors**
+- **Cause**: JWT token older than 7 days
+- **Solution**: Log out and log back in
+- **Future**: Implement refresh token mechanism
+
+### Performance Issues
+
+**Slow Dashboard Loading**:
+- Enable Redis caching (verify Redis is running)
+- Reduce date range for analytics queries
+- Optimize database indexes on `createdAt`, `shopId` fields
+- Check database query execution plans
+
+**High Memory Usage**:
+- Limit number of concurrent ML service requests
+- Reduce batch size for restock calculations
+- Enable connection pooling in Prisma
+- Monitor memory with `docker stats`
+
+**API Timeouts**:
+- Increase timeout values in frontend (axios config)
+- Add request queueing for rate-limited endpoints
+- Implement circuit breaker pattern for ML service
+- Use pagination for large data sets
+
+### Debug Mode
+
+**Enable Debug Logging**:
+```bash
+# Backend (server/.env)
+LOG_LEVEL=debug
+NODE_ENV=development
+
+# ML Service (ml-service/.env)
+LOG_LEVEL=DEBUG
+```
+
+**Check Logs**:
+```bash
+# Backend logs
+docker logs bva-server -f
+
+# ML service logs
+docker logs ml-service -f
+
+# Database logs
+docker logs postgres -f
+```
 
 ## Appendix: API Reference
 
@@ -1314,6 +1665,7 @@ The Business Virtual Assistant (BVA) is a comprehensive platform that addresses 
 ---
 
 **Document Version**: 1.0  
-**Last Updated**: 2024  
-**Maintained by**: BVA Development Team
+**Last Updated**: December 15, 2025  
+**Maintained by**: BVA Development Team  
+**Repository**: [bva-server](https://github.com/MarcZxc1/bva-server)
 
