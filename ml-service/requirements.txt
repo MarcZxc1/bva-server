@@ -5,12 +5,12 @@ pydantic==2.10.3
 pydantic-settings==2.6.1
 
 # Data processing and ML
-pandas==2.2.3
-numpy==2.1.3
-scikit-learn==1.5.2
-xgboost==2.1.3
-statsmodels==0.14.4
-# prophet==1.1.5  # Optional - uncomment if needed (requires pystan)
+pandas
+numpy
+scikit-learn
+xgboost
+statsmodels
+# prophet  # Optional - uncomment if needed (requires pystan)
 
 # Task queue and caching
 celery==5.4.0

@@ -33,7 +33,17 @@ const GoogleIcon = () => (
 );
 
 // Backend URL for Google OAuth
-const BACKEND_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
+const RAW_BACKEND_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
+const BACKEND_API_BASE = (() => {
+  try {
+    const url = new URL(RAW_BACKEND_URL);
+    const normalizedPath = url.pathname.replace(/\/+$/, "");
+    url.pathname = normalizedPath.endsWith("/api") ? normalizedPath : `${normalizedPath}/api`;
+    return url.toString().replace(/\/+$/, "");
+  } catch {
+    return "http://localhost:3000/api";
+  }
+})();
 
 export default function Login() {
   const navigate = useNavigate();
@@ -62,8 +72,8 @@ export default function Login() {
     const hasError = searchParams.has("error");
     
     // Only redirect if authenticated, no OAuth params, and not processing OAuth
-    // Use immediate navigation without delay
     if (isAuthenticated && !hasToken && !hasError && !oauthProcessedRef.current) {
+      console.log("✅ Already authenticated, redirecting to dashboard...");
       navigate("/dashboard", { replace: true });
     }
   }, [isAuthenticated, searchParams, navigate]);
@@ -91,8 +101,14 @@ export default function Login() {
           
           // Save token and fetch user data
           await setToken(token);
-          // Navigate immediately - state is updated synchronously
-          navigate("/dashboard", { replace: true });
+          console.log("✅ Token saved and user data loaded");
+          toast.success("Google login successful!");
+          
+          // Navigate after a brief delay to ensure state is updated
+          setTimeout(() => {
+            console.log("🚀 Navigating to dashboard...");
+            navigate("/dashboard", { replace: true });
+          }, 200);
         } catch (err) {
           console.error("OAuth token error:", err);
           toast.error("Failed to complete login. Please try again.");
@@ -111,7 +127,6 @@ export default function Login() {
       
       const errorMessages: Record<string, string> = {
         google_auth_failed: "Google authentication failed. Please try again.",
-        facebook_auth_failed: "Facebook authentication failed. Please try again.",
         no_user: "Could not retrieve user information.",
         token_generation_failed: "Failed to generate authentication token.",
       };
@@ -133,17 +148,16 @@ export default function Login() {
     setIsSubmitting(true);
     try {
       await login(loginEmail, loginPassword);
-      // Don't show toast here - navigate immediately
-      // The navigation will happen automatically when isAuthenticated becomes true
-      navigate("/dashboard", { replace: true });
+      toast.success("Login successful!");
+      navigate("/dashboard");
     } catch (error) {
       const axiosError = error as AxiosError<{ error?: string; message?: string }>;
-      const errorMessage = 
+      toast.error(
         axiosError.response?.data?.error || 
         axiosError.response?.data?.message ||
         axiosError.message || 
-        "Login failed. Please check your credentials.";
-      toast.error(errorMessage);
+        "Login failed. Please check your credentials."
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -170,9 +184,8 @@ export default function Login() {
     setIsSubmitting(true);
     try {
       await register(registerEmail, registerPassword, registerName);
-      // Don't show toast here - navigate immediately
-      // The navigation will happen automatically when isAuthenticated becomes true
-      navigate("/dashboard", { replace: true });
+      toast.success("Registration successful! Welcome to BVA!");
+      navigate("/dashboard");
     } catch (error) {
       const axiosError = error as AxiosError<{ error?: string; message?: string }>;
       toast.error(
@@ -190,13 +203,7 @@ export default function Login() {
     // We pass the frontend's origin as the 'state' parameter.
     // The backend will use this to redirect the user back to the correct application.
     const state = window.location.origin;
-    window.location.href = `${BACKEND_URL}/api/auth/google?state=${state}`;
-  };
-
-  const handleFacebookLogin = async () => {
-    // Facebook OAuth is not currently available without Supabase
-    // Users can use Google OAuth instead
-    toast.error("Facebook OAuth is not currently available. Please use Google OAuth instead.");
+    window.location.href = `${BACKEND_API_BASE}/auth/google?state=${state}`;
   };
 
   return (
@@ -219,7 +226,7 @@ export default function Login() {
         <div className="text-center mb-8">
           <div className="flex justify-center mb-4">
             <div className="h-20 w-20 glass-card-sm flex items-center justify-center p-2">
-              <img src="/logo.svg" alt="BVA Logo" className="h-full w-full object-contain" />
+              <img src="/bva-logo.svg" alt="BVA Logo" className="h-full w-full object-contain" />
             </div>
           </div>
           <h1 className="text-4xl font-bold text-foreground mb-2">Business Virtual Assistant</h1>
@@ -380,31 +387,17 @@ export default function Login() {
               </div>
             </div>
 
-            {/* Social Sign-in Buttons */}
-            <div className="space-y-3">
-              <Button
-                type="button"
-                variant="outline"
-                className="w-full h-11 glass-card-sm border-card-glass-border hover:bg-primary/5 transition-smooth"
-                onClick={handleGoogleLogin}
-                disabled={isSubmitting || isLoading}
-              >
-                <GoogleIcon />
-                Sign in with Google
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                className="w-full h-11 glass-card-sm border-card-glass-border hover:bg-primary/5 transition-smooth"
-                onClick={handleFacebookLogin}
-                disabled={isSubmitting || isLoading}
-              >
-                <svg className="w-5 h-5 mr-2" fill="#1877f2" viewBox="0 0 24 24">
-                  <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
-                </svg>
-                Sign in with Facebook
-              </Button>
-            </div>
+            {/* Google Sign-in Button */}
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full h-11 glass-card-sm border-card-glass-border hover:bg-primary/5 transition-smooth"
+              onClick={handleGoogleLogin}
+              disabled={isSubmitting || isLoading}
+            >
+              <GoogleIcon />
+              Sign in with Google
+            </Button>
           </CardContent>
         </Card>
 

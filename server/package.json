@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "dev": "npx prisma generate && ts-node-dev --respawn --transpile-only --compiler-options '{\"module\":\"commonjs\"}' src/server.ts",
+ "dev": "npx prisma generate && ts-node-dev --respawn --transpile-only --compiler-options \"{\\\"module\\\":\\\"commonjs\\\"}\" src/server.ts",
     "start": "node dist/server.js",
     "build": "tsc && cp -r src/generated dist/generated",
     "studio": "npx prisma studio",

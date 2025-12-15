@@ -52,6 +52,12 @@ app.use(express.json({ limit: '10mb' }));
 
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
+// Set CSP headers - allow localhost for development
+app.use((req: express.Request, res: express.Response, next: express.NextFunction) => {
+  res.setHeader('Content-Security-Policy', "default-src 'self' http://localhost:* https:; connect-src 'self' http://localhost:* https:; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:;");
+  next();
+});
+
 // Initialize Passport
 app.use(passport.initialize() as unknown as express.RequestHandler);
 

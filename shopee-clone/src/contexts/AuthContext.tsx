@@ -31,8 +31,6 @@ interface AuthContextType {
   updateUser: (userData: Partial<User>) => void;
   handleGoogleAuth: (role?: 'BUYER' | 'SELLER') => void;
   handleGoogleCallback: () => void;
-  handleFacebookAuth: (role?: 'BUYER' | 'SELLER') => void;
-  handleFacebookCallback: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -49,13 +47,17 @@ interface AuthProviderProps {
   children: ReactNode;
 }
 
-// Get base URL and ensure it doesn't end with /api to avoid double /api/api
-const getApiBaseUrl = () => {
-  const url = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-  // Remove trailing /api if present to avoid double /api/api in endpoints
-  return url.replace(/\/api\/?$/, '');
-};
-const API_BASE_URL = getApiBaseUrl();
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+const AUTH_API_BASE = (() => {
+  try {
+    const url = new URL(API_BASE_URL);
+    const normalizedPath = url.pathname.replace(/\/+$/, '');
+    url.pathname = normalizedPath.endsWith('/api') ? normalizedPath : `${normalizedPath}/api`;
+    return url.toString().replace(/\/+$/, '');
+  } catch {
+    return 'http://localhost:3000/api';
+  }
+})();
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
@@ -65,12 +67,38 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const navigate = useNavigate();
   const location = useLocation();
 
+  // Check for Google OAuth callback token on mount
+  useEffect(() => {
+    const urlParams = new URLSearchParams(location.search);
+    const tokenParam = urlParams.get('token');
+    const errorParam = urlParams.get('error');
+
+    if (tokenParam) {
+      handleGoogleCallbackToken(tokenParam);
+      // Clean up URL
+      window.history.replaceState({}, '', location.pathname);
+    } else if (errorParam) {
+      setError(errorParam === 'google_auth_failed' ? 'Google authentication failed. Please try again.' : errorParam);
+      setIsLoading(false);
+      window.history.replaceState({}, '', location.pathname);
+    } else {
+      // Check for existing token
+      const storedToken = localStorage.getItem('auth_token');
+      if (storedToken) {
+        setToken(storedToken);
+        apiClient.setToken(storedToken);
+        fetchUser();
+      } else {
+        setIsLoading(false);
+      }
+    }
+  }, [location]);
+
   const fetchUser = useCallback(async () => {
     try {
       setIsLoading(true);
       setError(null);
       const userData = await apiClient.getMe();
-      
       // Normalize user data structure
       const normalizedUser: User = {
         id: userData.id || userData.userId?.toString() || '',
@@ -98,30 +126,35 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       setIsLoading(true);
       setError(null);
-      console.log('🔵 Processing Google OAuth token...');
-      
-      if (!tokenParam || !tokenParam.trim()) {
-        throw new Error('Invalid token received');
-      }
-      
-      // Clear any existing token first to prevent conflicts
-      const oldToken = localStorage.getItem('auth_token');
-      if (oldToken && oldToken !== tokenParam) {
-        console.log('🔄 Replacing old token with new OAuth token');
-        localStorage.removeItem('auth_token');
-        apiClient.setToken(null);
-      }
-      
       setToken(tokenParam);
       apiClient.setToken(tokenParam);
-      localStorage.setItem('auth_token', tokenParam);
-      
-      // Fetch user data to get role
-      const userData = await apiClient.getMe();
-      
-      if (!userData) {
-        throw new Error('Failed to fetch user data after authentication');
+      await fetchUser();
+      // Redirect based on role
+      const decoded = JSON.parse(atob(tokenParam.split('.')[1]));
+      if (decoded.role === 'SELLER') {
+        navigate('/dashboard');
+      } else {
+        navigate('/');
       }
+    } catch (error: any) {
+      console.error('Failed to process Google OAuth token:', error);
+      setError('Failed to process authentication token');
+      setIsLoading(false);
+    }
+  }, [navigate, fetchUser]);
+
+  const login = useCallback(async (identifier: string, password: string) => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      // Server accepts email, but identifier can be email or username
+      // Try as email first (server expects email)
+      const response = await apiClient.login(identifier.trim(), password);
+      setToken(response.token);
+      apiClient.setToken(response.token);
+      
+      // Fetch full user data including shops
+      const userData = await apiClient.getMe();
       
       // Normalize user data
       const normalizedUser: User = {
@@ -136,211 +169,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       };
       setUser(normalizedUser);
       
-      console.log('✅ OAuth user set with role:', normalizedUser.role);
-      
-      // Check if we're in BVA integration context (iframe)
-      const isInIframe = window.self !== window.top;
-      const isBVAIntegrationPage = window.location.pathname === '/bva-integration-check';
-      
-      if (isInIframe && isBVAIntegrationPage) {
-        // If in BVA integration iframe, send message to parent instead of redirecting
-        if (normalizedUser.role === 'SELLER' && normalizedUser.shops && normalizedUser.shops.length > 0) {
-          const shop = normalizedUser.shops[0];
-          const message = {
-            type: 'SHOPEE_CLONE_AUTH_SUCCESS',
-            shop: {
-              id: shop.id,
-              name: shop.name,
-            },
-            user: {
-              id: normalizedUser.id,
-              email: normalizedUser.email,
-              name: normalizedUser.name || normalizedUser.username,
-            },
-          };
-          
-          if (window.parent) {
-            window.parent.postMessage(message, '*');
-            console.log('✅ Sent shop info to BVA after OAuth:', message);
-          }
-        } else {
-          const message = {
-            type: 'SHOPEE_CLONE_AUTH_ERROR',
-            error: normalizedUser.role !== 'SELLER' 
-              ? 'User is not a seller. Please login with a seller account.'
-              : 'User does not have a shop. Please create a shop first.',
-          };
-          
-          if (window.parent) {
-            window.parent.postMessage(message, '*');
-          }
-        }
-        // Don't redirect in iframe context
-        return;
-      }
-      
-      // Redirect based on role - SELLER goes to dashboard, BUYER goes to landing page
+      // Redirect based on role
       if (normalizedUser.role === 'SELLER') {
-        console.log('🚀 [OAuth] Redirecting SELLER to /dashboard');
         navigate('/dashboard');
-      } else if (normalizedUser.role === 'BUYER') {
-        console.log('🚀 [OAuth] Redirecting BUYER to landing page (/)');
-        navigate('/'); // Buyer landing page
       } else {
-        console.log('🚀 [OAuth] Unknown role, redirecting to buyer landing page');
-        navigate('/'); // Default to buyer landing page for unknown roles
+        navigate('/');
       }
     } catch (error: any) {
-      console.error('❌ Failed to process Google OAuth token:', error);
-      const errorMessage = error.message || 'Failed to process authentication token. Please try again.';
-      setError(errorMessage);
-      // Clear invalid token
-      localStorage.removeItem('auth_token');
-      apiClient.setToken(null);
-      setToken(null);
-      setIsLoading(false);
-      // Don't throw - let the error be displayed to the user
-    }
-  }, [navigate]);
-
-  // Handle OAuth callback and check for existing sessions
-  useEffect(() => {
-    const handleOAuthCallback = async () => {
-      const urlParams = new URLSearchParams(location.search);
-      const tokenParam = urlParams.get('token');
-      const errorParam = urlParams.get('error');
-      const errorDetails = urlParams.get('details');
-
-      if (tokenParam) {
-        console.log('🔵 Processing OAuth token from URL...');
-        await handleGoogleCallbackToken(tokenParam);
-        // Clean up URL - remove token parameter
-        const newUrl = new URL(window.location.href);
-        newUrl.searchParams.delete('token');
-        window.history.replaceState({}, '', newUrl.pathname + newUrl.search);
-      } else if (errorParam) {
-        // Get detailed error message if available
-        const errorMessage = errorParam === 'google_auth_failed' 
-          ? (errorDetails ? `Google authentication failed: ${decodeURIComponent(errorDetails)}` : 'Google authentication failed. Please try again.')
-          : (errorDetails ? `${errorParam}: ${decodeURIComponent(errorDetails)}` : errorParam);
-        console.error('❌ Google OAuth error:', errorParam, errorDetails);
-        setError(errorMessage);
-        setIsLoading(false);
-        window.history.replaceState({}, '', location.pathname);
-      } else {
-        // Check for existing token
-        const storedToken = localStorage.getItem('auth_token');
-        if (storedToken) {
-          setToken(storedToken);
-          apiClient.setToken(storedToken);
-          fetchUser();
-        } else {
-          setIsLoading(false);
-        }
-      }
-    };
-
-    handleOAuthCallback();
-  }, [location, handleGoogleCallbackToken, fetchUser]);
-
-  const login = useCallback(async (identifier: string, password: string) => {
-    try {
-      setIsLoading(true);
-      setError(null);
-      console.log('🔵 Attempting login for:', identifier);
-      
-      // Server accepts email, but identifier can be email or username
-      // Try as email first (server expects email)
-      const response = await apiClient.login(identifier.trim(), password);
-      
-      if (!response || !response.token) {
-        throw new Error('Invalid response from server: missing token');
-      }
-      
-      setToken(response.token);
-      apiClient.setToken(response.token);
-      
-      // Use shops from login response if available, otherwise fetch from /api/auth/me
-      let shops = response.shops || [];
-      if (shops.length === 0) {
-        // Fetch full user data including shops if not in response
-        const userData = await apiClient.getMe();
-        if (userData?.shops) {
-          shops = userData.shops;
-        }
-      }
-      
-      // Normalize user data
-      const normalizedUser: User = {
-        id: response.user?.id || response.user?.userId?.toString() || '',
-        userId: response.user?.userId || response.user?.id,
-        email: response.user?.email || '',
-        username: response.user?.username,
-        name: response.user?.name || response.user?.firstName,
-        role: response.user?.role || 'BUYER',
-        shops: shops,
-        phoneNumber: response.user?.phoneNumber,
-      };
-      setUser(normalizedUser);
-      
-      console.log('✅ Login successful, user role:', normalizedUser.role);
-      
-      // Check if we're in BVA integration context (iframe)
-      const isInIframe = window.self !== window.top;
-      const isBVAIntegrationPage = window.location.pathname === '/bva-integration-check';
-      
-      if (isInIframe && isBVAIntegrationPage) {
-        // If in BVA integration iframe, send message to parent instead of redirecting
-        if (normalizedUser.role === 'SELLER' && normalizedUser.shops && normalizedUser.shops.length > 0) {
-          const shop = normalizedUser.shops[0];
-          const message = {
-            type: 'SHOPEE_CLONE_AUTH_SUCCESS',
-            shop: {
-              id: shop.id,
-              name: shop.name,
-            },
-            user: {
-              id: normalizedUser.id,
-              email: normalizedUser.email,
-              name: normalizedUser.name || normalizedUser.username,
-            },
-          };
-          
-          if (window.parent) {
-            window.parent.postMessage(message, '*');
-            console.log('✅ Sent shop info to BVA after login:', message);
-          }
-        } else {
-          const message = {
-            type: 'SHOPEE_CLONE_AUTH_ERROR',
-            error: normalizedUser.role !== 'SELLER' 
-              ? 'User is not a seller. Please login with a seller account.'
-              : 'User does not have a shop. Please create a shop first.',
-          };
-          
-          if (window.parent) {
-            window.parent.postMessage(message, '*');
-          }
-        }
-        // Don't redirect in iframe context
-        return;
-      }
-      
-      // Redirect based on role - SELLER goes to dashboard, BUYER goes to landing page
-      if (normalizedUser.role === 'SELLER') {
-        console.log('🚀 [Login] Redirecting SELLER to /dashboard');
-        navigate('/dashboard');
-      } else if (normalizedUser.role === 'BUYER') {
-        console.log('🚀 [Login] Redirecting BUYER to landing page (/)');
-        navigate('/'); // Buyer landing page
-      } else {
-        console.log('🚀 [Login] Unknown role, redirecting to buyer landing page');
-        navigate('/'); // Default to buyer landing page for unknown roles
-      }
-    } catch (error: any) {
-      console.error('❌ Login error:', error);
-      const errorMessage = error.message || 'Login failed. Please check your credentials.';
-      setError(errorMessage);
+      setError(error.message || 'Login failed. Please check your credentials.');
       throw error;
     } finally {
       setIsLoading(false);
@@ -358,108 +194,44 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       setIsLoading(true);
       setError(null);
-      console.log('🔵 Registering user with role:', data.role || 'BUYER');
-      
       const response = await apiClient.register({
         ...data,
         name: data.name || data.username,
       });
-      
-      if (!response || !response.token) {
-        throw new Error('Invalid response from server: missing token');
-      }
-      
       setToken(response.token);
       apiClient.setToken(response.token);
       
-      // Use shops from register response if available, otherwise fetch from /api/auth/me
-      let shops = response.shops || [];
-      if (shops.length === 0) {
-        // Fetch full user data including shops if not in response
-        const userData = await apiClient.getMe();
-        if (userData?.shops) {
-          shops = userData.shops;
-        }
-      }
+      // Fetch full user data including shops
+      const userData = await apiClient.getMe();
       
       // Normalize user data
       const normalizedUser: User = {
-        id: response.user?.id || response.user?.userId?.toString() || '',
-        userId: response.user?.userId || response.user?.id,
-        email: response.user?.email || '',
-        username: response.user?.username,
-        name: response.user?.name || response.user?.firstName,
-        role: response.user?.role || data.role || 'BUYER',
-        shops: shops,
-        phoneNumber: response.user?.phoneNumber,
+        id: userData.id || userData.userId?.toString() || '',
+        userId: userData.userId || userData.id,
+        email: userData.email,
+        username: userData.username,
+        name: userData.name || userData.firstName,
+        role: userData.role,
+        shops: userData.shops || [],
+        phoneNumber: userData.phoneNumber,
       };
       setUser(normalizedUser);
       
-      console.log('✅ Registration successful, user role:', normalizedUser.role);
-      
-      // Check if we're in BVA integration context (iframe)
-      const isInIframe = window.self !== window.top;
-      const isBVAIntegrationPage = window.location.pathname === '/bva-integration-check';
-      
-      if (isInIframe && isBVAIntegrationPage) {
-        // If in BVA integration iframe, send message to parent instead of redirecting
-        if (normalizedUser.role === 'SELLER' && normalizedUser.shops && normalizedUser.shops.length > 0) {
-          const shop = normalizedUser.shops[0];
-          const message = {
-            type: 'SHOPEE_CLONE_AUTH_SUCCESS',
-            shop: {
-              id: shop.id,
-              name: shop.name,
-            },
-            user: {
-              id: normalizedUser.id,
-              email: normalizedUser.email,
-              name: normalizedUser.name || normalizedUser.username,
-            },
-          };
-          
-          if (window.parent) {
-            window.parent.postMessage(message, '*');
-            console.log('✅ Sent shop info to BVA after registration:', message);
-          }
-        } else {
-          const message = {
-            type: 'SHOPEE_CLONE_AUTH_ERROR',
-            error: normalizedUser.role !== 'SELLER' 
-              ? 'User is not a seller. Please register with a seller account.'
-              : 'User does not have a shop. Please create a shop first.',
-          };
-          
-          if (window.parent) {
-            window.parent.postMessage(message, '*');
-          }
-        }
-        // Don't redirect in iframe context
-        return;
-      }
-      
-      // Redirect based on role - SELLER goes to dashboard, BUYER goes to landing page
+      // Redirect based on role
       if (normalizedUser.role === 'SELLER') {
-        console.log('🚀 [Register] Redirecting SELLER to /dashboard');
         navigate('/dashboard');
-      } else if (normalizedUser.role === 'BUYER') {
-        console.log('🚀 [Register] Redirecting BUYER to landing page (/)');
-        navigate('/'); // Buyer landing page
       } else {
-        console.log('🚀 [Register] Unknown role, redirecting to buyer landing page');
-        navigate('/'); // Default to buyer landing page for unknown roles
+        navigate('/');
       }
     } catch (error: any) {
-      console.error('❌ Registration error:', error);
-      const errorMessage = error.message || 'Registration failed. Please try again.';
-      setError(errorMessage);
+      setError(error.message || 'Registration failed. Please try again.');
       throw error;
     } finally {
       setIsLoading(false);
     }
   }, [navigate]);
 
-  const logout = useCallback(async () => {
+  const logout = useCallback(() => {
     setUser(null);
     setToken(null);
     apiClient.setToken(null);
@@ -472,20 +244,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }, []);
 
   const handleGoogleAuth = useCallback((role: 'BUYER' | 'SELLER' = 'BUYER') => {
-    // Use base origin only (not the full path) to avoid redirect URL validation issues
-    // The server will handle the final redirect based on role
-    const baseUrl = window.location.origin;
-    const state = encodeURIComponent(JSON.stringify({ 
-      redirectUrl: baseUrl,
-      role,
-      platform: 'SHOPEE_CLONE' // Platform isolation
-    }));
-    // Use /api/auth/google endpoint (mounted at /api/auth in server)
-    const googleAuthUrl = `${API_BASE_URL}/api/auth/google?state=${state}&role=${role}`;
-    console.log('🔵 Initiating Google OAuth for SHOPEE_CLONE, redirecting to:', googleAuthUrl);
-    // Clear any existing tokens to prevent reuse issues
-    localStorage.removeItem('auth_token');
-    apiClient.setToken(null);
+    const currentUrl = window.location.origin;
+    const state = encodeURIComponent(currentUrl);
+    const googleAuthUrl = `${AUTH_API_BASE}/auth/google?state=${state}&role=${role}`;
     window.location.href = googleAuthUrl;
   }, []);
 
@@ -495,24 +256,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const tokenParam = urlParams.get('token');
     if (tokenParam) {
       handleGoogleCallbackToken(tokenParam);
-    }
-  }, [location, handleGoogleCallbackToken]);
-
-  const handleFacebookAuth = useCallback(async (_role: 'BUYER' | 'SELLER' = 'BUYER') => {
-    // Facebook OAuth is not currently supported without Supabase
-    // Users can use Google OAuth instead
-    const errorMsg = 'Facebook OAuth is not currently available. Please use Google OAuth instead.';
-    console.error('❌', errorMsg);
-    setError(errorMsg);
-    alert(errorMsg);
-  }, []);
-
-  const handleFacebookCallback = useCallback(() => {
-    // This is handled in useEffect via URL params (same as Google)
-    const urlParams = new URLSearchParams(location.search);
-    const tokenParam = urlParams.get('token');
-    if (tokenParam) {
-      handleGoogleCallbackToken(tokenParam); // Reuse same handler
     }
   }, [location, handleGoogleCallbackToken]);
 
@@ -528,9 +271,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     updateUser,
     handleGoogleAuth,
     handleGoogleCallback,
-    handleFacebookAuth,
-    handleFacebookCallback,
-  }), [user, token, isLoading, error, login, register, logout, updateUser, handleGoogleAuth, handleGoogleCallback, handleFacebookAuth, handleFacebookCallback]);
+  }), [user, token, isLoading, error, login, register, logout, updateUser, handleGoogleAuth, handleGoogleCallback]);
 
   return (
     <AuthContext.Provider value={contextValue}>
