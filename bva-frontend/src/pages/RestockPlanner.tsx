@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { TrendingUp, Calendar, Package, Sparkles, Loader2, PackageOpen, Download, ShoppingCart, AlertCircle, Cloud, CloudRain, Sun, CloudLightning } from "lucide-react";
+import { TrendingUp, Calendar, Package, Sparkles, Loader2, PackageOpen, Download, ShoppingCart, AlertCircle, Cloud, CloudRain, Sun, CloudLightning, AlertTriangle } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import { useRestock } from "@/hooks/useRestock";
@@ -16,6 +16,7 @@ import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIntegration } from "@/hooks/useIntegration";
 import { useRealtimeDashboard } from "@/hooks/useRealtimeDashboard";
+import { useAllUserProducts } from "@/hooks/useProducts";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -37,6 +38,7 @@ export default function RestockPlanner() {
   const [shopId, setShopId] = useState(user?.shops?.[0]?.id || "");
   const hasShop = !!shopId;
   const { hasActiveIntegration, isLoading: isLoadingIntegration } = useIntegration();
+  const { data: allProducts, isLoading: isLoadingProducts } = useAllUserProducts();
   const [budget, setBudget] = useState("50000");
   const [goal, setGoal] = useState<"profit" | "volume" | "balanced">("balanced");
   const [restockDays, setRestockDays] = useState("14");
@@ -91,31 +93,79 @@ export default function RestockPlanner() {
   const displayRestockData = restockData || savedRestockData;
 
   const handleGeneratePlan = async () => {
+    // Validation checks with detailed notifications
     if (!hasActiveIntegration) {
       toast.error("Please connect your Shopee-Clone account first. Go to Settings → Integrations.");
       return;
     }
 
-    if (!shopId || !budget) {
-      toast.error("Please fill in all required fields");
+    if (!shopId) {
+      toast.error("Shop ID is required. Please select a shop.", {
+        description: "You need to have a shop to generate a restock plan."
+      });
+      return;
+    }
+
+    if (!budget || budget.trim() === "") {
+      toast.error("Budget is required", {
+        description: "Please enter your available budget for restocking."
+      });
       return;
     }
 
     const budgetNum = parseFloat(budget);
-    if (isNaN(budgetNum) || budgetNum <= 0) {
-      toast.error("Budget must be a positive number");
+    if (isNaN(budgetNum)) {
+      toast.error("Invalid budget format", {
+        description: "Budget must be a valid number."
+      });
       return;
     }
 
-    restockMutation.mutate({
+    if (budgetNum <= 0) {
+      toast.error("Budget must be positive", {
+        description: "Please enter a budget greater than 0."
+      });
+      return;
+    }
+
+    if (budgetNum < 100) {
+      toast.warning("Low budget detected", {
+        description: "Your budget might be too low for effective restocking."
+      });
+    }
+
+    const restockDaysNum = restockDays ? parseInt(restockDays) : 14;
+    if (restockDaysNum < 1) {
+      toast.error("Invalid restock days", {
+        description: "Restock days must be at least 1."
+      });
+      return;
+    }
+
+    if (restockDaysNum > 90) {
+      toast.warning("Long restock period", {
+        description: "Restock period over 90 days may be less accurate."
+      });
+    }
+
+    // All validations passed
+    const requestData = {
       shopId,
       budget: budgetNum,
       goal,
-      restockDays: restockDays ? parseInt(restockDays) : undefined,
+      restockDays: restockDaysNum,
       weatherCondition: weatherCondition || null,
       isPayday: isPayday || false,
       upcomingHoliday: upcomingHoliday || null,
+    };
+
+    console.log("📊 Sending restock request:", requestData);
+    
+    toast.info("Generating restock plan...", {
+      description: `Budget: ₱${budgetNum.toLocaleString()} • Goal: ${goal} • Days: ${restockDaysNum}`
     });
+
+    restockMutation.mutate(requestData);
   };
 
   const handleApprove = () => {
@@ -288,6 +338,13 @@ export default function RestockPlanner() {
     );
   }
 
+  // Check for products with missing cost or price
+  const productsWithMissingData = allProducts?.filter(p => 
+    !p.cost || p.cost <= 0 || !p.price || p.price <= 0
+  ) || [];
+  const hasProductDataIssues = productsWithMissingData.length > 0;
+  const validProductsCount = (allProducts?.length || 0) - productsWithMissingData.length;
+
   return (
     <div className="space-y-6">
       <div className="glass-card p-8">
@@ -296,6 +353,80 @@ export default function RestockPlanner() {
           <p className="text-muted-foreground">AI-powered demand forecasting and intelligent inventory planning to maximize profits</p>
         </div>
       </div>
+
+      {/* Warning Banner for Missing Product Data */}
+      {!isLoadingProducts && hasProductDataIssues && (
+        <Card className="glass-card border-warning/50 bg-warning/5">
+          <CardHeader>
+            <CardTitle className="text-foreground flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-warning" />
+              Product Data Issues Detected
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                {validProductsCount === 0 ? (
+                  <span className="text-warning font-semibold">
+                    All {productsWithMissingData.length} of your products are missing required price or cost data.
+                  </span>
+                ) : (
+                  <span>
+                    <span className="text-warning font-semibold">{productsWithMissingData.length}</span> out of {allProducts?.length} products are missing required data. 
+                    Only <span className="text-success font-semibold">{validProductsCount}</span> products can be used for restock planning.
+                  </span>
+                )}
+              </p>
+              <div className="bg-muted/50 p-3 rounded text-xs space-y-1">
+                <p className="font-semibold">Why this matters:</p>
+                <p>The Restock Planner needs both <strong>cost</strong> (wholesale/purchase price) and <strong>selling price</strong> for each product to:</p>
+                <ul className="list-disc ml-5 mt-2 space-y-1">
+                  <li>Calculate profit margins accurately</li>
+                  <li>Optimize restocking based on profitability</li>
+                  <li>Recommend which products to prioritize</li>
+                </ul>
+              </div>
+              {productsWithMissingData.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-sm font-semibold">Products needing attention:</p>
+                  <div className="space-y-1 max-h-32 overflow-y-auto">
+                    {productsWithMissingData.slice(0, 10).map(p => (
+                      <div key={p.id} className="text-xs bg-muted/30 p-2 rounded flex justify-between items-center">
+                        <span className="font-medium">{p.name}</span>
+                        <span className="text-muted-foreground">
+                          {!p.price || p.price <= 0 ? "Missing price" : ""}{" "}
+                          {(!p.price || p.price <= 0) && (!p.cost || p.cost <= 0) ? "& " : ""}
+                          {!p.cost || p.cost <= 0 ? "Missing cost" : ""}
+                        </span>
+                      </div>
+                    ))}
+                    {productsWithMissingData.length > 10 && (
+                      <p className="text-xs text-muted-foreground italic">
+                        ...and {productsWithMissingData.length - 10} more
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+              <div className="pt-2">
+                <Button
+                  onClick={() => {
+                    // Navigate to products or show how to fix
+                    toast.info("Update products", {
+                      description: "Go to your integrated platform (Shopee/Lazada) and set both cost and selling price for each product."
+                    });
+                  }}
+                  variant="outline"
+                  className="gap-2"
+                >
+                  <Package className="h-4 w-4" />
+                  How to Fix This
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Input Form */}
       <Card className="glass-card hover:shadow-glow transition-shadow">

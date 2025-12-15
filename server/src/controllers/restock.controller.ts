@@ -40,15 +40,35 @@ export async function getRestockStrategy(
       goal: goal || 'MISSING',
       budgetType: typeof budget,
       goalType: typeof goal,
+      restockDays,
+      weatherCondition,
+      isPayday,
+      upcomingHoliday,
+      fullRequestBody: JSON.stringify(req.body),
     });
     
     if (!shopId || budget === undefined || budget === null || !goal) {
+      const validationErrors = [];
+      if (!shopId) validationErrors.push("shopId is missing");
+      if (budget === undefined || budget === null) validationErrors.push("budget is missing or null");
+      if (!goal) validationErrors.push("goal is missing");
+      
       console.log(`❌ Restock Planner validation failed:`, { 
         shopId: !!shopId, 
         budget: budget !== undefined && budget !== null, 
         goal: !!goal,
         budgetValue: budget,
         goalValue: goal,
+        validationErrors,
+        receivedData: {
+          shopId,
+          budget,
+          goal,
+          restockDays,
+          weatherCondition,
+          isPayday,
+          upcomingHoliday
+        }
       });
       res.status(400).json({
         error: "Validation Error",
@@ -59,7 +79,12 @@ export async function getRestockStrategy(
           : !goal
           ? "Goal is required. Must be one of: profit, volume, or balanced."
           : "shopId, budget, and goal are required",
-        details: !shopId ? "You need to have a shop linked to your account. Please check your shop settings." : undefined,
+        details: {
+          shopId: shopId ? "✓ Present" : "✗ Missing",
+          budget: budget !== undefined && budget !== null ? "✓ Present" : "✗ Missing",
+          goal: goal ? "✓ Present" : "✗ Missing",
+          validationErrors,
+        },
       });
       return;
     }
@@ -265,9 +290,32 @@ export async function getRestockStrategy(
     }
 
     if (validProducts.length === 0) {
+        // Get details about why products were filtered out
+        const invalidProducts = products.map(p => ({
+          name: p.name,
+          price: p.price,
+          cost: p.cost,
+          hasBothValues: (p.price > 0 && (p.cost ?? 0) > 0)
+        }));
+        
+        console.log(`❌ All ${products.length} products were filtered out:`, invalidProducts);
+        
         res.status(400).json({
-            error: "Validation Error",
-            message: "No valid products found (must have price > 0 and cost > 0)"
+            error: "Product Validation Error",
+            message: `No valid products found. All ${products.length} products are missing required price or cost data.`,
+            details: {
+              requirement: "Products must have both price > 0 and cost > 0 for restock planning",
+              productsFound: products.length,
+              validProducts: 0,
+              action: "Please update your products with both price and cost values. Go to your shop's product management and set the cost (wholesale/purchase price) and selling price for each product.",
+              hint: "The Restock Planner needs cost data to calculate profit margins and make intelligent restocking recommendations."
+            },
+            invalidProducts: invalidProducts.slice(0, 5).map(p => ({
+              name: p.name,
+              price: p.price || "missing",
+              cost: p.cost || "missing",
+              status: !p.price ? "Missing price" : !p.cost ? "Missing cost" : "Invalid values"
+            }))
         });
         return;
     }

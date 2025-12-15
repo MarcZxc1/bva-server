@@ -245,8 +245,8 @@ const MyOrders = () => {
 
       console.log('✅ Token found, updating order status to TO_RECEIVE');
       
-      // Backend expects enum-style status
-      const result = await apiClient.updateOrderStatus(orderId, 'TO_RECEIVE');
+      // Backend expects enum-style status - use seller endpoint
+      const result = await apiClient.updateOrderStatus(orderId, 'TO_RECEIVE', true);
       console.log('✅ Order status updated successfully:', result);
       
       // Send webhook to BVA server
@@ -303,8 +303,8 @@ const MyOrders = () => {
     await new Promise(resolve => setTimeout(resolve, 3000));
     
     try {
-      // Update order status in shopee-clone
-          await apiClient.updateOrderStatus(orderId, 'COMPLETED');
+      // Update order status in shopee-clone - use seller endpoint
+          await apiClient.updateOrderStatus(orderId, 'COMPLETED', true);
       
       // Send webhook to BVA server to update income
       const { webhookService } = await import('../../../services/webhook.service');

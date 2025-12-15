@@ -319,7 +319,7 @@ class ApiClient {
     return this.request<any[]>(`/api/orders/seller/${shopId}${queryString ? `?${queryString}` : ''}`);
   }
 
-  async updateOrderStatus(orderId: string, status: string) {
+  async updateOrderStatus(orderId: string, status: string, isSeller: boolean = false) {
     // Check if token exists before making request
     if (!this.token) {
       throw new Error('Authentication required. Please login again.');
@@ -330,11 +330,15 @@ class ApiClient {
       ? status.toUpperCase().replace(/-/g, '_')
       : status.toUpperCase();
 
-    console.log(`📤 [API] Updating order ${orderId} status to ${normalizedStatus} via seller endpoint`);
+    // Use buyer or seller endpoint based on role
+    const endpoint = isSeller 
+      ? `/api/orders/seller/${orderId}/status`
+      : `/api/orders/buyer/${orderId}/status`;
+
+    console.log(`📤 [API] Updating order ${orderId} status to ${normalizedStatus} via ${isSeller ? 'seller' : 'buyer'} endpoint`);
     
     try {
-      // Use new seller-specific endpoint
-      const result = await this.request<any>(`/api/orders/seller/${orderId}/status`, {
+      const result = await this.request<any>(endpoint, {
         method: 'PATCH',
         body: JSON.stringify({ status: normalizedStatus }),
       });
@@ -345,8 +349,9 @@ class ApiClient {
         message: error.message,
         status: error.response?.status,
         data: error.response?.data,
-        endpoint: `/api/orders/seller/${orderId}/status`,
+        endpoint,
         statusValue: normalizedStatus,
+        isSeller,
       });
       
       // If authentication error, clear token

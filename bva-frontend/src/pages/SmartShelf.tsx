@@ -533,7 +533,6 @@ export default function SmartShelf() {
                   <TableHead>Quantity</TableHead>
                   <TableHead>Expiry</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -568,11 +567,6 @@ export default function SmartShelf() {
                         >
                           {status.label}
                         </Badge>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                          <Pencil className="h-4 w-4 text-muted-foreground" />
-                        </Button>
                       </TableCell>
                     </TableRow>
                   );

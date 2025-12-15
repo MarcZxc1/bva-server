@@ -33,7 +33,8 @@ export async function getAllProducts(platform?: string) {
     },
   });
 
-  return products.map((product) => ({
+  // Map products to response format
+  const mappedProducts = products.map((product) => ({
     id: product.id,
     sku: product.sku,
     name: product.name,
@@ -49,7 +50,35 @@ export async function getAllProducts(platform?: string) {
     shopName: product.Shop.name,
     createdAt: product.createdAt.toISOString(),
     updatedAt: product.updatedAt.toISOString(),
+    externalId: product.externalId,
   }));
+
+  // Deduplicate products by externalId (for products synced from external platforms)
+  // This prevents showing duplicate products when multiple shops have synced the same product
+  const deduplicatedProducts: typeof mappedProducts = [];
+  const seenExternalIds = new Set<string>();
+  const seenNames = new Set<string>();
+
+  for (const product of mappedProducts) {
+    // If product has externalId, deduplicate by it
+    if (product.externalId) {
+      if (!seenExternalIds.has(product.externalId)) {
+        seenExternalIds.add(product.externalId);
+        deduplicatedProducts.push(product);
+      }
+    } else {
+      // If no externalId, deduplicate by name (case-insensitive)
+      const normalizedName = product.name.toLowerCase().trim();
+      if (!seenNames.has(normalizedName)) {
+        seenNames.add(normalizedName);
+        deduplicatedProducts.push(product);
+      }
+    }
+  }
+
+  console.log(`📦 getAllProducts: ${products.length} total products, ${deduplicatedProducts.length} after deduplication${platform ? ` (platform: ${platform})` : ''}`);
+
+  return deduplicatedProducts;
 }
 
 export async function getProductsByShop(shopId: string, platform?: string) {

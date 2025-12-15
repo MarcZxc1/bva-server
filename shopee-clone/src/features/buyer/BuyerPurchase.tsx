@@ -169,7 +169,8 @@ const BuyerPurchase: React.FC = () => {
     }
 
     try {
-      await apiClient.updateOrderStatus(selectedOrderId, 'TO_SHIP');
+      // Pass isSeller: false to use buyer endpoint
+      await apiClient.updateOrderStatus(selectedOrderId, 'TO_SHIP', false);
       updateOrderStatus(selectedOrderId, 'to-ship');
       // Refresh orders to get latest status
       await fetchOrders();
@@ -189,7 +190,8 @@ const BuyerPurchase: React.FC = () => {
     }
 
     try {
-      await apiClient.updateOrderStatus(orderId, 'CANCELLED');
+      // Pass isSeller: false to use buyer endpoint
+      await apiClient.updateOrderStatus(orderId, 'CANCELLED', false);
       updateOrderStatus(orderId, 'cancelled');
       // Refresh orders to get latest status
       await fetchOrders();
@@ -203,8 +205,8 @@ const BuyerPurchase: React.FC = () => {
     if (!reason) return;
 
     try {
-      // Update order status to return-refund
-      await apiClient.updateOrderStatus(orderId, 'RETURN_REFUND');
+      // Update order status to return-refund - use buyer endpoint
+      await apiClient.updateOrderStatus(orderId, 'RETURN_REFUND', false);
       updateOrderStatus(orderId, 'return-refund');
       // Refresh orders to get latest status
       await fetchOrders();

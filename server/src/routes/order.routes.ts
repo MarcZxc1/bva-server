@@ -19,6 +19,9 @@ router.get("/buyer", authMiddleware, buyerOrderController.getBuyerOrders);
 // Get buyer order by ID (protected - buyer only)
 router.get("/buyer/:orderId", authMiddleware, buyerOrderController.getBuyerOrderById);
 
+// Update buyer order status - pay, cancel, confirm receipt (protected - buyer only)
+router.patch("/buyer/:orderId/status", authMiddleware, buyerOrderController.updateBuyerOrderStatus);
+
 // ==========================================
 // SELLER ROUTES (for shopee-clone and lazada-clone sellers)
 // ==========================================

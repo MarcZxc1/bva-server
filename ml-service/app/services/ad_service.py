@@ -489,7 +489,8 @@ class AdService:
                     model=settings.IMAGEN_MODEL,
                     response_type=type(response).__name__,
                     has_candidates=hasattr(response, 'candidates'),
-                    fallback="placeholder"
+                    fallback="placeholder",
+                    message=f"⚠️ IMAGE GENERATION FAILED: Model '{settings.IMAGEN_MODEL}' did not return image data. Using placeholder instead."
                 )
                 return self._generate_placeholder_image(product_name, playbook_config)
                 

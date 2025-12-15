@@ -10,6 +10,7 @@ import { webhookService } from '@/services/webhook.service';
 interface ProductData {
   productName: string;
   price: string;
+  cost: string;
   stock: string;
   imageUrl?: string;
   description?: string;
@@ -19,6 +20,7 @@ export default function AddProductPage() {
   const addProduct = useProductStore((state) => state.addProduct);
   const [productName, setProductName] = useState('');
   const [price, setPrice] = useState('');
+  const [cost, setCost] = useState('');
   const [stock, setStock] = useState('');
   const [imageUrl, setImageUrl] = useState('');
   const [description, setDescription] = useState('');
@@ -48,6 +50,8 @@ export default function AddProductPage() {
     const errors: string[] = [];
     if (!productName.trim()) errors.push('Product name is required');
     if (!price || Number.isNaN(parseFloat(price)) || parseFloat(price) <= 0) errors.push('Price must be a number greater than 0');
+    if (!cost || Number.isNaN(parseFloat(cost)) || parseFloat(cost) <= 0) errors.push('Cost must be a number greater than 0');
+    if (parseFloat(cost) > parseFloat(price)) errors.push('Cost cannot be greater than selling price');
     if (stock === '' || Number.isNaN(parseInt(stock)) || parseInt(stock) < 0) errors.push('Stock must be a non-negative integer');
 
     if (errors.length > 0) {
@@ -64,6 +68,7 @@ export default function AddProductPage() {
     const productData = {
       name: productName.trim(),
       price: parseFloat(price),
+      cost: parseFloat(cost),
       stock: parseInt(stock, 10),
       imageUrl: imageUrl?.trim() || undefined,
       description: description?.trim() || undefined,
@@ -307,7 +312,10 @@ export default function AddProductPage() {
                         {/* Table Header */}
                         <div className="grid grid-cols-12 gap-4 px-4 py-3 bg-gray-100 border-b border-gray-200 text-sm font-medium text-gray-700">
                           <div className="col-span-3">
-                            <span className="text-red-500">*</span> Price
+                            <span className="text-red-500">*</span> Selling Price
+                          </div>
+                          <div className="col-span-2">
+                            <span className="text-red-500">*</span> Cost
                           </div>
                           <div className="col-span-2">
                             Stock
@@ -318,7 +326,7 @@ export default function AddProductPage() {
                         </div>
 
                         {/* Table Row */}
-                        <div className="grid grid-cols-12 gap-4 px-4 py-4 items-center">
+                        <div className="grid grid-cols-12 gap-4 px-4 py-4 items-start">
                           <div className="col-span-3">
                             <div className="relative">
                               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">₱</span>
@@ -335,6 +343,25 @@ export default function AddProductPage() {
                                 required
                               />
                             </div>
+                            <p className="text-xs text-gray-500 mt-1">Customer pays this amount</p>
+                          </div>
+                          <div className="col-span-2">
+                            <div className="relative">
+                              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">₱</span>
+                              <input
+                                type="number"
+                                value={cost}
+                                onChange={(e) => setCost(e.target.value)}
+                                placeholder="0.00"
+                                min="0"
+                                step="0.01"
+                                className={`w-full pl-8 pr-3 py-2 border rounded text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                                  !cost || parseFloat(cost) <= 0 || (cost && price && parseFloat(cost) > parseFloat(price)) ? 'border-red-300' : 'border-gray-300'
+                                }`}
+                                required
+                              />
+                            </div>
+                            <p className="text-xs text-gray-500 mt-1">Wholesale/purchase price</p>
                           </div>
                           <div className="col-span-2">
                             <input

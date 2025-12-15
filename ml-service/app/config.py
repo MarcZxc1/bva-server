@@ -71,7 +71,7 @@ class Settings(BaseSettings):
     # Google Gemini API
     GEMINI_API_KEY: Optional[str] = None
     GEMINI_MODEL: str = "gemini-2.0-flash-exp"
-    IMAGEN_MODEL: str = "gemini-2.5-flash-image"  # For image generation
+    IMAGEN_MODEL: str = "gemini-2.0-flash-exp"  # For image generation - Note: Gemini doesn't support native image generation yet
     
     # Social Media APIs
     FACEBOOK_ACCESS_TOKEN: Optional[str] = None

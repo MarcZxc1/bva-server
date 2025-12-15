@@ -85,8 +85,8 @@ const ReturnRefundCancel: React.FC = () => {
       const request = requests.find(r => r.id === requestId);
       if (!request) return;
 
-      // Update order status
-      await apiClient.updateOrderStatus(request.orderId, 'processing');
+      // Update order status - use seller endpoint
+      await apiClient.updateOrderStatus(request.orderId, 'processing', true);
       
       // Update local state
       setRequests(requests.map(r => 
@@ -106,8 +106,8 @@ const ReturnRefundCancel: React.FC = () => {
       const request = requests.find(r => r.id === requestId);
       if (!request) return;
 
-      // Update order status
-      await apiClient.updateOrderStatus(request.orderId, 'completed');
+      // Update order status - use seller endpoint
+      await apiClient.updateOrderStatus(request.orderId, 'completed', true);
       
       // Update local state
       setRequests(requests.map(r => 
@@ -123,8 +123,8 @@ const ReturnRefundCancel: React.FC = () => {
       const request = requests.find(r => r.id === requestId);
       if (!request) return;
 
-      // Update order status
-      await apiClient.updateOrderStatus(request.orderId, 'completed');
+      // Update order status - use seller endpoint
+      await apiClient.updateOrderStatus(request.orderId, 'completed', true);
       
       // Update local state
       setRequests(requests.map(r => 
