@@ -132,7 +132,7 @@ Before deploying, ensure your `server/` directory has:
    - **Runtime**: `Node`
    - **Build Command**: 
      ```bash
-     npm install && npx prisma generate && npm run build
+     npm install --no-audit --no-fund && npx prisma generate && npm run build
      ```
    - **Start Command**: 
      ```bash
