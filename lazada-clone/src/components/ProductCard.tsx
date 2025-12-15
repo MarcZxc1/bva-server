@@ -21,6 +21,7 @@ export function ProductCard({ product }: { product: Product }) {
 
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [quantity, setQuantity] = useState(1);
 
   const handleBuyNow = async () => {
     if (!isHydrated) {
@@ -37,22 +38,56 @@ export function ProductCard({ product }: { product: Product }) {
       return;
     }
 
+    // Validate stock
+    if (product.stock !== undefined && product.stock < quantity) {
+      toast.error(`Only ${product.stock} items available in stock`);
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       await orderAPI.create({
-        items: [{ productId: product.id || product._id, quantity: 1, price: product.price }],
-        total: product.price,
-        shippingAddress: '123 Main St, Anytown, USA', // Example address
+        items: [{ productId: product.id || product._id, quantity: quantity, price: product.price }],
+        total: product.price * quantity,
+        shippingAddress: {
+          name: user.name || 'User',
+          phone: '1234567890',
+          address: '123 Main St, Anytown, USA',
+          city: 'Sample City',
+          zipCode: '12345',
+        },
         paymentMethod: 'Credit Card',
+        platform: 'LAZADA',
       });
       toast.success('Order placed successfully!');
       router.push('/orders');
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to create order:', err);
-      toast.error('Failed to place order. Please try again.');
+      if (err.response?.status === 401 || err.response?.status === 403) {
+        toast.error('Your session has expired. Please login again.');
+        localStorage.removeItem('token');
+        router.push('/login');
+      } else {
+        toast.error(err.response?.data?.error || 'Failed to place order. Please try again.');
+      }
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleQuantityChange = (amount: number) => {
+    setQuantity(prev => {
+      const newQuantity = prev + amount;
+      if (newQuantity < 1) return 1;
+      // Check stock limit
+      if (product?.stock !== undefined && product.stock !== null) {
+        if (newQuantity > product.stock) {
+          toast.warning(`Only ${product.stock} items available`);
+          return product.stock;
+        }
+      }
+      return newQuantity;
+    });
   };
 
   const showLazMall = product.category === 'Electronics';
@@ -117,16 +152,41 @@ export function ProductCard({ product }: { product: Product }) {
       </div>
 
       <div className="flex flex-col gap-2">
+        {/* Quantity Selector */}
+        <div className="flex items-center justify-between">
+          <span className="text-sm font-semibold text-gray-700">Quantity:</span>
+          <div className="flex items-center border border-gray-300 rounded">
+            <button 
+              onClick={() => handleQuantityChange(-1)} 
+              disabled={quantity <= 1}
+              className="px-2 py-1 text-gray-600 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+            >
+              -
+            </button>
+            <span className="px-3 py-1 border-l border-r border-gray-300 min-w-[2.5rem] text-center text-sm">{quantity}</span>
+            <button 
+              onClick={() => handleQuantityChange(1)} 
+              disabled={product?.stock !== undefined && quantity >= product.stock}
+              className="px-2 py-1 text-gray-600 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+            >
+              +
+            </button>
+          </div>
+        </div>
+        
         <div className="flex gap-2">
           <button
-            onClick={() => addItemToCart(product)}
-            className="flex-1 bg-red-600 text-white py-2 rounded hover:bg-red-700"
+            onClick={() => {
+              addItemToCart({ ...product, quantity });
+              toast.success(`Added ${quantity} item(s) to cart`);
+            }}
+            className="flex-1 bg-red-600 text-white py-2 rounded hover:bg-red-700 text-sm"
           >
             Add to Cart
           </button>
           <Link
             href={`/products/${product.id || product._id}`}
-            className="flex-1 bg-gray-200 text-gray-900 py-2 rounded hover:bg-gray-300 text-center"
+            className="flex-1 bg-gray-200 text-gray-900 py-2 rounded hover:bg-gray-300 text-center text-sm flex items-center justify-center"
           >
             View
           </Link>
@@ -134,7 +194,7 @@ export function ProductCard({ product }: { product: Product }) {
         <button
           onClick={handleBuyNow}
           disabled={isSubmitting || !isHydrated}
-          className="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700 disabled:opacity-50"
+          className="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700 disabled:opacity-50 text-sm"
         >
           {isSubmitting ? 'Processing...' : 'Buy Now'}
         </button>

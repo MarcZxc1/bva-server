@@ -9,6 +9,7 @@ import { useAuthStore } from '@/store';
 // Removed shallow import (Atomic selectors are better)
 
 import { useProductStore } from '@/store/products';
+import { useCartStore } from '@/store';
 import { Product } from '@/lib/types';
 import { toast } from 'sonner';
 import { webhookService } from '@/services/webhook.service';
@@ -19,6 +20,7 @@ export default function ProductDetailsPage() {
   const pathname = usePathname(); // Get current URL path
   
   const products = useProductStore((state) => state.products);
+  const addItemToCart = useCartStore((state: any) => state.addItem);
   
   // FIX 1: Atomic Selectors (Safe & Stable)
   const user = useAuthStore((state) => state.user);
@@ -339,7 +341,16 @@ export default function ProductDetailsPage() {
             >
               {isSubmitting ? 'Processing...' : 'Buy Now'}
             </button>
-            <button className="bg-red-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-red-700 flex-1">Add to Cart</button>
+            <button 
+              onClick={() => {
+                if (!product) return;
+                addItemToCart({ ...product, quantity });
+                toast.success(`Added ${quantity} item(s) to cart`);
+              }}
+              className="bg-red-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-red-700 flex-1"
+            >
+              Add to Cart
+            </button>
           </div>
         </div>
       </div>

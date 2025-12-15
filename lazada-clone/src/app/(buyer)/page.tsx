@@ -193,8 +193,8 @@ const isHydrated = useAuthStore((state) => state.isHydrated);
 
           {!loading && products.length > 0 && (
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-              {products.slice(0, 10).map((product) => (
-                <ProductCard key={product.id || product._id} product={product} />
+              {products.slice(0, 10).map((product, index) => (
+                <ProductCard key={`featured-${product.id || product._id}-${index}`} product={product} />
               ))}
             </div>
           )}
@@ -225,32 +225,32 @@ const isHydrated = useAuthStore((state) => state.isHydrated);
           </div>
         </div>
 
-        {/* More Products */}
-        <div>
-          <div className="flex items-center justify-between mb-8">
-            <h2 className="text-2xl font-bold text-gray-900">More Products</h2>
-            <a href="/products" className="text-red-600 hover:text-red-800 font-semibold text-sm">
-              View All &gt;
-            </a>
-          </div>
-          
-          {!loading && products.length > 0 && (
-            <>
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
-                {products.slice(10, 20).map((product) => (
-                  <ProductCard key={product.id || product._id} product={product} />
-                ))}
-              </div>
+        {/* More Products - Only show if we have more than 10 products */}
+        {!loading && products.length > 10 && (
+          <div>
+            <div className="flex items-center justify-between mb-8">
+              <h2 className="text-2xl font-bold text-gray-900">More Products</h2>
+              <a href="/products" className="text-red-600 hover:text-red-800 font-semibold text-sm">
+                View All &gt;
+              </a>
+            </div>
+            
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
+              {products.slice(10, 20).map((product, index) => (
+                <ProductCard key={`more-${product.id || product._id}-${index}`} product={product} />
+              ))}
+            </div>
 
-              {/* Load More Button */}
+            {/* Load More Button - Only show if we have more than 20 products */}
+            {products.length > 20 && (
               <div className="flex justify-center mb-12">
                 <button className="text-blue-600 font-semibold border-b-2 border-blue-600 pb-2 px-8 hover:text-blue-800 transition">
                   LOAD MORE
                 </button>
               </div>
-            </>
-          )}
-        </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
