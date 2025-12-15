@@ -60,6 +60,7 @@ class WebhookService {
           category: product.category,
           image: product.imageUrl,
           imageUrl: product.imageUrl,
+          expiryDate: product.expiryDate,
         }),
       });
     } catch (error) {
@@ -98,6 +99,7 @@ class WebhookService {
           name: product.name,
           description: product.description,
           price: product.price,
+          expiryDate: product.expiryDate,
           cost: product.cost,
           stock: product.stock,
           sku: product.sku,

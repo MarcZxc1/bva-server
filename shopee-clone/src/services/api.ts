@@ -250,6 +250,7 @@ class ApiClient {
     stock?: number;
     sku?: string;
     category?: string;
+    expiryDate?: string;
   }) {
     return this.request<any>('/api/products', {
       method: 'POST',

@@ -22,6 +22,7 @@ export default function AddProductPage() {
   const [stock, setStock] = useState('');
   const [imageUrl, setImageUrl] = useState('');
   const [description, setDescription] = useState('');
+  const [expiryDate, setExpiryDate] = useState('');
 
   const [expandedSections, setExpandedSections] = useState({
     basicInfo: true,
@@ -66,6 +67,7 @@ export default function AddProductPage() {
       stock: parseInt(stock, 10),
       imageUrl: imageUrl?.trim() || undefined,
       description: description?.trim() || undefined,
+      expiryDate: expiryDate?.trim() || undefined,
     };
 
     try {
@@ -295,10 +297,10 @@ export default function AddProductPage() {
 
                 {expandedSections.priceStock && (
                   <div className="px-6 pb-6">
-                    {/* Price & Stock */}
+                    {/* Price, Stock & Expiration */}
                     <div className="mb-6">
                       <label className="block text-sm font-medium text-gray-700 mb-3">
-                        <span className="text-red-500">*</span> Price & Stock
+                        <span className="text-red-500">*</span> Price, Stock & Expiration
                       </label>
 
                       <div className="bg-gray-50 rounded-lg overflow-hidden">
@@ -309,6 +311,9 @@ export default function AddProductPage() {
                           </div>
                           <div className="col-span-2">
                             Stock
+                          </div>
+                          <div className="col-span-3">
+                            Expiration Date
                           </div>
                         </div>
 
@@ -344,6 +349,16 @@ export default function AddProductPage() {
                               }`}
                               required
                             />
+                          </div>
+                          <div className="col-span-3">
+                            <input
+                              type="date"
+                              value={expiryDate}
+                              onChange={(e) => setExpiryDate(e.target.value)}
+                              min={new Date().toISOString().split('T')[0]}
+                              className="w-full px-3 py-2 border rounded text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent border-gray-300"
+                            />
+                            <p className="text-xs text-gray-500 mt-1">Optional — for perishable products</p>
                           </div>
                         </div>
                       </div>

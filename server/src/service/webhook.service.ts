@@ -48,6 +48,7 @@ class WebhookService {
           imageUrl: data.image || data.imageUrl || null,
           stock: data.stock || 0,
           externalId: externalId, // Ensure externalId is set
+          expiryDate: data.expiryDate ? new Date(data.expiryDate) : null,
           updatedAt: new Date(),
         },
       });
@@ -76,6 +77,7 @@ class WebhookService {
             imageUrl: data.image || data.imageUrl || null,
             stock: data.stock || 0,
             externalId: externalId, // Update externalId to new one
+            expiryDate: data.expiryDate ? new Date(data.expiryDate) : null,
             updatedAt: new Date(),
           },
         });
@@ -93,6 +95,7 @@ class WebhookService {
             category: data.category || null,
             imageUrl: data.image || data.imageUrl || null,
             stock: data.stock || 0,
+            expiryDate: data.expiryDate ? new Date(data.expiryDate) : null,
           },
         });
       }

@@ -79,6 +79,7 @@ class WebhookService {
       image: product.image || product.imageUrl,
       description: product.description,
       category: product.category,
+      expiryDate: product.expiryDate,
       isActive: product.isActive ?? true
     });
   }
@@ -93,6 +94,7 @@ class WebhookService {
       image: product.image || product.imageUrl,
       description: product.description,
       category: product.category,
+      expiryDate: product.expiryDate,
       isActive: product.isActive ?? true
     });
   }

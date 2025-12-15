@@ -12,6 +12,7 @@ interface Product {
   sku?: string;
   category?: string;
   imageUrl?: string;
+  expiryDate?: string;
 }
 
 interface AddProductModalProps {
@@ -38,6 +39,7 @@ const AddProductModal: React.FC<AddProductModalProps> = ({
     sku: '',
     category: '',
     imageUrl: '',
+    expiryDate: '',
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -55,6 +57,7 @@ const AddProductModal: React.FC<AddProductModalProps> = ({
           sku: editingProduct.sku || '',
           category: editingProduct.category || '',
           imageUrl: editingProduct.imageUrl || '',
+          expiryDate: editingProduct.expiryDate ? editingProduct.expiryDate.split('T')[0] : '',
         });
       } else {
         setFormData({
@@ -66,6 +69,7 @@ const AddProductModal: React.FC<AddProductModalProps> = ({
           sku: '',
           category: '',
           imageUrl: '',
+          expiryDate: '',
         });
       }
       setErrors({});
@@ -131,6 +135,7 @@ const AddProductModal: React.FC<AddProductModalProps> = ({
         sku: formData.sku.trim() || undefined,
         category: formData.category.trim() || undefined,
         imageUrl: formData.imageUrl.trim() || undefined,
+        expiryDate: formData.expiryDate?.trim() ? formData.expiryDate : undefined,
       };
 
       await onSubmit(productData);
@@ -289,6 +294,19 @@ const AddProductModal: React.FC<AddProductModalProps> = ({
               placeholder="e.g., Electronics, Fashion"
               disabled={isSubmitting}
             />
+          </div>
+
+          <div className="add-product-form-group">
+            <label htmlFor="expiryDate">Expiration Date (Optional)</label>
+            <input
+              id="expiryDate"
+              type="date"
+              value={formData.expiryDate}
+              onChange={(e) => setFormData({ ...formData, expiryDate: e.target.value })}
+              disabled={isSubmitting}
+              min={new Date().toISOString().split('T')[0]}
+            />
+            <small className="text-gray-500">Set expiration date for perishable products</small>
           </div>
 
           <div className="add-product-form-group">

@@ -405,12 +405,17 @@ export default function SmartShelf() {
                         <Package className="h-3 w-3" />
                         Stock: <strong className="text-foreground">{item.current_quantity} units</strong>
                       </span>
-                      {item.days_to_expiry !== undefined && (
+                      {item.expiry_date && (
                         <>
                           <span>•</span>
                           <span className="flex items-center gap-1">
                             <Calendar className="h-3 w-3" />
-                            Expires in: <strong className="text-warning">{item.days_to_expiry} days</strong>
+                            Expiry: <strong className={item.days_to_expiry !== undefined && item.days_to_expiry <= 30 ? "text-warning" : "text-foreground"}>
+                              {formatDate(item.expiry_date)}
+                            </strong>
+                            {item.days_to_expiry !== undefined && (
+                              <span className="text-warning">({item.days_to_expiry} days)</span>
+                            )}
                           </span>
                         </>
                       )}
@@ -618,10 +623,19 @@ export default function SmartShelf() {
                   <div className="text-2xl font-bold">{selectedItem.avg_daily_sales?.toFixed(1) || "N/A"}</div>
                 </Card>
                 <Card className="glass-card-sm p-4">
-                  <div className="text-sm text-muted-foreground mb-1">Days to Expiry</div>
-                  <div className={`text-2xl font-bold ${selectedItem.days_to_expiry < 30 ? "text-warning" : ""}`}>
-                    {selectedItem.days_to_expiry || "N/A"}
-                  </div>
+                  <div className="text-sm text-muted-foreground mb-1">Expiration Date</div>
+                  {selectedItem.expiry_date ? (
+                    <div>
+                      <div className="text-lg font-bold">{formatDate(selectedItem.expiry_date)}</div>
+                      {selectedItem.days_to_expiry !== undefined && (
+                        <div className={`text-sm ${selectedItem.days_to_expiry <= 30 ? "text-warning" : "text-muted-foreground"}`}>
+                          {selectedItem.days_to_expiry} days left
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="text-2xl font-bold text-muted-foreground">N/A</div>
+                  )}
                 </Card>
               </div>
 

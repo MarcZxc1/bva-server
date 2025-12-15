@@ -42,13 +42,13 @@ export async function getAllProducts(platform?: string) {
     cost: product.cost,
     stock: product.stock,
     quantity: product.Inventory[0]?.quantity || product.stock || 0,
-    expiryDate: product.expiryDate,
+    expiryDate: product.expiryDate ? product.expiryDate.toISOString() : null,
     category: product.category,
     imageUrl: product.imageUrl,
     shopId: product.shopId,
     shopName: product.Shop.name,
-    createdAt: product.createdAt,
-    updatedAt: product.updatedAt,
+    createdAt: product.createdAt.toISOString(),
+    updatedAt: product.updatedAt.toISOString(),
   }));
 }
 
@@ -211,13 +211,13 @@ export async function getProductById(productId: string) {
     cost: product.cost,
     stock: product.stock,
     quantity: product.Inventory[0]?.quantity || product.stock || 0,
-    expiryDate: product.expiryDate,
+    expiryDate: product.expiryDate ? product.expiryDate.toISOString() : null,
     category: product.category,
     imageUrl: product.imageUrl,
     shopId: product.shopId,
     shopName: product.Shop.name,
-    createdAt: product.createdAt,
-    updatedAt: product.updatedAt,
+    createdAt: product.createdAt.toISOString(),
+    updatedAt: product.updatedAt.toISOString(),
   };
 }
 
@@ -336,6 +336,7 @@ export async function createProduct(data: {
   sku?: string;
   category?: string;
   imageUrl?: string;
+  expiryDate?: string;
 }) {
   // Generate SKU if not provided
   const sku = data.sku || `SKU-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -351,6 +352,7 @@ export async function createProduct(data: {
       stock: data.stock || 0,
       category: data.category ?? null,
       imageUrl: data.imageUrl ?? null,
+      expiryDate: data.expiryDate ? new Date(data.expiryDate) : null,
     },
   });
 
@@ -373,6 +375,7 @@ export async function createProduct(data: {
     stock: product.stock,
     category: product.category,
     imageUrl: product.imageUrl,
+    expiryDate: product.expiryDate ? product.expiryDate.toISOString() : null,
     createdAt: product.createdAt.toISOString(),
     updatedAt: product.updatedAt.toISOString(),
   };
@@ -393,11 +396,18 @@ export async function updateProduct(
     sku: string;
     category: string;
     imageUrl: string;
+    expiryDate: string;
   }>
 ) {
+  // Transform expiryDate string to Date if provided
+  const updateData: any = { ...data };
+  if (data.expiryDate !== undefined) {
+    updateData.expiryDate = data.expiryDate ? new Date(data.expiryDate) : null;
+  }
+
   const product = await prisma.product.update({
     where: { id: productId },
-    data,
+    data: updateData,
   });
 
   // Update inventory if stock changed
