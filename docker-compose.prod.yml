@@ -1,0 +1,120 @@
+# Production Docker Compose for BVA Project
+# Use this for self-hosted deployment (e.g., VPS, cloud VM)
+
+version: "3.8"
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: bva-postgres-prod
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-bva_production}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - bva-network
+
+  # Redis for caching
+  redis:
+    image: redis:7-alpine
+    container_name: bva-redis-prod
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - bva-network
+
+  # Main Backend Server
+  backend:
+    build:
+      context: ./server
+      dockerfile: Dockerfile.prod
+    container_name: bva-backend-prod
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-bva_production}?schema=public
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
+      - ML_SERVICE_URL=http://ml-service:8001
+      - NODE_ENV=production
+      - PORT=3000
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_EXPIRES_IN=7d
+      - BASE_URL=${BASE_URL}
+      - BACKEND_URL=${BACKEND_URL}
+      - FRONTEND_URL=${FRONTEND_URL}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - bva-network
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ML Service
+  ml-service:
+    build:
+      context: ./ml-service
+      dockerfile: Dockerfile.prod
+    container_name: bva-ml-prod
+    restart: unless-stopped
+    ports:
+      - "8001:8001"
+    environment:
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
+      - CELERY_BROKER_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://:${REDIS_PASSWORD}@redis:6379/1
+      - MODEL_DIR=/app/models
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - HOST=0.0.0.0
+      - PORT=8001
+    volumes:
+      - ml-models:/app/models
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - bva-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  postgres-data:
+    driver: local
+  redis-data:
+    driver: local
+  ml-models:
+    driver: local
+
+networks:
+  bva-network:
+    driver: bridge

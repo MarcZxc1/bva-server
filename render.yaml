@@ -1,0 +1,69 @@
+# Render configuration for BVA Backend Server
+services:
+  - type: web
+    name: bva-backend
+    runtime: node
+    region: oregon
+    plan: free
+    branch: main
+    rootDir: server
+    buildCommand: npm install && npx prisma generate && npm run build
+    startCommand: npx prisma migrate deploy && npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: 7d
+      - key: BASE_URL
+        value: https://bva-backend.onrender.com
+      - key: BACKEND_URL
+        value: https://bva-backend.onrender.com
+      - key: FRONTEND_URL
+        sync: false
+      - key: ML_SERVICE_URL
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+    healthCheckPath: /health
+    autoDeploy: true
+
+  - type: web
+    name: bva-ml-service
+    runtime: python
+    region: oregon
+    plan: free
+    branch: main
+    rootDir: ml-service
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: APP_NAME
+        value: SmartShelf ML Service
+      - key: HOST
+        value: 0.0.0.0
+      - key: PORT
+        value: 10000
+      - key: DEBUG
+        value: false
+      - key: MODEL_DIR
+        value: /opt/render/project/src/models
+      - key: REDIS_URL
+        sync: false
+      - key: CELERY_BROKER_URL
+        sync: false
+      - key: CELERY_RESULT_BACKEND
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: API_V1_PREFIX
+        value: /api/v1
+    healthCheckPath: /api/v1/health
+    autoDeploy: true
