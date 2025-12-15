@@ -162,20 +162,6 @@ const BuyerPurchase: React.FC = () => {
     setShowPaymentModal(true);
   };
 
-  // Map frontend status to backend status
-  const mapFrontendStatus = (frontendStatus: OrderStatus): string => {
-    const statusMap: Record<OrderStatus, string> = {
-      'all': '',
-      'to-pay': 'PENDING',
-      'to-ship': 'TO_SHIP',
-      'to-receive': 'TO_RECEIVE',
-      'completed': 'COMPLETED',
-      'cancelled': 'CANCELLED',
-      'return-refund': 'RETURN_REFUND',
-    };
-    return statusMap[frontendStatus] || 'PENDING';
-  };
-
   const handleConfirmPayment = async () => {
     if (!selectedOrderId || !selectedPaymentMethod) {
       alert('Please select a payment method');

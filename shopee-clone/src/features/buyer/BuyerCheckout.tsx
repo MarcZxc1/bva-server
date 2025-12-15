@@ -5,14 +5,12 @@ import BuyerFooter from './components/BuyerFooter';
 import { MapPin, MessageCircle, Tag, ShieldCheck } from 'lucide-react';
 import shopeeLogo from '/src/assets/LANDING-PAGE-LOGO/buyer-shopee-logo.png';
 import { useCart } from '../../contexts/CartContext';
-import { useOrders } from '../../contexts/OrderContext';
 import { useAuth } from '../../contexts/AuthContext';
 import apiClient from '../../services/api';
 
 const BuyerCheckout: React.FC = () => {
   const navigate = useNavigate();
   const { cartItems, removeSelectedItems } = useCart();
-  const { addOrder } = useOrders();
   const { isAuthenticated } = useAuth();
   const [merchandiseProtection, setMerchandiseProtection] = useState(true);
   const [messageForSeller, setMessageForSeller] = useState('');

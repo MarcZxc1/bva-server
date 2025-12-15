@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Megaphone, Sparkles, Calendar, Eye, TrendingUp, Loader2, Lightbulb, PackageOpen, BarChart3, Download, Image as ImageIcon, Copy } from "lucide-react";
+import { Megaphone, Sparkles, Calendar, Eye, TrendingUp, Loader2, Lightbulb, PackageOpen, Package, BarChart3, Download, Image as ImageIcon, Copy } from "lucide-react";
 import { AdGeneratorDialog } from "@/components/AdGeneratorDialog";
 import { usePromotions, useCampaigns, useCreateCampaign, useScheduleCampaign, usePublishCampaign, useDeleteCampaign } from "@/hooks/useMarketMate";
 import { useAuth } from "@/contexts/AuthContext";
@@ -58,6 +58,9 @@ export default function MarketMate() {
   const hasCampaigns = campaigns && campaigns.length > 0;
   const hasPromotions = promotionsData && promotionsData.promotions.length > 0;
 
+  // State for ad generator with product from SmartShelf
+  const [adGeneratorProduct, setAdGeneratorProduct] = useState<any>(null);
+
   // Handle promotion data from SmartShelf navigation
   useEffect(() => {
     const state = location.state as { promotion?: any; product?: any } | null;
@@ -67,31 +70,17 @@ export default function MarketMate() {
         hasProductImage: !!state.product?.imageUrl,
         productId: state.product?.productId,
       });
-      // Auto-create campaign from the promotion
-      const createCampaignFromProduct = async () => {
-        try {
-          await createCampaignMutation.mutateAsync({
-            name: `${state.product.name} - New Campaign`,
-            content: {
-              promo_copy: `Get ${state.product.name} now!`,
-              playbook: "Flash Sale",
-              product_name: state.product.name,
-              product_image_url: state.product?.imageUrl, // Include product image URL
-            },
-            status: "DRAFT",
-            platform: "SHOPEE",
-          });
-          queryClient.invalidateQueries({ queryKey: ["campaigns"] });
-          // Clear the state after processing
-          window.history.replaceState({}, document.title);
-          toast.success("Campaign created from SmartShelf product!");
-        } catch (error) {
-          console.error("Error creating campaign from product:", error);
-          // Clear state even on error to prevent re-processing
-          window.history.replaceState({}, document.title);
-        }
-      };
-      createCampaignFromProduct();
+      
+      // Store product for ad generator instead of auto-creating campaign
+      setAdGeneratorProduct({
+        id: state.product.productId || state.product.id,
+        name: state.product.name,
+        imageUrl: state.product?.imageUrl,
+      });
+      
+      // Clear the state after processing
+      window.history.replaceState({}, document.title);
+      toast.success("Product loaded! Generate your ad campaign.");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.state]);
@@ -164,11 +153,49 @@ export default function MarketMate() {
             <p className="text-muted-foreground">AI-powered marketing automation for your products</p>
           </div>
           <AdGeneratorDialog 
+            initialProductName={location.state?.product?.name}
             initialProductId={location.state?.product?.productId}
             initialProductImageUrl={location.state?.product?.imageUrl}
           />
         </div>
       </div>
+
+      {/* Product Preview from SmartShelf */}
+      {location.state?.product && (
+        <Card className="glass-card border-primary/50">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-foreground">
+              <Package className="h-5 w-5 text-primary" />
+              Selected Product from SmartShelf
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center gap-4">
+              {location.state.product.imageUrl && (
+                <img 
+                  src={location.state.product.imageUrl} 
+                  alt={location.state.product.name}
+                  className="w-20 h-20 object-cover rounded-lg border border-border"
+                />
+              )}
+              <div className="flex-1">
+                <h3 className="font-semibold text-foreground">{location.state.product.name}</h3>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Ready to generate AI-powered ads for this product. Click "Generate New Ad" above to get started!
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => window.history.replaceState({}, document.title)}
+                className="text-muted-foreground"
+              >
+                Clear Selection
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Summary Cards - Only show if there are campaigns */}
       {!campaignsLoading && hasCampaigns && (
@@ -317,6 +344,9 @@ export default function MarketMate() {
           <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
             <AdGeneratorDialog 
               initialPlaybook="Flash Sale"
+              initialProductName={location.state?.product?.name}
+              initialProductId={location.state?.product?.productId}
+              initialProductImageUrl={location.state?.product?.imageUrl}
               trigger={
                 <Button variant="outline" className="h-auto flex-col items-start p-4 glass-card-sm hover:shadow-glow">
                   <Megaphone className="h-5 w-5 mb-2 text-primary" />
@@ -327,6 +357,9 @@ export default function MarketMate() {
             />
             <AdGeneratorDialog 
               initialPlaybook="New Arrival"
+              initialProductName={location.state?.product?.name}
+              initialProductId={location.state?.product?.productId}
+              initialProductImageUrl={location.state?.product?.imageUrl}
               trigger={
                 <Button variant="outline" className="h-auto flex-col items-start p-4 glass-card-sm hover:shadow-glow">
                   <Calendar className="h-5 w-5 mb-2 text-primary" />
@@ -337,6 +370,9 @@ export default function MarketMate() {
             />
             <AdGeneratorDialog 
               initialPlaybook="Best Seller Spotlight"
+              initialProductName={location.state?.product?.name}
+              initialProductId={location.state?.product?.productId}
+              initialProductImageUrl={location.state?.product?.imageUrl}
               trigger={
                 <Button variant="outline" className="h-auto flex-col items-start p-4 glass-card-sm hover:shadow-glow">
                   <TrendingUp className="h-5 w-5 mb-2 text-primary" />
@@ -347,6 +383,9 @@ export default function MarketMate() {
             />
             <AdGeneratorDialog 
               initialPlaybook="Bundle Up!"
+              initialProductName={location.state?.product?.name}
+              initialProductId={location.state?.product?.productId}
+              initialProductImageUrl={location.state?.product?.imageUrl}
               trigger={
                 <Button variant="outline" className="h-auto flex-col items-start p-4 glass-card-sm hover:shadow-glow">
                   <Eye className="h-5 w-5 mb-2 text-primary" />
@@ -381,6 +420,9 @@ export default function MarketMate() {
                   Generate compelling ad copy instantly!
                 </p>
                 <AdGeneratorDialog 
+                  initialProductName={location.state?.product?.name}
+                  initialProductId={location.state?.product?.productId}
+                  initialProductImageUrl={location.state?.product?.imageUrl}
                   trigger={
                     <Button className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-nav-active">
                       <Sparkles className="h-4 w-4 mr-2" />

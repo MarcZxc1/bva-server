@@ -26,7 +26,7 @@ export async function getSellerDashboard(shopId: string) {
   });
 
   console.log(`📊 Dashboard - Shop ${shopId}: Found ${allSales.length} sales`);
-  if (allSales.length > 0) {
+  if (allSales.length > 0 && allSales[0]) {
     console.log('   First sale:', {
       id: allSales[0].id,
       total: allSales[0].total,

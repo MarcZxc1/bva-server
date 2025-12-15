@@ -150,6 +150,36 @@ export const getProductById = async (req: Request, res: Response) => {
     });
   } catch (error: any) {
     console.error("Error in getProductById:", error);
+    res.status(500).json({
+      success: false,
+      error: error.message || "Internal Server Error",
+    });
+  }
+};
+
+/**
+ * Get product with image from integrated platform (Shopee/Lazada Clone)
+ * GET /api/products/:id/with-image
+ */
+export const getProductWithImage = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    if (!id) {
+      return res.status(400).json({
+        success: false,
+        error: "Product ID is required",
+      });
+    }
+
+    const { getProductWithImage } = await import("../service/productImage.service");
+    const productWithImage = await getProductWithImage(id);
+    
+    res.json({
+      success: true,
+      data: productWithImage,
+    });
+  } catch (error: any) {
+    console.error("Error in getProductById:", error);
     res.status(404).json({
       success: false,
       error: error.message || "Product not found",

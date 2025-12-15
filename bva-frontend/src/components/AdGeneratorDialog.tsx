@@ -47,7 +47,8 @@ export function AdGeneratorDialog({
   const [playbook, setPlaybook] = useState<"Flash Sale" | "New Arrival" | "Best Seller Spotlight" | "Bundle Up!">(initialPlaybook);
   const [discount, setDiscount] = useState("");
   const [generatedAd, setGeneratedAd] = useState<string | null>(null);
-  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [imageUrl, setImageUrl] = useState<string | null>(initialProductImageUrl || null);
+  const [productImageUrl, setProductImageUrl] = useState<string | null>(initialProductImageUrl || null);
   const [copied, setCopied] = useState(false);
 
   // Update state when dialog opens or props change
@@ -95,13 +96,14 @@ export function AdGeneratorDialog({
     }
 
     // Use product image URL if available (from props or state)
-    const productImageUrl = initialProductImageUrl;
+    const contextImageUrl = productImageUrl || initialProductImageUrl;
     
     console.log("🎨 Generating ad image with product context:", {
       productName,
       playbook,
       hasProductId: !!initialProductId,
-      hasProductImage: !!productImageUrl,
+      hasProductImage: !!contextImageUrl,
+      imageUrl: contextImageUrl,
     });
 
     generateImageMutation.mutate(
@@ -109,7 +111,7 @@ export function AdGeneratorDialog({
         product_name: productName, 
         playbook,
         productId: initialProductId, // Pass product ID so backend can fetch image
-        product_image_url: productImageUrl, // Pass product image URL directly
+        product_image_url: contextImageUrl, // Pass product image URL directly
       },
       {
         onSuccess: (response) => {

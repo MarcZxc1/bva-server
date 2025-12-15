@@ -31,9 +31,12 @@ export const createOrder = async (req: Request, res: Response) => {
         socketService.notifyNewOrder(order);
         console.log(`📢 Notified shop ${order.shopId} about new order ${order.id}`);
       });
-    } else {
-      socketService.notifyNewOrder(orders);
-      console.log(`📢 Notified shop ${orders.shopId} about new order ${orders.id}`);
+    } else if (orders && typeof orders === 'object') {
+      const singleOrder = orders as any;
+      if (singleOrder.id && singleOrder.shopId) {
+        socketService.notifyNewOrder(singleOrder);
+        console.log(`📢 Notified shop ${singleOrder.shopId} about new order ${singleOrder.id}`);
+      }
     }
 
     // Notify buyer via WebSocket
@@ -101,6 +104,13 @@ export const getBuyerOrderById = async (req: Request, res: Response) => {
       return res.status(401).json({
         success: false,
         error: "Unauthorized",
+      });
+    }
+
+    if (!orderId) {
+      return res.status(400).json({
+        success: false,
+        error: "Order ID is required",
       });
     }
 

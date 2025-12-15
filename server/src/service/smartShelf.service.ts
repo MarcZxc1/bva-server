@@ -8,85 +8,13 @@ import {
   SalesRecord,
 } from "../types/smartShelf.types";
 
-/**
- * Get aggregated at-risk inventory from all shops accessible to a user
- */
-export async function getUserAtRiskInventory(userId: string): Promise<AtRiskResponse> {
-  // Get all shops the user owns
-  const ownedShops = await prisma.shop.findMany({
-    where: { ownerId: userId },
-    select: { id: true },
-  });
-
-  // Get all shops the user has access to via ShopAccess
-  const linkedShops = await prisma.shopAccess.findMany({
-    where: { userId: userId },
-    include: {
-      Shop: {
-        select: { id: true },
-      },
-    },
-  });
-
-  // Combine all shop IDs
-  const allShopIds = [
-    ...ownedShops.map(s => s.id),
-    ...linkedShops.map(sa => sa.Shop.id),
-  ];
-
-  if (allShopIds.length === 0) {
-    return {
-      at_risk: [],
-      meta: {
-        shop_id: "aggregated",
-        total_Product: 0,
-        flagged_count: 0,
-        analysis_date: new Date().toISOString(),
-        thresholds_used: {},
-      },
-    };
-  }
-
-  console.log(`📊 Getting aggregated at-risk inventory for user ${userId} across ${allShopIds.length} shops`);
-
-  // Collect at-risk items from all shops
-  const allAtRiskItems: any[] = [];
-  let totalProducts = 0;
-
-  // Fetch at-risk data from each shop
-  for (const shopId of allShopIds) {
-    try {
-      const shopAtRisk = await getAtRiskInventory(shopId);
-      allAtRiskItems.push(...shopAtRisk.at_risk);
-      totalProducts += shopAtRisk.meta.total_Product || 0;
-    } catch (error) {
-      console.error(`Error fetching at-risk for shop ${shopId}:`, error);
-    }
-  }
-
-  // Sort by score descending
-  allAtRiskItems.sort((a, b) => b.score - a.score);
-
-  console.log(`📊 Aggregated ${allAtRiskItems.length} at-risk items from ${allShopIds.length} shops`);
-
-  return {
-    at_risk: allAtRiskItems,
-    meta: {
-      shop_id: "aggregated",
-      total_Product: totalProducts,
-      flagged_count: allAtRiskItems.length,
-      analysis_date: new Date().toISOString(),
-      thresholds_used: {},
-    },
-  };
-}
+import { hasActiveIntegration } from "../utils/integrationCheck";
+import { RiskReason } from "../types/smartShelf.types";
 
 /**
  * Fetch inventory and sales data, then call ML service to detect at-risk items.
  * Uses Redis cache for optimization (5 min TTL for real-time inventory data)
  */
-import { hasActiveIntegration } from "../utils/integrationCheck";
-import { RiskReason } from "../types/smartShelf.types";
 
 /**
  * Generate a simple fallback forecast based on historical average daily sales
@@ -463,13 +391,15 @@ export async function getUserAtRiskInventory(userId: string, platform?: string):
   // Map to sales records
   const salesRecords: SalesRecord[] = [];
   sales.forEach((sale) => {
+    if (!sale.createdAt) return;
+    const dateStr = sale.createdAt.toISOString().split("T")[0] as string;
     const items = typeof sale.items === "string" ? JSON.parse(sale.items) : sale.items;
     if (Array.isArray(items)) {
       items.forEach((item: any) => {
         if (item.productId) {
           salesRecords.push({
             product_id: item.productId,
-            date: sale.createdAt.toISOString().split("T")[0],
+            date: dateStr,
             qty: item.quantity || 0,
           });
         }
@@ -490,7 +420,7 @@ export async function getUserAtRiskInventory(userId: string, platform?: string):
     const request: AtRiskRequest = {
       shop_id: 'aggregated',
       inventory: inventoryItems,
-      sales_history: salesRecords,
+      sales: salesRecords,
       thresholds,
     };
 
@@ -564,6 +494,7 @@ export async function getUserAtRiskInventory(userId: string, platform?: string):
     console.error("❌ ML service error for aggregated at-risk detection:", error?.message || error);
     
     // Return empty response instead of throwing
+    console.error("⚠️ ML service unavailable, returning empty at-risk data");
     return {
       at_risk: [],
       meta: {
@@ -572,7 +503,6 @@ export async function getUserAtRiskInventory(userId: string, platform?: string):
         flagged_count: 0,
         analysis_date: new Date().toISOString(),
         thresholds_used: thresholds,
-        error: "ML service unavailable",
       },
     };
   }

@@ -136,7 +136,7 @@ const Index = () => {
       {/* Features Section */}
       <section id="features" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
         <div className="text-center mb-16">
-          <Badge className="glass-card-sm text-primary border-primary/20 mb-4">FEATURES</Badge>
+          <Badge className="bg-primary text-primary-foreground border-primary mb-4 font-bold px-4 py-1.5">FEATURES</Badge>
           <h2 className="text-4xl font-bold text-foreground mb-4">Powerful Tools for Modern Businesses</h2>
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
             Everything you need to manage, automate, and scale your business operations
@@ -168,7 +168,7 @@ const Index = () => {
       {/* Services Section */}
       <section id="services" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
         <div className="text-center mb-16">
-          <Badge className="glass-card-sm text-primary border-primary/20 mb-4">SERVICES</Badge>
+          <Badge className="bg-primary text-primary-foreground border-primary mb-4 font-bold px-4 py-1.5">SERVICES</Badge>
           <h2 className="text-4xl font-bold text-foreground mb-4">Comprehensive Solutions</h2>
         </div>
 

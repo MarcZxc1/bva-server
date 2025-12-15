@@ -13,6 +13,9 @@ router.get("/user/all", authMiddleware, productController.getUserProducts);
 // Get product by ID (public)
 router.get("/:id", productController.getProductById);
 
+// Get product with image from integrated platform (public)
+router.get("/:id/with-image", productController.getProductWithImage);
+
 // Public integration endpoint for BVA (no auth required)
 // GET /api/products/shop/:shopId -> Returns list of products for a shop
 router.get("/shop/:shopId", productController.getProductsByShopPublic);

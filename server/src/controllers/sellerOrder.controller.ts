@@ -168,7 +168,7 @@ export const updateOrderStatus = async (req: Request, res: Response) => {
     // Also notify buyer via user room if we can identify them
     if (order.customerEmail) {
       try {
-        const buyer = await prisma.user.findUnique({
+        const buyer = await prisma.user.findFirst({
           where: { email: order.customerEmail },
           select: { id: true },
         });
@@ -228,6 +228,13 @@ export const getSellerOrderById = async (req: Request, res: Response) => {
       return res.status(401).json({
         success: false,
         error: "Unauthorized",
+      });
+    }
+
+    if (!orderId) {
+      return res.status(400).json({
+        success: false,
+        error: "Order ID is required",
       });
     }
 
