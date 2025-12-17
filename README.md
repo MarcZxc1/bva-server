@@ -140,4 +140,16 @@ Common issues:
 
 ## 👥 Contributors
 
-[Your Team Here]
+**Project Leader:**
+- **Mendoza, Julius Ceasar V.** - Project Leader
+
+**Team Members:**
+- **Bolito, Jashley Denzel D.** - Front-End Developer
+- **Codinera, Rafael Emmanuel B.** - Front-End and UI-UX Designer
+- **Dagode, Marc Gerald A.** - Full Stack Developer and SQA
+- **Lopez, Jefferson C.** - Database Administrator
+
+**Group:** GIT PUSHER  
+**Subject Adviser:** Maria Aura Impang  
+**Section:** SBCS-3A  
+**Institution:** Quezon City University - College of Computer Studies
