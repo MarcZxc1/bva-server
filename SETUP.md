@@ -1,6 +1,6 @@
-# BVA Server - Windows Setup Guide
+# BVA Server - Setup Guide
 
-A comprehensive guide to set up and run the Business Virtual Assistant (BVA) platform on **Windows 10/11**.
+A comprehensive guide to set up and run the Business Virtual Assistant (BVA) platform on **Windows 10/11** and **Linux**.
 
 > **📝 Environment Variables:** Complete `.env.example` files are provided in each service directory:
 > - `server/.env.example` - Backend server configuration
@@ -8,6 +8,149 @@ A comprehensive guide to set up and run the Business Virtual Assistant (BVA) pla
 > - `bva-frontend/.env.example` - Frontend configuration
 > 
 > Copy these files to `.env` and configure according to your setup. See the [Environment Variables](#environment-variables) section for details.
+
+---
+
+## 🪟 Windows Setup - Important Package.json Changes
+
+**⚠️ IMPORTANT:** Before starting the project on Windows, you need to make the following changes to ensure compatibility:
+
+### 1. Root `package.json` - Fix Start Script
+
+The root `package.json` uses a shell script (`./start-all.sh`) which doesn't work on Windows. You have two options:
+
+**Option A: Use npm script directly (Recommended for Windows)**
+
+Edit `/package.json` and change the `start` script:
+
+```json
+{
+  "scripts": {
+    "start": "concurrently -n \"ML,SERVER,FRONTEND,SHOPEE\" -c \"red,blue,green,yellow\" \"cd ml-service && .\\venv\\Scripts\\activate && uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload\" \"npm run dev:server\" \"npm run dev:frontend\" \"npm run dev:shopee\""
+  }
+}
+```
+
+**Option B: Create a Windows batch file**
+
+Create `start-all.bat` in the root directory:
+
+```batch
+@echo off
+start "ML Service" cmd /k "cd ml-service && venv\Scripts\activate && uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload"
+start "Backend Server" cmd /k "cd server && npm run dev"
+start "BVA Frontend" cmd /k "cd bva-frontend && npm run dev"
+start "Shopee Clone" cmd /k "cd shopee-clone && npm run dev"
+```
+
+Then change `package.json`:
+```json
+{
+  "scripts": {
+    "start": "start-all.bat"
+  }
+}
+```
+
+### 2. `server/package.json` - Fix Build Script for Windows
+
+The build script uses Unix `cp` command. Change it to be cross-platform:
+
+**Current (Unix-only):**
+```json
+{
+  "scripts": {
+    "build": "tsc && cp -r src/generated dist/generated"
+  }
+}
+```
+
+**Windows-Compatible (Option A - Using npm package):**
+```json
+{
+  "scripts": {
+    "build": "tsc && npm run copy:generated",
+    "copy:generated": "node -e \"require('fs').cpSync('src/generated', 'dist/generated', {recursive: true, force: true})\""
+  }
+}
+```
+
+**Windows-Compatible (Option B - Using xcopy on Windows, cp on Linux):**
+```json
+{
+  "scripts": {
+    "build": "tsc && npm run copy:generated",
+    "copy:generated": "node scripts/copy-generated.js"
+  }
+}
+```
+
+Create `server/scripts/copy-generated.js`:
+```javascript
+const fs = require('fs');
+const path = require('path');
+
+const src = path.join(__dirname, '../src/generated');
+const dest = path.join(__dirname, '../dist/generated');
+
+if (fs.existsSync(src)) {
+  fs.cpSync(src, dest, { recursive: true, force: true });
+  console.log('✅ Copied generated files to dist/');
+} else {
+  console.log('⚠️  No generated files to copy');
+}
+```
+
+**Windows-Compatible (Option C - Simplest, using cross-platform tool):**
+
+Install `cpy-cli`:
+```powershell
+cd server
+npm install --save-dev cpy-cli
+```
+
+Then update `package.json`:
+```json
+{
+  "scripts": {
+    "build": "tsc && cpy src/generated/** dist/generated"
+  }
+}
+```
+
+### 3. Alternative: Use Git Bash or WSL
+
+If you prefer not to modify the scripts, you can use:
+- **Git Bash** (comes with Git for Windows) - supports Unix commands
+- **Windows Subsystem for Linux (WSL)** - full Linux environment on Windows
+
+To use Git Bash:
+```powershell
+# Right-click in project folder > Git Bash Here
+npm start
+```
+
+---
+
+## 📋 Quick Start for Windows
+
+1. **Make the package.json changes above** (especially the root `package.json` start script)
+2. **Install prerequisites** (Node.js, Python, PostgreSQL, Git)
+3. **Clone and setup:**
+   ```powershell
+   git clone https://github.com/MarcZxc1/bva-server.git
+   cd bva-server
+   npm run install:all
+   ```
+4. **Configure environment variables** (see [Step 6](#6-configure-environment-variables))
+5. **Setup database** (see [Step 7](#7-setup-database))
+6. **Setup ML service** (see [Step 8](#8-setup-ml-service))
+7. **Start services:**
+   ```powershell
+   npm start
+   ```
+
+---
 
 ## 📋 Table of Contents
 
