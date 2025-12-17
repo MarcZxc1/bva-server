@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Search, Filter, Plus, ExternalLink, Loader2, AlertCircle } from "lucide-react";
+import { Search, Filter, Plus, ExternalLink, Loader2, AlertCircle, PackageOpen } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -290,12 +290,11 @@ export default function Inventory() {
                     <TableRow>
                       <TableHead>Product Name</TableHead>
                       <TableHead>SKU</TableHead>
-                      <TableHead>Quantity</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Risk Score</TableHead>
-                      <TableHead>Days to Expiry</TableHead>
+                      <TableHead className="text-center">Quantity</TableHead>
+                      <TableHead className="text-center">Status</TableHead>
+                      <TableHead className="text-center">Risk Score</TableHead>
+                      <TableHead className="text-center">Days to Expiry</TableHead>
                       <TableHead>Recommended Action</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -303,7 +302,7 @@ export default function Inventory() {
                       <TableRow key={item.product_id}>
                         <TableCell className="font-medium">{item.name}</TableCell>
                         <TableCell className="font-mono text-sm text-muted-foreground">{item.sku}</TableCell>
-                        <TableCell>
+                        <TableCell className="text-center">
                           <span className={`font-semibold ${
                             item.current_quantity < 20 ? "text-destructive" :
                             item.current_quantity < 50 ? "text-warning" :
@@ -312,12 +311,12 @@ export default function Inventory() {
                             {item.current_quantity}
                           </span>
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="text-center">
                           <Badge variant={getStatusColor(item.reasons)}>
                             {getStatusLabel(item.reasons)}
                           </Badge>
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="text-center">
                           <span className={`font-semibold ${
                             item.score >= 80 ? "text-destructive" :
                             item.score >= 60 ? "text-warning" :
@@ -326,7 +325,7 @@ export default function Inventory() {
                             {item.score}
                           </span>
                         </TableCell>
-                        <TableCell className="text-sm text-muted-foreground">
+                        <TableCell className="text-center text-sm text-muted-foreground">
                           {item.days_to_expiry !== undefined 
                             ? `${item.days_to_expiry} days`
                             : "N/A"}
@@ -335,14 +334,6 @@ export default function Inventory() {
                           <div className="max-w-xs">
                             <p className="font-medium">{item.recommended_action.action_type}</p>
                             <p className="text-xs text-muted-foreground">{item.recommended_action.reasoning}</p>
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex justify-end gap-2">
-                            <Button variant="ghost" size="sm">Edit</Button>
-                            <Button variant="ghost" size="sm">
-                              <ExternalLink className="h-4 w-4" />
-                            </Button>
                           </div>
                         </TableCell>
                       </TableRow>

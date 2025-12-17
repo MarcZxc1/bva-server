@@ -80,6 +80,7 @@ export class MLServiceClient {
     product_name: string;
     playbook: string;
     discount?: string | undefined;
+    product_image_url?: string | undefined;
   }): Promise<{ ad_copy: string; hashtags: string[] }> {
     return this.post("/api/v1/ads/generate-copy", request);
   }
@@ -93,6 +94,8 @@ export class MLServiceClient {
     playbook: string;
     style?: string | undefined;
     product_image_url?: string | undefined;
+    custom_prompt?: string | undefined;
+    template_context?: string | undefined;
   }): Promise<{ image_url: string }> {
     return this.post("/api/v1/ads/generate-image", request);
   }

@@ -7,8 +7,18 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
-import { AxiosError } from "axios";
 import { ArrowLeft, Mail, Lock, User } from "lucide-react";
+
+// Type for axios error response
+type AxiosErrorResponse = {
+  response?: {
+    data?: {
+      error?: string;
+      message?: string;
+    };
+  };
+  message?: string;
+};
 
 // Google Icon SVG Component
 const GoogleIcon = () => (
@@ -151,7 +161,7 @@ export default function Login() {
       toast.success("Login successful!");
       navigate("/dashboard");
     } catch (error) {
-      const axiosError = error as AxiosError<{ error?: string; message?: string }>;
+      const axiosError = error as AxiosErrorResponse;
       toast.error(
         axiosError.response?.data?.error || 
         axiosError.response?.data?.message ||
@@ -187,7 +197,7 @@ export default function Login() {
       toast.success("Registration successful! Welcome to BVA!");
       navigate("/dashboard");
     } catch (error) {
-      const axiosError = error as AxiosError<{ error?: string; message?: string }>;
+      const axiosError = error as AxiosErrorResponse;
       toast.error(
         axiosError.response?.data?.error || 
         axiosError.response?.data?.message ||
@@ -225,8 +235,8 @@ export default function Login() {
         {/* Header Section */}
         <div className="text-center mb-8">
           <div className="flex justify-center mb-4">
-            <div className="h-20 w-20 glass-card-sm flex items-center justify-center p-2">
-              <img src="/bva-logo.svg" alt="BVA Logo" className="h-full w-full object-contain" />
+            <div className="h-32 w-32 glass-card-sm flex items-center justify-center p-3">
+              <img src="/logo.svg" alt="BVA Logo" className="h-full w-full object-contain" />
             </div>
           </div>
           <h1 className="text-4xl font-bold text-foreground mb-2">Business Virtual Assistant</h1>

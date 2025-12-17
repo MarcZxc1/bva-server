@@ -20,6 +20,8 @@ from google.genai import types
 from PIL import Image
 import io
 import base64
+import time
+import requests
 from app.config import settings
 
 logger = structlog.get_logger()
@@ -183,6 +185,10 @@ class AdService:
         """Initialize the ad service with Gemini configuration."""
         self.gemini_configured = False
         self.client = None
+        # Cache to track quota errors and skip attempts temporarily
+        # Format: {model: {"timestamp": float, "retry_after": float}}
+        self._quota_error_cache: Dict[str, Dict[str, float]] = {}
+        self._default_cooldown_seconds = 120  # 2 minutes default cooldown
         
         if settings.GEMINI_API_KEY:
             try:
@@ -197,12 +203,79 @@ class AdService:
         else:
             logger.warning("gemini_api_key_missing", mode="fallback")
     
+    def _is_quota_exceeded(self, model: str, allow_bypass: bool = False) -> bool:
+        """
+        Check if we recently hit quota limit for this model.
+        
+        Args:
+            model: Model name to check
+            allow_bypass: If True, allows bypassing cooldown (for user-initiated edits)
+        """
+        if allow_bypass:
+            # User explicitly wants to try (e.g., custom prompt for editing)
+            # Still check but use shorter cooldown
+            pass
+        
+        if model not in self._quota_error_cache:
+            return False
+        
+        error_info = self._quota_error_cache[model]
+        last_error_time = error_info.get("timestamp", 0)
+        retry_after = error_info.get("retry_after", self._default_cooldown_seconds)
+        
+        # Use shorter cooldown if user is explicitly trying (allow_bypass)
+        cooldown = retry_after if not allow_bypass else min(retry_after, 30)  # Max 30 seconds for user-initiated
+        
+        elapsed = time.time() - last_error_time
+        
+        # If cooldown period has passed, clear the cache
+        if elapsed > cooldown:
+            del self._quota_error_cache[model]
+            return False
+        
+        return True
+    
+    def _record_quota_error(self, model: str, error_message: str = ""):
+        """
+        Record that we hit a quota error for this model.
+        Parses retry time from error message if available.
+        """
+        retry_after = self._default_cooldown_seconds
+        
+        # Try to parse retry time from error message
+        # Format: "Please retry in X.XXXXX" or "retry in X.XXXXX"
+        import re
+        retry_match = re.search(r'retry in ([\d.]+)', error_message.lower())
+        if retry_match:
+            try:
+                parsed_retry = float(retry_match.group(1))
+                # Add 10% buffer and convert to seconds if needed
+                retry_after = max(parsed_retry * 1.1, 30)  # At least 30 seconds
+                # Cap at 5 minutes max
+                retry_after = min(retry_after, 300)
+            except (ValueError, AttributeError):
+                pass
+        
+        self._quota_error_cache[model] = {
+            "timestamp": time.time(),
+            "retry_after": retry_after
+        }
+        logger.info(
+            "quota_error_recorded",
+            model=model,
+            retry_after_seconds=retry_after,
+            parsed_from_error=retry_match is not None
+        )
+    
     def generate_ad_content(
         self,
         product_name: str,
         playbook: str,
         discount: Optional[str] = None,
-        style: Optional[str] = None
+        style: Optional[str] = None,
+        product_image_url: Optional[str] = None,
+        custom_prompt: Optional[str] = None,
+        template_context: Optional[str] = None
     ) -> Dict[str, str]:
         """
         Generate complete ad content (copy + image) using AI.
@@ -235,26 +308,57 @@ class AdService:
                 has_discount=bool(discount)
             )
             
-            # Generate ad copy
+            # Generate ad copy (with image analysis if available)
             ad_copy, hashtags = self._generate_ad_copy(
                 product_name=product_name,
                 playbook_config=config,
-                discount=discount
-            )
-            
-            # Generate ad image
-            image_url = self._generate_ad_image(
-                product_name=product_name,
-                playbook_config=config,
                 discount=discount,
-                style=style
+                product_image_url=product_image_url
             )
             
-            return {
+            # Generate ad image only if product_image_url is provided
+            image_url = None
+            is_placeholder = False
+            if product_image_url:
+                try:
+                    image_url, is_placeholder = self._generate_ad_image(
+                        product_name=product_name,
+                        playbook_config=config,
+                        discount=discount,
+                        style=style,
+                        product_image_url=product_image_url,
+                        custom_prompt=custom_prompt,
+                        template_context=template_context
+                    )
+                except ValueError as e:
+                    # If image generation fails due to missing product image, skip it
+                    logger.warning(
+                        "image_generation_skipped",
+                        reason=str(e),
+                        product=product_name
+                    )
+                    image_url = None
+                    is_placeholder = False
+            
+            result = {
                 "ad_copy": ad_copy,
                 "hashtags": hashtags,
-                "image_url": image_url
+                "image_url": image_url or ""  # Return empty string if no image
             }
+            
+            # Add warning if placeholder was used
+            if is_placeholder:
+                error_info = self._quota_error_cache.get(settings.IMAGEN_MODEL, {})
+                retry_after = error_info.get("retry_after", self._default_cooldown_seconds)
+                retry_minutes = int(retry_after / 60) if retry_after >= 60 else int(retry_after)
+                retry_unit = "minutes" if retry_after >= 60 else "seconds"
+                
+                if self._is_quota_exceeded(settings.IMAGEN_MODEL, allow_bypass=True):
+                    result["warning"] = f"AI image generation quota exceeded. Using placeholder image. Please try again in {retry_minutes} {retry_unit} or check your Gemini API quota limits."
+                else:
+                    result["warning"] = "AI image generation unavailable (quota exceeded or API error). Using placeholder image."
+            
+            return result
             
         except Exception as e:
             logger.error("ad_generation_failed", error=str(e), product=product_name)
@@ -264,37 +368,215 @@ class AdService:
         self,
         product_name: str,
         playbook_config: PlaybookConfig,
-        discount: Optional[str] = None
+        discount: Optional[str] = None,
+        product_image_url: Optional[str] = None
     ) -> Tuple[str, List[str]]:
-        """Generate AI-powered ad copy using Gemini."""
+        """Generate AI-powered ad copy using Gemini, with optional image analysis."""
         try:
             # Build discount information
             discount_info = ""
             if discount:
                 discount_info = f"IMPORTANT: Prominently feature this discount: {discount}. Make it the hero of the message. "
             
-            # Build the prompt
+            # Build the base prompt
             prompt = playbook_config.copy_template.format(
                 product=product_name,
                 discount_info=discount_info
             )
             
+            # Add image analysis instruction if product image is provided
+            image_analysis_instruction = ""
+            if product_image_url:
+                image_analysis_instruction = (
+                    f"\n\nCRITICAL: Analyze the product image provided at: {product_image_url}. "
+                    f"Based on what you see in the image, generate ad copy that accurately describes the ACTUAL product shown. "
+                    f"Do NOT rely solely on the product name '{product_name}' - use the image to understand what the product really is. "
+                    f"For example, if the image shows a food item (like an apple fruit) but the name is just 'Apple', "
+                    f"write about the food product, NOT a technology product. "
+                    f"Describe the product's actual appearance, colors, type, and characteristics from the image. "
+                    f"Make the ad copy match what is visually shown in the product image."
+                )
+            
+            prompt += image_analysis_instruction
             prompt += (
                 f"\n\nTone: {playbook_config.tone}"
                 f"\nMust include emojis from this list: {', '.join(playbook_config.emojis)}"
                 f"\nMust include hashtags: #{' #'.join(playbook_config.hashtags[:3])}"
                 f"\n\nIMPORTANT: Output ONLY the ad copy. No explanations, no 'Here is your ad', just the ready-to-post content."
             )
+            
             if not self.gemini_configured or not self.client:
                 # Fallback: Generate simple template-based copy
                 logger.warning("gemini_not_available", mode="template_fallback")
                 return self._generate_fallback_copy(product_name, playbook_config, discount)
             
-            # Use Gemini 2.0 Flash for fast, creative copy
+            # Prepare content for Gemini
+            # If product image is provided, include it for vision analysis
+            contents = []
+            if product_image_url:
+                try:
+                    # Load image from URL (supports both HTTP and base64 data URLs)
+                    if product_image_url.startswith('data:image/'):
+                        # Base64 data URL - handle various formats
+                        try:
+                            # Split by comma - data URL format: data:image/<type>;base64,<data> or data:image/<type>,<data>
+                            if ',' in product_image_url:
+                                header, encoded = product_image_url.split(',', 1)
+                            else:
+                                raise ValueError("Invalid data URL format: missing comma separator")
+                            
+                            # Extract mime type from header (handle both ;base64, and , formats)
+                            mime_type = 'image/jpeg'  # Default
+                            if ':' in header:
+                                mime_part = header.split(':')[1]
+                                if ';' in mime_part:
+                                    mime_type = mime_part.split(';')[0]
+                                else:
+                                    mime_type = mime_part
+                            
+                            # Decode base64, handling potential whitespace and newlines
+                            encoded_clean = encoded.strip().replace('\n', '').replace('\r', '').replace(' ', '')
+                            
+                            # Validate base64 before decoding
+                            try:
+                                base64.b64decode(encoded_clean, validate=True)
+                            except Exception as validate_error:
+                                logger.error(
+                                    "invalid_base64_format",
+                                    error=str(validate_error),
+                                    preview=encoded_clean[:50] if encoded_clean else None
+                                )
+                                raise ValueError(f"Invalid base64 data: {str(validate_error)}")
+                            
+                            image_bytes = base64.b64decode(encoded_clean)
+                            
+                            logger.info(
+                                "decoded_base64_image",
+                                mime_type=mime_type,
+                                size_bytes=len(image_bytes),
+                                url_preview=product_image_url[:100]
+                            )
+                        except Exception as decode_error:
+                            logger.error(
+                                "failed_to_decode_base64",
+                                error=str(decode_error),
+                                error_type=type(decode_error).__name__,
+                                url_preview=product_image_url[:100] if product_image_url else None
+                            )
+                            raise ValueError(f"Failed to decode base64 image: {str(decode_error)}")
+                    elif product_image_url.startswith('http://') or product_image_url.startswith('https://'):
+                        # HTTP URL - download the image
+                        try:
+                            response = requests.get(product_image_url, timeout=10, stream=True)
+                            response.raise_for_status()
+                            image_bytes = response.content
+                            mime_type = response.headers.get('content-type', 'image/jpeg')
+                            logger.info(
+                                "downloaded_image",
+                                mime_type=mime_type,
+                                size_bytes=len(image_bytes)
+                            )
+                        except Exception as download_error:
+                            logger.error(
+                                "failed_to_download_image",
+                                error=str(download_error),
+                                url=product_image_url
+                            )
+                            raise ValueError(f"Failed to download image from URL: {str(download_error)}")
+                    else:
+                        raise ValueError(f"Unsupported image URL format: {product_image_url[:50]}")
+                    
+                    # Create PIL Image and convert to format Gemini expects
+                    try:
+                        img = Image.open(io.BytesIO(image_bytes))
+                        # Convert to RGB if necessary (handles RGBA, P, etc.)
+                        if img.mode != 'RGB':
+                            img = img.convert('RGB')
+                        
+                        # Resize if too large (Gemini has size limits)
+                        max_size = 4096  # Maximum dimension for Gemini
+                        if img.width > max_size or img.height > max_size:
+                            # Use LANCZOS if available, otherwise fallback to ANTIALIAS (Pillow < 10.0)
+                            try:
+                                img.thumbnail((max_size, max_size), Image.Resampling.LANCZOS)
+                            except AttributeError:
+                                # Fallback for older Pillow versions
+                                img.thumbnail((max_size, max_size), Image.LANCZOS)
+                            logger.info("resized_image_for_gemini", new_size=f"{img.width}x{img.height}")
+                        
+                        # Convert to bytes for Gemini
+                        img_buffer = io.BytesIO()
+                        img.save(img_buffer, format='JPEG', quality=85)  # Slightly lower quality to reduce size
+                        img_bytes = img_buffer.getvalue()
+                        
+                        # Check final size (Gemini typically accepts up to 20MB)
+                        max_size_bytes = 20 * 1024 * 1024
+                        if len(img_bytes) > max_size_bytes:
+                            # Further compress if still too large
+                            quality = 70
+                            img_buffer = io.BytesIO()
+                            img.save(img_buffer, format='JPEG', quality=quality)
+                            img_bytes = img_buffer.getvalue()
+                            logger.warning("further_compressed_image", final_size=len(img_bytes))
+                            
+                    except Exception as img_process_error:
+                        logger.error(
+                            "failed_to_process_image",
+                            error=str(img_process_error),
+                            error_type=type(img_process_error).__name__
+                        )
+                        raise ValueError(f"Failed to process image: {str(img_process_error)}")
+                    
+                    # Add image to contents for vision analysis
+                    # Use types.Part for proper Gemini API format
+                    try:
+                        contents = [
+                            types.Part.from_bytes(
+                                data=img_bytes,
+                                mime_type="image/jpeg"
+                            ),
+                            prompt
+                        ]
+                        
+                        logger.info(
+                            "ad_copy_with_image_analysis",
+                            product=product_name,
+                            has_image=True,
+                            image_size=len(img_bytes),
+                            image_dimensions=f"{img.width}x{img.height}"
+                        )
+                    except Exception as part_error:
+                        logger.error(
+                            "failed_to_create_gemini_part",
+                            error=str(part_error),
+                            error_type=type(part_error).__name__,
+                            image_size=len(img_bytes)
+                        )
+                        # Fallback to text-only if Gemini part creation fails
+                        contents = [prompt]
+                        logger.warning("falling_back_to_text_only_after_part_creation_failure")
+                        
+                except Exception as img_error:
+                    logger.error(
+                        "failed_to_load_product_image",
+                        error=str(img_error),
+                        error_type=type(img_error).__name__,
+                        product=product_name,
+                        url_preview=product_image_url[:100] if product_image_url else None,
+                        fallback="text_only"
+                    )
+                    # Fallback to text-only if image loading fails
+                    contents = [prompt]
+                    logger.warning("falling_back_to_text_only_after_image_load_failure")
+            else:
+                # No image - text-only generation
+                contents = [prompt]
+            
+            # Use Gemini 2.0 Flash for fast, creative copy (with vision if image provided)
             try:
                 response = self.client.models.generate_content(
                     model=settings.GEMINI_MODEL,
-                    contents=[prompt],
+                    contents=contents,
                     config=types.GenerateContentConfig(
                         temperature=0.9,  # High creativity
                         top_p=0.95,
@@ -305,7 +587,7 @@ class AdService:
                 
                 ad_copy = response.text.strip()
                 
-                logger.info("ad_copy_generated", length=len(ad_copy))
+                logger.info("ad_copy_generated", length=len(ad_copy), used_image=bool(product_image_url))
                 
                 return ad_copy, playbook_config.hashtags
                 
@@ -334,62 +616,248 @@ class AdService:
         product_name: str,
         playbook_config: PlaybookConfig,
         discount: Optional[str] = None,
-        style: Optional[str] = None
-    ) -> str:
+        style: Optional[str] = None,
+        product_image_url: Optional[str] = None,
+        custom_prompt: Optional[str] = None,
+        template_context: Optional[str] = None
+    ) -> Tuple[str, bool]:
+        """
+        Generate ad image.
+        
+        Returns:
+            Tuple of (image_url, is_placeholder) where is_placeholder indicates if a placeholder was used.
+        """
         """
         Generate AI-powered ad image using Gemini 2.5 Flash Image model.
         
+        REQUIRES product_image_url from product inventory/SmartShelf.
         Uses gemini-2.5-flash-image with responseModalities to generate images.
         Returns base64-encoded image data URL.
         """
+        # REQUIRE product image (from inventory/SmartShelf or user upload)
+        if not product_image_url:
+            logger.error(
+                "product_image_required",
+                product=product_name,
+                playbook=playbook_config.name,
+                message="Product image URL is required"
+            )
+            raise ValueError(
+                "Product image is required. Please provide a product image from inventory, SmartShelf, or upload your own image."
+            )
+        
         try:
             # Build discount visual information
             discount_visual = ""
             if discount:
                 discount_visual = f"Discount badge prominently displayed: '{discount}' in large, bold text. "
             
-            # Build the image generation prompt
-            prompt = playbook_config.image_prompt_template.format(
-                product=product_name,
-                discount_visual=discount_visual
+            # Load the product image to pass as visual input (not in prompt text)
+            # This prevents token limit issues from base64 data URLs
+            product_image_bytes = None
+            product_image_mime = "image/jpeg"
+            
+            try:
+                # Load image from URL (supports both HTTP and base64 data URLs)
+                if product_image_url.startswith('data:image/'):
+                    # Base64 data URL
+                    try:
+                        if ',' in product_image_url:
+                            header, encoded = product_image_url.split(',', 1)
+                        else:
+                            raise ValueError("Invalid data URL format: missing comma separator")
+                        
+                        # Extract mime type from header
+                        if ':' in header:
+                            mime_part = header.split(':')[1]
+                            if ';' in mime_part:
+                                product_image_mime = mime_part.split(';')[0]
+                            else:
+                                product_image_mime = mime_part
+                        
+                        # Decode base64
+                        encoded_clean = encoded.strip().replace('\n', '').replace('\r', '').replace(' ', '')
+                        product_image_bytes = base64.b64decode(encoded_clean)
+                        
+                        logger.info(
+                            "loaded_product_image_for_generation",
+                            mime_type=product_image_mime,
+                            size_bytes=len(product_image_bytes)
+                        )
+                    except Exception as decode_error:
+                        logger.error("failed_to_load_product_image_for_generation", error=str(decode_error))
+                        raise ValueError(f"Failed to load product image: {str(decode_error)}")
+                        
+                elif product_image_url.startswith('http://') or product_image_url.startswith('https://'):
+                    # HTTP URL - download the image
+                    try:
+                        response = requests.get(product_image_url, timeout=10, stream=True)
+                        response.raise_for_status()
+                        product_image_bytes = response.content
+                        product_image_mime = response.headers.get('content-type', 'image/jpeg')
+                        logger.info("downloaded_product_image_for_generation", size_bytes=len(product_image_bytes))
+                    except Exception as download_error:
+                        logger.error("failed_to_download_product_image", error=str(download_error))
+                        raise ValueError(f"Failed to download product image: {str(download_error)}")
+                else:
+                    raise ValueError(f"Unsupported image URL format: {product_image_url[:50]}")
+                
+                # Process image if needed (resize, convert format)
+                if product_image_bytes:
+                    img = Image.open(io.BytesIO(product_image_bytes))
+                    if img.mode != 'RGB':
+                        img = img.convert('RGB')
+                    
+                    # Resize if too large (Gemini has size limits)
+                    max_size = 2048  # Smaller limit for image generation
+                    if img.width > max_size or img.height > max_size:
+                        try:
+                            img.thumbnail((max_size, max_size), Image.Resampling.LANCZOS)
+                        except AttributeError:
+                            img.thumbnail((max_size, max_size), Image.LANCZOS)
+                    
+                    # Convert to bytes
+                    img_buffer = io.BytesIO()
+                    img.save(img_buffer, format='JPEG', quality=85)
+                    product_image_bytes = img_buffer.getvalue()
+                    product_image_mime = "image/jpeg"
+                    
+            except Exception as img_load_error:
+                logger.error("failed_to_process_product_image", error=str(img_load_error))
+                raise ValueError(f"Failed to process product image: {str(img_load_error)}")
+            
+            # Build a SHORT prompt without the image URL (image will be passed as visual input)
+            prompt = (
+                f"Generate a professional marketing ad image for {product_name}. "
+                f"{playbook_config.image_prompt_template.format(product=product_name, discount_visual=discount_visual)}"
+                f"\n\n"
+                f"CRITICAL: Use the provided product image as your ONLY visual reference. "
+                f"The generated ad MUST feature the EXACT product from the reference image with 100% accuracy. "
+                f"Show the product prominently as the main focal point. "
+                f"Integrate marketing elements (badges, text, backgrounds) around the product WITHOUT altering the product itself."
             )
             
-            # Add custom style if provided
+            # Add custom style if provided (but don't let it override product accuracy)
             if style:
-                prompt += f"\nAdditional style preference: {style}. "
+                prompt += f"\n\nStyle preference (apply to background/design elements only, NOT the product): {style}. "
+            
+            # Add template context if provided
+            if template_context:
+                prompt += f"\n\nTemplate Context: {template_context}. Apply these customizations to the ad design while maintaining product accuracy. "
+            
+            # Add custom prompt if provided (for image editing/regeneration)
+            if custom_prompt:
+                prompt += f"\n\nCUSTOM EDITING INSTRUCTIONS: {custom_prompt}. Apply these modifications to the generated ad image while keeping the product appearance accurate. "
             
             if not self.gemini_configured or not self.client:
                 logger.warning("gemini_not_available", mode="placeholder_fallback")
-                return self._generate_placeholder_image(product_name, playbook_config)
+                return (self._generate_placeholder_image(product_name, playbook_config), True)
+            
+            # Check if we recently hit quota limit - skip attempt if so
+            # Allow bypass if custom_prompt is provided (user-initiated edit)
+            allow_bypass = bool(custom_prompt)
+            if self._is_quota_exceeded(settings.IMAGEN_MODEL, allow_bypass=allow_bypass):
+                if allow_bypass:
+                    logger.info(
+                        "quota_cooldown_bypassed",
+                        model=settings.IMAGEN_MODEL,
+                        reason="User-initiated edit with custom prompt"
+                    )
+                    # Continue with attempt despite cooldown
+                else:
+                    logger.warning(
+                        "skipping_image_generation_quota_cooldown",
+                        model=settings.IMAGEN_MODEL,
+                        message="Skipping image generation attempt due to recent quota error. Using placeholder."
+                    )
+                    return (self._generate_placeholder_image(product_name, playbook_config), True)
             
             # Use gemini-2.5-flash-image with responseModalities for image generation
             try:
-                # Enhanced prompt for high-quality marketing images
+                # Enhanced prompt for high-quality marketing images (SHORT - no base64 URL in text)
                 enhanced_prompt = f"{prompt}\n\nIMPORTANT: Generate a high-resolution, professional marketing image suitable for social media advertising. The image must be crisp, clear, and visually appealing with excellent color contrast and professional composition."
+                
+                # Pass the product image as visual input along with the text prompt
+                # This prevents token limit issues (base64 URLs are very long)
+                contents = []
+                if product_image_bytes:
+                    # Add product image as visual input (not in text prompt)
+                    contents.append(
+                        types.Part.from_bytes(
+                            data=product_image_bytes,
+                            mime_type=product_image_mime
+                        )
+                    )
+                    logger.info(
+                        "added_product_image_as_visual_input",
+                        image_size=len(product_image_bytes),
+                        mime_type=product_image_mime
+                    )
+                # Add text prompt (without base64 URL)
+                contents.append(enhanced_prompt)
+                
+                logger.info(
+                    "generating_image_with_product_reference",
+                    product=product_name,
+                    has_product_image=bool(product_image_bytes),
+                    prompt_length=len(enhanced_prompt)
+                )
                 
                 response = self.client.models.generate_content(
                     model=settings.IMAGEN_MODEL,  # gemini-2.5-flash-image
-                    contents=[enhanced_prompt],
+                    contents=contents,  # Pass both image (visual) and text prompt
                     config=types.GenerateContentConfig(
-                        response_modalities=["TEXT", "IMAGE"],
+                        response_modalities=["IMAGE"],  # Use only IMAGE modality for image generation
                         temperature=0.8,  # Slightly higher for more creative images
                     )
                 )
                 
                 # Extract image from response
-                # Based on google-genai SDK structure: response.candidates[0].content.parts
+                # According to Gemini API docs, images are accessed via response.images[0]
                 image_data = None
                 mime_type = "image/png"
                 
                 # Debug: Log response structure
                 logger.debug(
                     "gemini_response_structure",
+                    has_images=hasattr(response, 'images'),
                     has_candidates=hasattr(response, 'candidates'),
                     response_type=type(response).__name__
                 )
                 
-                # Try accessing via candidates (standard structure)
-                if hasattr(response, 'candidates') and response.candidates:
+                # Primary method: Access via response.images (standard for image generation)
+                if hasattr(response, 'images') and response.images:
+                    try:
+                        image_obj = response.images[0]
+                        # The image object might be bytes, base64 string, or have a data attribute
+                        if isinstance(image_obj, bytes):
+                            image_data = base64.b64encode(image_obj).decode('utf-8')
+                        elif isinstance(image_obj, str):
+                            # Already a base64 string
+                            image_data = image_obj
+                        elif hasattr(image_obj, 'data'):
+                            raw_data = image_obj.data
+                            if isinstance(raw_data, bytes):
+                                image_data = base64.b64encode(raw_data).decode('utf-8')
+                            elif isinstance(raw_data, str):
+                                image_data = raw_data
+                        
+                        # Get mime type if available
+                        if hasattr(image_obj, 'mime_type') and image_obj.mime_type:
+                            mime_type = image_obj.mime_type
+                        elif hasattr(image_obj, 'mimeType') and image_obj.mimeType:
+                            mime_type = image_obj.mimeType
+                            
+                        logger.info(
+                            "image_extracted_from_response_images",
+                            mime_type=mime_type,
+                            data_length=len(image_data) if image_data else 0
+                        )
+                    except Exception as e:
+                        logger.warning("failed_to_extract_from_images", error=str(e))
+                
+                # Fallback method: Try accessing via candidates (for compatibility)
+                if not image_data and hasattr(response, 'candidates') and response.candidates:
                     candidate = response.candidates[0]
                     if hasattr(candidate, 'content'):
                         content = candidate.content
@@ -404,8 +872,6 @@ class AdService:
                                     inline_data = part.inline_data
                                 elif hasattr(part, 'inlineData'):  # camelCase variant
                                     inline_data = part.inlineData
-                                elif hasattr(part, 'inlineData') and hasattr(part, 'inlineData'):
-                                    inline_data = getattr(part, 'inlineData', None)
                                 
                                 if inline_data:
                                     # Get the base64 data - try multiple attribute names
@@ -434,24 +900,12 @@ class AdService:
                                             mime_type = inline_data.mimeType
                                         
                                         logger.info(
-                                            "image_data_extracted",
+                                            "image_data_extracted_from_candidates",
                                             data_type=type(raw_data).__name__,
                                             mime_type=mime_type,
                                             data_length=len(image_data) if image_data else 0
                                         )
                                         break
-                
-                # If still no image, try alternative access patterns
-                if not image_data:
-                    # Try accessing response directly
-                    try:
-                        # Check if response has a direct image property
-                        if hasattr(response, 'images') and response.images:
-                            image_data = response.images[0]
-                            if isinstance(image_data, bytes):
-                                image_data = base64.b64encode(image_data).decode('utf-8')
-                    except Exception as e:
-                        logger.debug("alternative_image_access_failed", error=str(e))
                 
                 if image_data:
                     # Ensure image_data is properly formatted base64 string
@@ -468,7 +922,7 @@ class AdService:
                             error=str(e),
                             data_preview=image_data[:50] if image_data else None
                         )
-                        return self._generate_placeholder_image(product_name, playbook_config)
+                        return (self._generate_placeholder_image(product_name, playbook_config), True)
                     
                     # Convert to base64 data URL
                     image_url = f"data:{mime_type};base64,{image_data}"
@@ -481,7 +935,7 @@ class AdService:
                         data_url_preview=image_url[:100]
                     )
                     
-                    return image_url
+                    return (image_url, False)  # Real generated image
                 
                 # If no image found in response, log warning and fallback
                 logger.warning(
@@ -491,19 +945,29 @@ class AdService:
                     has_candidates=hasattr(response, 'candidates'),
                     fallback="placeholder"
                 )
-                return self._generate_placeholder_image(product_name, playbook_config)
+                return (self._generate_placeholder_image(product_name, playbook_config), True)
                 
             except Exception as api_error:
                 # Check for quota/rate limit errors
                 error_str = str(api_error)
                 if "429" in error_str or "RESOURCE_EXHAUSTED" in error_str or "quota" in error_str.lower():
+                    # Record the quota error to skip future attempts temporarily
+                    self._record_quota_error(settings.IMAGEN_MODEL, error_str)
+                    
+                    # Get retry time for user-friendly message
+                    error_info = self._quota_error_cache.get(settings.IMAGEN_MODEL, {})
+                    retry_after = error_info.get("retry_after", self._default_cooldown_seconds)
+                    retry_minutes = int(retry_after / 60) if retry_after >= 60 else int(retry_after)
+                    retry_unit = "minutes" if retry_after >= 60 else "seconds"
+                    
                     logger.warning(
                         "gemini_quota_exceeded_image",
                         error=error_str[:500],
                         fallback="placeholder",
-                        message="Gemini API quota exceeded for image generation, using placeholder"
+                        retry_after_seconds=retry_after,
+                        message=f"Gemini API quota exceeded for image generation, using placeholder. Please try again in {retry_minutes} {retry_unit}."
                     )
-                    return self._generate_placeholder_image(product_name, playbook_config)
+                    return (self._generate_placeholder_image(product_name, playbook_config), True)
                 else:
                     # Log other errors but still fallback
                     logger.error(
@@ -512,7 +976,7 @@ class AdService:
                         error_type=type(api_error).__name__,
                         fallback="placeholder"
                     )
-                    return self._generate_placeholder_image(product_name, playbook_config)
+                    return (self._generate_placeholder_image(product_name, playbook_config), True)
                 
         except Exception as e:
             logger.error(
@@ -521,7 +985,7 @@ class AdService:
                 error_type=type(e).__name__,
                 product=product_name
             )
-            return self._generate_placeholder_image(product_name, playbook_config)
+            return (self._generate_placeholder_image(product_name, playbook_config), True)
     
     def _generate_fallback_copy(
         self,

@@ -200,9 +200,9 @@ export const reportsApi = {
 export interface FacebookAccount {
   id: string;
   platform: string;
-  pageId?: string;
-  accountId?: string;
-  expiresAt?: string;
+  pageId?: string | null;
+  accountId?: string | null;
+  expiresAt?: string | null;
   isConnected: boolean;
 }
 
@@ -213,8 +213,10 @@ export interface FacebookAccountResponse {
 }
 
 export const socialMediaApi = {
-  getFacebookAccount: async (): Promise<FacebookAccountResponse> => {
-    return apiClient.get<FacebookAccountResponse>("/api/auth/social-media/facebook");
+  getFacebookAccount: async (): Promise<FacebookAccount> => {
+    // apiClient.get unwraps { success: true, data: {...} } to just {...}
+    // So we get FacebookAccount directly, not wrapped in FacebookAccountResponse
+    return apiClient.get<FacebookAccount>("/api/auth/social-media/facebook");
   },
   
   connectFacebook: async (data: {
@@ -228,6 +230,21 @@ export const socialMediaApi = {
   
   disconnectFacebook: async (): Promise<{ success: boolean; message: string }> => {
     return apiClient.delete<{ success: boolean; message: string }>("/api/auth/social-media/facebook");
+  },
+
+  initiateFacebookConnect: async (): Promise<{ success: boolean; authURL: string }> => {
+    return apiClient.get<{ success: boolean; authURL: string }>("/api/auth/facebook/connect");
+  },
+
+  getFacebookPages: async (): Promise<{ success: boolean; data: Array<{ id: string; name: string; access_token: string }> }> => {
+    return apiClient.get<{ success: boolean; data: Array<{ id: string; name: string; access_token: string }> }>("/api/auth/facebook/pages");
+  },
+
+  connectFacebookFromSupabase: async (data: {
+    accessToken: string;
+    refreshToken?: string;
+  }): Promise<FacebookAccountResponse> => {
+    return apiClient.post<FacebookAccountResponse>("/api/auth/facebook/supabase-connect", data);
   },
 };
 

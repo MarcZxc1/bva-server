@@ -4,6 +4,7 @@ export interface GenerateAdRequest {
   product_name: string;
   playbook: string;
   discount?: string;
+  product_image_url?: string; // Optional: Product image URL for image-based ad copy generation
 }
 
 export interface GenerateAdResponse {
@@ -17,10 +18,13 @@ export interface GenerateAdImageRequest {
   style?: string;
   productId?: string; // Optional: If provided, backend will fetch product image
   product_image_url?: string; // Optional: Direct product image URL to use as context
+  custom_prompt?: string; // Optional: Custom prompt for image editing/regeneration
+  template_context?: string; // Optional: Template context for ad generation
 }
 
 export interface GenerateAdImageResponse {
   image_url: string;
+  warning?: string; // Optional warning (e.g., if placeholder was used due to quota limits)
 }
 
 export interface Campaign {
@@ -75,12 +79,16 @@ export const adsService = {
     return apiClient.put<Campaign>(`/api/campaigns/${id}`, data);
   },
 
-  scheduleCampaign: async (id: string, scheduledAt: string): Promise<Campaign> => {
-    return apiClient.post<Campaign>(`/api/campaigns/${id}/schedule`, { scheduledAt });
+  scheduleCampaign: async (id: string, scheduledAt: string): Promise<{ success: boolean; data: Campaign; warning?: string }> => {
+    return apiClient.post<{ success: boolean; data: Campaign; warning?: string }>(`/api/campaigns/${id}/schedule`, { scheduledAt });
   },
 
-  publishCampaign: async (id: string): Promise<Campaign> => {
-    return apiClient.post<Campaign>(`/api/campaigns/${id}/publish`, {});
+  publishCampaign: async (id: string): Promise<{ success: boolean; data: Campaign; warning?: string }> => {
+    return apiClient.post<{ success: boolean; data: Campaign; warning?: string }>(`/api/campaigns/${id}/publish`, {});
+  },
+
+  unscheduleCampaign: async (id: string): Promise<Campaign> => {
+    return apiClient.post<Campaign>(`/api/campaigns/${id}/unschedule`, {});
   },
 
   deleteCampaign: async (id: string): Promise<void> => {

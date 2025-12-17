@@ -73,14 +73,17 @@ export class AdController {
             });
 
             if (product) {
-              // Enrich request with real product data (only product_name is used by service)
+              // Enrich request with real product data including product image URL
               enrichedRequestData = {
                 ...requestData,
                 product_name: product.name || requestData.product_name,
+                ...(product.imageUrl && { product_image_url: product.imageUrl }), // Use product image from DB if available
                 // Note: Additional product details (description, price, category) are available
                 // but not passed to AdRequest type. The ML service can fetch these if needed.
               };
-              console.log(`✅ Fetched product details from DB: ${product.name} (${product.category || 'no category'})`);
+              console.log(`✅ Fetched product details from DB: ${product.name} (${product.category || 'no category'})`, {
+                hasImage: !!product.imageUrl
+              });
             } else {
               console.warn(`⚠️ Product ${requestData.productId} not found, using provided product_name`);
             }
@@ -134,7 +137,7 @@ export class AdController {
    */
   public async generateAdImage(req: Request, res: Response): Promise<void> {
     try {
-      const { product_name, productId, product_image_url, playbook, style } = req.body;
+      const { product_name, productId, product_image_url, playbook, style, custom_prompt, template_context } = req.body;
       
       if (!product_name || !playbook) {
         res.status(400).json({ 
@@ -195,10 +198,8 @@ export class AdController {
         playbook,
         style,
         product_image_url: productImageUrl, // Pass product image URL to ML service
-      });({ 
-        product_name: productName, 
-        playbook, 
-        style 
+        custom_prompt, // Custom prompt for image editing
+        template_context, // Optional template context
       });
       
       res.status(200).json({

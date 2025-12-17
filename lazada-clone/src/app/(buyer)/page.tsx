@@ -1,20 +1,22 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { ProductCard } from '@/components/ProductCard';
-import { productAPI } from '@/lib/api';
+import { productAPI, authAPI } from '@/lib/api';
 import Image from 'next/image';
 import { useRealtimeProducts } from '@/hooks/useRealtimeProducts';
 import { useAuthStore } from '@/store';
+import { useRouter } from 'next/navigation';
 export default function Home() {
   const [products, setProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [currentSlide, setCurrentSlide] = useState(0);
-
+  const router = useRouter();
 
 const user = useAuthStore((state) => state.user);
 const isHydrated = useAuthStore((state) => state.isHydrated);
+const setUser = useAuthStore((state: any) => state.setUser);
 
 
 
@@ -44,9 +46,22 @@ const isHydrated = useAuthStore((state) => state.isHydrated);
   const fetchProducts = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await productAPI.getAll();
+      const response: any = await productAPI.getAll();
       const fetchedProducts = response.data?.data || response.data?.products || response.data;
-      setProducts(fetchedProducts);
+      
+      // Deduplicate products by ID to prevent duplicates
+      const uniqueProducts = Array.isArray(fetchedProducts) 
+        ? fetchedProducts.reduce((acc: any[], product: any) => {
+            const productId = product.id || product._id;
+            const exists = acc.some((p: any) => (p.id || p._id) === productId);
+            if (!exists) {
+              acc.push(product);
+            }
+            return acc;
+          }, [] as any[])
+        : [];
+      
+      setProducts(uniqueProducts);
       setError('');
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to load products');
@@ -56,10 +71,28 @@ const isHydrated = useAuthStore((state) => state.isHydrated);
     }
   }, []);
 
+  // Debounce refetch to prevent multiple rapid calls
+  const updateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const handleProductUpdate = useCallback(() => {
     console.log('🔄 Refreshing products due to real-time update...');
-    fetchProducts();
+    // Clear any pending timeout
+    if (updateTimeoutRef.current) {
+      clearTimeout(updateTimeoutRef.current);
+    }
+    // Use a small delay to debounce multiple rapid updates
+    updateTimeoutRef.current = setTimeout(() => {
+      fetchProducts();
+    }, 300);
   }, [fetchProducts]);
+
+  useEffect(() => {
+    // Cleanup timeout on unmount
+    return () => {
+      if (updateTimeoutRef.current) {
+        clearTimeout(updateTimeoutRef.current);
+      }
+    };
+  }, []);
 
   useRealtimeProducts({
     enabled: true,
@@ -76,6 +109,59 @@ const isHydrated = useAuthStore((state) => state.isHydrated);
     }, 3000);
     return () => clearInterval(interval);
   }, [bannerImages.length]);
+
+  // Handle OAuth callback - process token from URL
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const token = urlParams.get('token');
+    const errorParam = urlParams.get('error');
+    const errorDetails = urlParams.get('details');
+    const callbackUrl = urlParams.get('callbackUrl');
+
+    if (token) {
+      console.log('🔑 OAuth token received on home page:', token);
+      // Store token
+      localStorage.setItem('token', token);
+      
+      // Get callbackUrl from localStorage (stored before OAuth) or URL
+      const storedCallbackUrl = localStorage.getItem('oauth_callback_url');
+      const finalCallbackUrl = callbackUrl || storedCallbackUrl;
+      // Clear stored callbackUrl
+      if (storedCallbackUrl) {
+        localStorage.removeItem('oauth_callback_url');
+      }
+      
+      // Fetch user profile
+      authAPI.getProfile()
+        .then((response: any) => {
+          console.log('👤 User profile fetched:', response.data);
+          const userData = response.data as { shops?: any[]; role?: string; [key: string]: any };
+          const shops = userData.shops || [];
+          setUser(userData, token, shops);
+          console.log('✅ User state updated on home page');
+          
+          // Clean URL
+          window.history.replaceState({}, '', window.location.pathname);
+          
+          // Redirect to callbackUrl if provided, otherwise stay on home
+          if (finalCallbackUrl) {
+            router.push(finalCallbackUrl);
+          } else if (userData.role === 'SELLER') {
+            router.push('/seller-dashboard');
+          }
+          // If buyer and no callbackUrl, stay on home page
+        })
+        .catch((err) => {
+          console.error('❌ Failed to fetch user profile:', err);
+          // Clean URL even on error
+          window.history.replaceState({}, '', window.location.pathname);
+        });
+    } else if (errorParam) {
+      console.error('OAuth error:', errorDetails || errorParam);
+      // Clean URL
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, [router, setUser]);
 
   return (
     <div className="min-h-screen bg-gray-100">

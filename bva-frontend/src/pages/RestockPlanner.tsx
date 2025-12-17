@@ -8,7 +8,10 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { TrendingUp, Calendar, Package, Sparkles, Loader2, PackageOpen, Download, ShoppingCart, AlertCircle, Cloud, CloudRain, Sun, CloudLightning } from "lucide-react";
+import { TrendingUp, Calendar, Package, Sparkles, Loader2, PackageOpen, Download, ShoppingCart, AlertCircle, Cloud, CloudRain, Sun, CloudLightning, RefreshCw } from "lucide-react";
+import { ForecastCalendar } from "@/components/ForecastCalendar";
+import { TrendForecastModal } from "@/components/TrendForecastModal";
+import { type CalendarEvent } from "@/utils/forecastHelpers";
 import { Checkbox } from "@/components/ui/checkbox";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import { useRestock } from "@/hooks/useRestock";
@@ -16,6 +19,8 @@ import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIntegration } from "@/hooks/useIntegration";
 import { useRealtimeDashboard } from "@/hooks/useRealtimeDashboard";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { integrationService } from "@/services/integration.service";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -36,7 +41,8 @@ export default function RestockPlanner() {
   const { user } = useAuth();
   const [shopId, setShopId] = useState(user?.shops?.[0]?.id || "");
   const hasShop = !!shopId;
-  const { hasActiveIntegration, isLoading: isLoadingIntegration } = useIntegration();
+  const { hasActiveIntegration, isLoading: isLoadingIntegration, integrations } = useIntegration();
+  const queryClient = useQueryClient();
   const [budget, setBudget] = useState("50000");
   const [goal, setGoal] = useState<"profit" | "volume" | "balanced">("balanced");
   const [restockDays, setRestockDays] = useState("14");
@@ -44,12 +50,82 @@ export default function RestockPlanner() {
   const [isPayday, setIsPayday] = useState(false);
   const [upcomingHoliday, setUpcomingHoliday] = useState<string | null>(null);
   const [isShoppingListOpen, setIsShoppingListOpen] = useState(false);
+  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
+  const [selectedForecastDate, setSelectedForecastDate] = useState<Date | null>(null);
+  const [selectedForecastEvent, setSelectedForecastEvent] = useState<CalendarEvent | null>(null);
+  const [isTrendModalOpen, setIsTrendModalOpen] = useState(false);
   const shoppingListRef = useRef<HTMLDivElement>(null);
   const pdfContentRef = useRef<HTMLDivElement>(null);
   
   const restockMutation = useRestock();
   const restockData = restockMutation.data;
   const [savedRestockData, setSavedRestockData] = useState<RestockStrategyResponse | null>(null);
+
+  // Sync all integrations mutation
+  const syncAllIntegrationsMutation = useMutation({
+    mutationFn: async (integrationIds: string[]) => {
+      const results = await Promise.allSettled(
+        integrationIds.map(id => integrationService.syncIntegration(id))
+      );
+      return results;
+    },
+    onSuccess: (results) => {
+      const successful = results.filter(r => r.status === 'fulfilled').length;
+      const failed = results.filter(r => r.status === 'rejected').length;
+      
+      // Calculate total products and sales synced
+      let totalProducts = 0;
+      let totalSales = 0;
+      results.forEach(result => {
+        if (result.status === 'fulfilled') {
+          const data = result.value;
+          totalProducts += data?.data?.products ?? data?.products ?? 0;
+          totalSales += data?.data?.sales ?? data?.sales ?? 0;
+        }
+      });
+
+      // Invalidate queries to refresh data
+      queryClient.invalidateQueries({ queryKey: ["products"] });
+      queryClient.invalidateQueries({ queryKey: ["restock"] });
+      queryClient.invalidateQueries({ queryKey: ["integrations"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-analytics"] });
+      queryClient.invalidateQueries({ queryKey: ["at-risk-inventory"] });
+
+      if (successful > 0) {
+        toast.success(
+          `Sync completed! ${successful} platform(s) synced. ${totalProducts} products, ${totalSales} sales synced.`
+        );
+      }
+      if (failed > 0) {
+        toast.warning(`${failed} platform(s) failed to sync. Check your connections.`);
+      }
+    },
+    onError: (error: any) => {
+      toast.error(error.message || "Failed to sync products");
+    },
+  });
+
+  // Handle sync all products from all platforms
+  const handleSyncAllProducts = async () => {
+    if (!integrations || integrations.length === 0) {
+      toast.error("No integrations found. Please connect a platform first in Settings → Integrations.");
+      return;
+    }
+
+    // Get all active integrations (with terms accepted)
+    const activeIntegrations = integrations.filter((integration) => {
+      const settings = integration.settings as any;
+      return settings?.termsAccepted === true && settings?.isActive !== false;
+    });
+
+    if (activeIntegrations.length === 0) {
+      toast.error("No active integrations found. Please connect and accept terms for at least one platform.");
+      return;
+    }
+
+    const integrationIds = activeIntegrations.map(i => i.id);
+    await syncAllIntegrationsMutation.mutateAsync(integrationIds);
+  };
 
   // Enable real-time tracking for restock data
   useRealtimeDashboard({ 
@@ -91,11 +167,6 @@ export default function RestockPlanner() {
   const displayRestockData = restockData || savedRestockData;
 
   const handleGeneratePlan = async () => {
-    if (!hasActiveIntegration) {
-      toast.error("Please connect your Shopee-Clone account first. Go to Settings → Integrations.");
-      return;
-    }
-
     if (!shopId || !budget) {
       toast.error("Please fill in all required fields");
       return;
@@ -107,6 +178,8 @@ export default function RestockPlanner() {
       return;
     }
 
+    // Allow generation if user has a shop, even without active integration
+    // The backend will handle the restock plan generation based on available products
     restockMutation.mutate({
       shopId,
       budget: budgetNum,
@@ -245,48 +318,8 @@ export default function RestockPlanner() {
     );
   }
 
-  // Show integration required message
-  if (!hasActiveIntegration) {
-    return (
-      <div className="space-y-6">
-        <div className="glass-card p-8">
-          <div className="space-y-2">
-            <h1 className="text-4xl font-bold text-foreground">📈 Restock Planner</h1>
-            <p className="text-muted-foreground">AI-powered demand forecasting and intelligent inventory planning</p>
-          </div>
-        </div>
-        <Card className="glass-card border-primary/20">
-          <CardHeader>
-            <CardTitle className="text-foreground flex items-center gap-2">
-              <AlertCircle className="h-5 w-5 text-warning" />
-              Integration Required
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <p className="text-sm text-muted-foreground">
-                To use the Restock Planner and generate forecasting, you need to integrate with Shopee-Clone and accept the terms and conditions.
-              </p>
-              <ul className="text-sm text-muted-foreground space-y-2 ml-4">
-                <li>• Go to Settings → Integrations</li>
-                <li>• Connect your Shopee-Clone account</li>
-                <li>• Accept the terms and conditions</li>
-                <li>• Sync your data to enable forecasting</li>
-              </ul>
-              <div className="pt-2">
-                <Button
-                  onClick={() => window.location.href = '/settings'}
-                  className="gap-2 bg-primary hover:bg-primary/90"
-                >
-                  Go to Settings
-                </Button>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
+  // Show integration info message (but allow using the planner if shop exists)
+  // Users can still generate restock plans if they have products, even without active integration
 
   return (
     <div className="space-y-6">
@@ -415,7 +448,7 @@ export default function RestockPlanner() {
                       className="text-sm font-normal cursor-pointer flex items-center gap-2"
                     >
                       <Calendar className="h-4 w-4 text-primary" />
-                      Is Payday? (+20% demand)
+                      Is Payday?
                     </Label>
                   </div>
                   <div className="flex items-center space-x-2">
@@ -429,7 +462,7 @@ export default function RestockPlanner() {
                       className="text-sm font-normal cursor-pointer flex items-center gap-2"
                     >
                       <Sparkles className="h-4 w-4 text-primary" />
-                      Upcoming Mega Sale (11.11) (+50% demand)
+                      Upcoming Mega Sale
                     </Label>
                   </div>
                 </div>
@@ -449,12 +482,12 @@ export default function RestockPlanner() {
                       )}
                       {isPayday && (
                         <p className="text-success">
-                          <span className="font-semibold">Payday:</span> +20% demand
+                          <span className="font-semibold">Payday:</span> Active
                         </p>
                       )}
                       {upcomingHoliday && (
                         <p className="text-primary">
-                          <span className="font-semibold">Holiday:</span> {upcomingHoliday} (+50% demand)
+                          <span className="font-semibold">Holiday:</span> {upcomingHoliday}
                         </p>
                       )}
                     </>
@@ -464,30 +497,73 @@ export default function RestockPlanner() {
             </div>
           </div>
           
-          <Button 
-            className="mt-4 gap-2 bg-primary hover:bg-primary/90 text-primary-foreground shadow-nav-active disabled:opacity-50 disabled:cursor-not-allowed" 
-            onClick={handleGeneratePlan}
-            disabled={restockMutation.isPending || !hasActiveIntegration || isLoadingIntegration}
-          >
-            {restockMutation.isPending ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Generating...
-              </>
-            ) : !hasActiveIntegration ? (
-              <>
-                <AlertCircle className="h-4 w-4" />
-                Connect Integration First
-              </>
-            ) : (
-              <>
-                <Sparkles className="h-4 w-4" />
-                Generate Restock Plan
-              </>
-            )}
-          </Button>
+          <div className="mt-4 flex gap-3">
+            <Button 
+              className="flex-1 gap-2 bg-primary hover:bg-primary/90 text-primary-foreground shadow-nav-active disabled:opacity-50 disabled:cursor-not-allowed" 
+              onClick={handleGeneratePlan}
+              disabled={restockMutation.isPending || isLoadingIntegration || !shopId}
+            >
+              {restockMutation.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Generating...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="h-4 w-4" />
+                  Generate Restock Plan
+                </>
+              )}
+            </Button>
+            <Button
+              variant="outline"
+              onClick={handleSyncAllProducts}
+              disabled={syncAllIntegrationsMutation.isPending || !integrations || integrations.length === 0}
+              className="gap-2"
+            >
+              {syncAllIntegrationsMutation.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Syncing...
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="h-4 w-4" />
+                  Sync Products
+                </>
+              )}
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => setIsCalendarOpen(!isCalendarOpen)}
+              className="gap-2"
+            >
+              <Calendar className="h-4 w-4" />
+              {isCalendarOpen ? "Hide" : "Show"} Forecast Calendar
+            </Button>
+          </div>
         </CardContent>
       </Card>
+
+      {/* Smart Forecast Calendar */}
+      {isCalendarOpen && (
+        <ForecastCalendar
+          currentDate={new Date()}
+          onDateClick={(date, event) => {
+            setSelectedForecastDate(date);
+            setSelectedForecastEvent(event);
+            setIsTrendModalOpen(true);
+          }}
+        />
+      )}
+
+      {/* Trend Forecast Modal */}
+      <TrendForecastModal
+        open={isTrendModalOpen}
+        onOpenChange={setIsTrendModalOpen}
+        selectedDate={selectedForecastDate}
+        eventName={selectedForecastEvent?.eventName}
+      />
 
       {restockMutation.isError && (
         <Card className="glass-card border-destructive">
@@ -709,10 +785,20 @@ export default function RestockPlanner() {
               {/* Restock Recommendations Table */}
               <Card className="glass-card">
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-foreground">
-                    <Package className="h-5 w-5 text-primary" />
-                    Restock Recommendations
-                  </CardTitle>
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="flex items-center gap-2 text-foreground">
+                      <Package className="h-5 w-5 text-primary" />
+                      Restock Recommendations
+                    </CardTitle>
+                    <Button
+                      onClick={handleApprove}
+                      className="gap-2 bg-primary hover:bg-primary/90 text-primary-foreground"
+                      disabled={!displayRestockData || !displayRestockData.recommendations || displayRestockData.recommendations.length === 0}
+                    >
+                      <ShoppingCart className="h-4 w-4" />
+                      Approve All & Create Shopping List
+                    </Button>
+                  </div>
                 </CardHeader>
                 <CardContent>
                   <Table>
@@ -725,7 +811,6 @@ export default function RestockPlanner() {
                         <TableHead>Cost</TableHead>
                         <TableHead>Exp. Profit</TableHead>
                         <TableHead>Reasoning</TableHead>
-                        <TableHead className="text-right">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -743,15 +828,6 @@ export default function RestockPlanner() {
                           <TableCell className="text-success">₱{((item.expected_revenue || 0) - (item.cost || 0)).toLocaleString()}</TableCell>
                           <TableCell className="max-w-[200px] truncate text-muted-foreground" title={item.reason}>
                             {item.reason}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <Button 
-                              variant="outline" 
-                              size="sm"
-                              onClick={handleApprove}
-                            >
-                              Approve
-                            </Button>
                           </TableCell>
                         </TableRow>
                       ))}

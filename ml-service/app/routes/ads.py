@@ -24,10 +24,30 @@ from app.schemas.social_media_schema import (
 )
 from app.services.ad_service import ad_service
 from app.services.social_media_service import social_media_service
+from app.config import settings
 
 logger = structlog.get_logger()
 
 router = APIRouter(prefix="/ads", tags=["MarketMate Ad Generation"])
+
+
+@router.get("/models")
+async def get_model_info():
+    """
+    Get information about the AI models being used for ad generation.
+    
+    Returns:
+        Dictionary with model names for ad copy and image generation
+    """
+    return {
+        "ad_copy_model": settings.GEMINI_MODEL,
+        "image_generation_model": settings.IMAGEN_MODEL,
+        "gemini_configured": ad_service.gemini_configured,
+        "description": {
+            "ad_copy_model": "Used for generating ad copy, headlines, and marketing text",
+            "image_generation_model": "Used for generating marketing images and ad visuals"
+        }
+    }
 
 
 @router.post("/generate")
@@ -107,11 +127,12 @@ async def generate_ad_copy_only(request: AdCopyRequest) -> AdCopyResponse:
             playbook=request.playbook
         )
         
-        # Generate only ad copy
+        # Generate only ad copy (with image analysis if provided)
         result = ad_service.generate_ad_content(
             product_name=request.product_name,
             playbook=request.playbook,
-            discount=request.discount
+            discount=request.discount,
+            product_image_url=request.product_image_url
         )
         
         response = AdCopyResponse(
@@ -139,30 +160,73 @@ async def generate_ad_image_only(request: AdImageRequest) -> AdImageResponse:
     Automatically falls back to high-quality placeholders if AI is unavailable.
     """
     try:
+        # Require product image (from inventory/SmartShelf or user upload)
+        if not request.product_image_url:
+            logger.warning(
+                "product_image_required",
+                product=request.product_name,
+                playbook=request.playbook
+            )
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Product image is required. Please provide a product image from inventory, SmartShelf, or upload your own image."
+            )
+        
         logger.info(
             "ad_image_request",
             product=request.product_name,
             playbook=request.playbook,
-            style=request.style
+            style=request.style,
+            has_product_image=bool(request.product_image_url),
+            product_image_url=request.product_image_url[:100] + "..." if request.product_image_url and len(request.product_image_url) > 100 else request.product_image_url
         )
         
         # Generate only the image
         result = ad_service.generate_ad_content(
             product_name=request.product_name,
             playbook=request.playbook,
-            style=request.style
+            style=request.style,
+            product_image_url=request.product_image_url,
+            custom_prompt=request.custom_prompt,
+            template_context=request.template_context
         )
         
-        response = AdImageResponse(image_url=result["image_url"])
+        response = AdImageResponse(
+            image_url=result["image_url"],
+            warning=result.get("warning")
+        )
         
-        logger.info("ad_image_generated")
+        if result.get("warning"):
+            logger.warning("ad_image_placeholder_used", warning=result["warning"])
+        else:
+            logger.info("ad_image_generated")
+        
         return response
     
+    except HTTPException:
+        # Re-raise HTTP exceptions (like validation errors)
+        raise
+    except ValueError as ve:
+        # Validation errors from Pydantic
+        logger.warning(
+            "ad_image_validation_error",
+            error=str(ve),
+            product=request.product_name if hasattr(request, 'product_name') else None
+        )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(ve)
+        )
     except Exception as e:
-        logger.error("ad_image_error", error=str(e))
+        logger.error(
+            "ad_image_error",
+            error=str(e),
+            error_type=type(e).__name__,
+            product=request.product_name if hasattr(request, 'product_name') else None
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to generate ad image"
+            detail=f"Failed to generate ad image: {str(e)}"
         )
 
 

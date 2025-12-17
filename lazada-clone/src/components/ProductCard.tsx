@@ -21,6 +21,31 @@ export function ProductCard({ product }: { product: Product }) {
 
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [quantity, setQuantity] = useState(1);
+
+  const handleQuantityChange = (amount: number) => {
+    setQuantity(prev => {
+      const newQuantity = prev + amount;
+      if (newQuantity < 1) return 1;
+      // Check stock limit
+      if (product.stock !== undefined && product.stock !== null) {
+        if (newQuantity > product.stock) {
+          toast.warning(`Only ${product.stock} items available`);
+          return product.stock;
+        }
+      }
+      return newQuantity;
+    });
+  };
+
+  const handleAddToCart = () => {
+    // Add product with selected quantity
+    const productWithQuantity = { ...product, quantity };
+    addItemToCart(productWithQuantity);
+    toast.success(`Added ${quantity} item(s) to cart`);
+    // Reset quantity after adding
+    setQuantity(1);
+  };
 
   const handleBuyNow = async () => {
     if (!isHydrated) {
@@ -40,8 +65,8 @@ export function ProductCard({ product }: { product: Product }) {
     setIsSubmitting(true);
     try {
       await orderAPI.create({
-        items: [{ productId: product.id || product._id, quantity: 1, price: product.price }],
-        total: product.price,
+        items: [{ productId: product.id || product._id, quantity: quantity, price: product.price }],
+        total: product.price * quantity,
         shippingAddress: '123 Main St, Anytown, USA', // Example address
         paymentMethod: 'Credit Card',
       });
@@ -114,13 +139,60 @@ export function ProductCard({ product }: { product: Product }) {
             <span className="text-xs text-gray-600 ml-2">{product.sold} sold</span>
           )}
         </div>
+        
+        {/* Stock Indicator */}
+        {product.stock !== undefined && (
+          <div className="mb-3">
+            <span className={`text-xs font-medium px-2 py-1 rounded ${
+              product.stock > 10 
+                ? 'bg-green-100 text-green-700' 
+                : product.stock > 0 
+                ? 'bg-yellow-100 text-yellow-700' 
+                : 'bg-red-100 text-red-700'
+            }`}>
+              {product.stock > 0 ? `${product.stock} in stock` : 'Out of stock'}
+            </span>
+          </div>
+        )}
+
+        {/* Quantity Selector */}
+        <div className="mb-3">
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-gray-600 font-medium">Quantity:</span>
+            <div className="flex items-center border border-gray-300 rounded overflow-hidden">
+              <button
+                onClick={() => handleQuantityChange(-1)}
+                disabled={quantity <= 1}
+                className="px-2 py-1 text-gray-700 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed font-semibold text-sm transition-colors"
+                aria-label="Decrease quantity"
+              >
+                −
+              </button>
+              <span className="px-3 py-1 border-l border-r border-gray-300 min-w-[2.5rem] text-center font-semibold text-sm bg-white">
+                {quantity}
+              </span>
+              <button
+                onClick={() => handleQuantityChange(1)}
+                disabled={product.stock !== undefined && quantity >= product.stock}
+                className="px-2 py-1 text-gray-700 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed font-semibold text-sm transition-colors"
+                aria-label="Increase quantity"
+              >
+                +
+              </button>
+            </div>
+            {product.stock !== undefined && product.stock > 0 && (
+              <span className="text-xs text-gray-500">Max: {product.stock}</span>
+            )}
+          </div>
+        </div>
       </div>
 
       <div className="flex flex-col gap-2">
         <div className="flex gap-2">
           <button
-            onClick={() => addItemToCart(product)}
-            className="flex-1 bg-red-600 text-white py-2 rounded hover:bg-red-700"
+            onClick={handleAddToCart}
+            disabled={product.stock !== undefined && product.stock === 0}
+            className="flex-1 bg-red-600 text-white py-2 rounded hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
           >
             Add to Cart
           </button>
@@ -133,10 +205,10 @@ export function ProductCard({ product }: { product: Product }) {
         </div>
         <button
           onClick={handleBuyNow}
-          disabled={isSubmitting || !isHydrated}
-          className="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700 disabled:opacity-50"
+          disabled={isSubmitting || !isHydrated || (product.stock !== undefined && (product.stock === 0 || quantity > product.stock))}
+          className="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
         >
-          {isSubmitting ? 'Processing...' : 'Buy Now'}
+          {isSubmitting ? 'Processing...' : product.stock === 0 ? 'Out of Stock' : quantity > (product.stock || 0) ? 'Insufficient Stock' : 'Buy Now'}
         </button>
       </div>
     </div>

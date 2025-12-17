@@ -27,15 +27,16 @@ if (process.env.GEMINI_API_KEY) {
 
 export class AdService {
   public async generateAdCopy(request: AdRequest): Promise<{ ad_copy: string; hashtags: string[] }> {
-    const { product_name, playbook, discount } = request;
+    const { product_name, playbook, discount, product_image_url } = request;
 
     try {
-      // Call ML Service for ad copy generation (faster endpoint, no image)
+      // Call ML Service for ad copy generation (with image analysis if product_image_url is provided)
       // ML service returns AdCopyResponse directly: { ad_copy, hashtags }
       const result = await mlClient.generateAdCopy({
         product_name,
         playbook,
         discount,
+        product_image_url, // Pass product image URL for vision-based ad copy generation
       });
 
       // Return ad copy and hashtags
@@ -112,6 +113,8 @@ export class AdService {
     playbook: string;
     style?: string;
     product_image_url?: string; // Optional: Product image URL to use as context for ad generation
+    custom_prompt?: string; // Optional: Custom prompt for image editing/regeneration
+    template_context?: string; // Optional: Template context for ad generation
   }): Promise<{ image_url: string }> {
     try {
       console.log(`🎨 Generating ad image for product: ${request.product_name}`, {
@@ -127,6 +130,8 @@ export class AdService {
         playbook: request.playbook,
         style: request.style,
         product_image_url: request.product_image_url, // Include product image URL
+        custom_prompt: request.custom_prompt, // Include custom prompt for image editing
+        template_context: request.template_context, // Include template context
       });
       
       return {

@@ -81,15 +81,25 @@ export function useGenerateAdImage() {
     mutationFn: async (request: GenerateAdImageRequest): Promise<GenerateAdImageResponse> => {
       return adsService.generateAdImage(request);
     },
-    onSuccess: () => {
-      toast({
-        title: "Success",
-        description: "Ad image generated successfully!",
-      });
+    onSuccess: (response) => {
+      // Check if there's a warning (e.g., placeholder used due to quota)
+      if (response.warning) {
+        toast({
+          title: "Warning",
+          description: response.warning,
+          variant: "default",
+        });
+      } else {
+        toast({
+          title: "Success",
+          description: "Ad image generated successfully!",
+        });
+      }
     },
     onError: (error: any) => {
       const errorMessage = 
         error?.response?.data?.message || 
+        error?.response?.data?.detail ||
         error?.message || 
         "Failed to generate ad image";
       toast({
@@ -199,7 +209,7 @@ export function useUpdateCampaign() {
 export function useScheduleCampaign() {
   const { toast } = useToast();
 
-  return useMutation({
+  return useMutation<{ success: boolean; data: any; warning?: string }, any, { id: string; scheduledAt: string }>({
     mutationFn: async ({ id, scheduledAt }: { id: string; scheduledAt: string }) => {
       return adsService.scheduleCampaign(id, scheduledAt);
     },
@@ -230,7 +240,7 @@ export function useScheduleCampaign() {
 export function usePublishCampaign() {
   const { toast } = useToast();
 
-  return useMutation({
+  return useMutation<{ success: boolean; data: any; warning?: string }, any, string>({
     mutationFn: async (id: string) => {
       return adsService.publishCampaign(id);
     },
@@ -245,6 +255,37 @@ export function usePublishCampaign() {
         error?.response?.data?.error || 
         error?.message || 
         "Failed to publish campaign";
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    },
+  });
+}
+
+/**
+ * Unschedule a campaign (change to DRAFT)
+ * Usage: const { mutate, isPending } = useUnscheduleCampaign();
+ */
+export function useUnscheduleCampaign() {
+  const { toast } = useToast();
+
+  return useMutation<any, any, string>({
+    mutationFn: async (id: string) => {
+      return adsService.unscheduleCampaign(id);
+    },
+    onSuccess: () => {
+      toast({
+        title: "Success",
+        description: "Campaign scheduling cancelled. Campaign moved to drafts.",
+      });
+    },
+    onError: (error: any) => {
+      const errorMessage = 
+        error?.response?.data?.error || 
+        error?.message || 
+        "Failed to unschedule campaign";
       toast({
         title: "Error",
         description: errorMessage,

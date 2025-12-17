@@ -21,23 +21,37 @@ export default function LoginPage() {
     const token = urlParams.get('token');
     const errorParam = urlParams.get('error');
     const errorDetails = urlParams.get('details');
+    const callbackUrl = urlParams.get('callbackUrl');
 
     if (token) {
       console.log('🔑 OAuth token received:', token);
       // Store token
       localStorage.setItem('token', token);
       
+      // Get callbackUrl from localStorage (stored before OAuth) or URL
+      const storedCallbackUrl = localStorage.getItem('oauth_callback_url');
+      const finalCallbackUrl = callbackUrl || storedCallbackUrl;
+      // Clear stored callbackUrl
+      if (storedCallbackUrl) {
+        localStorage.removeItem('oauth_callback_url');
+      }
+      
       // Fetch user profile
       authAPI.getProfile()
-        .then((response) => {
+        .then((response: any) => {
           console.log('👤 User profile fetched:', response.data);
-          const userData = response.data;
+          const userData = response.data as { shops?: any[]; role?: string; [key: string]: any };
           const shops = userData.shops || [];
           setUser(userData, token, shops);
           console.log('✅ User state updated in login');
           
-          // Redirect based on role
-          if (userData.role === 'SELLER') {
+          // Clean URL
+          window.history.replaceState({}, '', window.location.pathname);
+          
+          // Redirect based on callbackUrl, role, or default
+          if (finalCallbackUrl) {
+            router.push(finalCallbackUrl);
+          } else if (userData.role === 'SELLER') {
             router.push('/seller-dashboard');
           } else {
             router.push('/');
@@ -46,10 +60,9 @@ export default function LoginPage() {
         .catch((err) => {
           console.error('❌ Failed to fetch user profile:', err);
           setError('Failed to fetch user profile');
+          // Clean URL even on error
+          window.history.replaceState({}, '', window.location.pathname);
         });
-      
-      // Clean URL
-      window.history.replaceState({}, '', window.location.pathname);
     } else if (errorParam) {
       setError(errorDetails || 'Authentication failed');
       window.history.replaceState({}, '', window.location.pathname);
@@ -62,9 +75,10 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const response = await authAPI.login({ email, password, platform: 'LAZADA_CLONE' });
+      const response: any = await authAPI.login({ email, password, platform: 'LAZADA_CLONE' });
       // Server returns { success: true, data: { user, shops, token } }
-      const { token, user, shops } = response.data.data;
+      const responseData = response.data as { data?: { token: string; user: any; shops: any[] }; [key: string]: any };
+      const { token, user, shops } = responseData.data || responseData;
       setUser(user, token, shops);
       localStorage.setItem('token', token);
       localStorage.setItem('shops', JSON.stringify(shops));
@@ -179,6 +193,13 @@ export default function LoginPage() {
             onClick={() => {
               const baseUrl = window.location.origin;
               const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api';
+              // Get callbackUrl from current URL if present and store it
+              const urlParams = new URLSearchParams(window.location.search);
+              const callbackUrl = urlParams.get('callbackUrl');
+              if (callbackUrl) {
+                // Store callbackUrl in localStorage to retrieve after OAuth
+                localStorage.setItem('oauth_callback_url', callbackUrl);
+              }
               window.location.href = `${API_URL}/auth/buyer-login?redirectUrl=${encodeURIComponent(baseUrl)}`;
             }}
             className="flex-1 flex items-center justify-center gap-2 border border-gray-300 py-2 rounded hover:bg-gray-50 text-sm"

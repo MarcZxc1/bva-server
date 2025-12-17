@@ -10,33 +10,62 @@ class WebhookService {
    */
   async handleProductCreated(shopId: string, data: any) {
     const externalId = data.id || data.productId;
+    const productId = data.id || data.productId; // Could be internal ID if from direct API call
     const sku = data.sku || `SHOPEE-${externalId}`;
 
-    // First, try to find by externalId (preferred)
-    let existingProduct = await prisma.product.findUnique({
-      where: {
-        shopId_externalId: {
-          shopId,
-          externalId: externalId,
-        },
-      },
-    });
+    // First, check if product already exists by internal ID (for direct API calls)
+    let existingProduct = null;
+    if (productId) {
+      try {
+        existingProduct = await prisma.product.findUnique({
+          where: { id: productId },
+        });
+        // Verify it belongs to the same shop
+        if (existingProduct && existingProduct.shopId !== shopId) {
+          existingProduct = null; // Different shop, treat as new
+        }
+      } catch (error) {
+        // ID might not be a valid UUID, continue with other checks
+      }
+    }
+
+    // If not found by ID, try to find by externalId (preferred for external systems)
+    if (!existingProduct && externalId) {
+      try {
+        existingProduct = await prisma.product.findUnique({
+          where: {
+            shopId_externalId: {
+              shopId,
+              externalId: externalId,
+            },
+          },
+        });
+      } catch (error) {
+        // externalId might not be set up, continue
+      }
+    }
 
     // If not found by externalId, check by SKU (might be a duplicate)
     if (!existingProduct) {
-      existingProduct = await prisma.product.findUnique({
-        where: {
-          shopId_sku: {
-            shopId,
-            sku: sku,
+      try {
+        existingProduct = await prisma.product.findUnique({
+          where: {
+            shopId_sku: {
+              shopId,
+              sku: sku,
+            },
           },
-        },
-      });
+        });
+      } catch (error) {
+        // SKU might not be unique, continue
+      }
     }
 
     let product;
     if (existingProduct) {
-      // Update existing product
+      // Product already exists - this is likely a duplicate webhook call
+      // Update existing product instead of creating duplicate
+      console.log(`⚠️ Product already exists (ID: ${existingProduct.id}), updating instead of creating duplicate`);
       product = await prisma.product.update({
         where: { id: existingProduct.id },
         data: {
@@ -47,11 +76,39 @@ class WebhookService {
           category: data.category || null,
           imageUrl: data.image || data.imageUrl || null,
           stock: data.stock || 0,
-          externalId: externalId, // Ensure externalId is set
+          externalId: externalId || existingProduct.externalId, // Preserve existing externalId if new one is not provided
           expiryDate: data.expiryDate ? new Date(data.expiryDate) : null,
           updatedAt: new Date(),
         },
       });
+      
+      // Update inventory if it exists, otherwise create it
+      if (product.stock !== undefined) {
+        const existingInventory = await prisma.inventory.findFirst({
+          where: { productId: product.id },
+        });
+
+        if (existingInventory) {
+          await prisma.inventory.update({
+            where: { id: existingInventory.id },
+            data: {
+              quantity: product.stock,
+              updatedAt: new Date(),
+            },
+          });
+        } else {
+          await prisma.inventory.create({
+            data: {
+              productId: product.id,
+              quantity: product.stock,
+              threshold: 10,
+            },
+          });
+        }
+      }
+      
+      // Return early to prevent duplicate creation
+      return product;
     } else {
       // Check if a product with this SKU already exists
       const skuConflict = await prisma.product.findUnique({

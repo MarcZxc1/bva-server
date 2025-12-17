@@ -315,6 +315,7 @@ export async function getProductsForUser(userId: string, platform?: string) {
       expiryDate: product.expiryDate ? product.expiryDate.toISOString() : null,
       category: product.category,
       imageUrl: product.imageUrl,
+      shopId: product.shopId, // Include shopId for filtering products by shop
       platform: productPlatform,
       createdAt: product.createdAt.toISOString(),
       updatedAt: product.updatedAt.toISOString(),

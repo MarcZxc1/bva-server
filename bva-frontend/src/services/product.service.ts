@@ -12,6 +12,7 @@ export interface Product {
   expiryDate?: string | null;
   category?: string | null;
   imageUrl?: string | null;
+  shopId?: string; // Shop ID for filtering products by shop
   platform?: string | null;
   createdAt: string;
   updatedAt: string;

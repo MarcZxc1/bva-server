@@ -80,6 +80,91 @@ const formatDate = (date?: string | null) => {
   return `${year}-${month}-${day}`;
 };
 
+// Calculate product trend based on sales velocity
+const getProductTrend = (
+  productId: string,
+  atRiskData: any,
+  allProducts: any[]
+): { label: string; variant: "default" | "secondary" | "outline" | "destructive"; icon: any } => {
+  // Find product in at-risk data to get avg_daily_sales
+  const atRiskItem = atRiskData?.at_risk?.find((item: any) => item.product_id === productId);
+  const avgDailySales = atRiskItem?.avg_daily_sales ?? undefined;
+
+  // If product is not in at-risk data, it might be:
+  // 1. Not flagged (could be normal or best seller)
+  // 2. No sales data available
+  // We'll show "Normal" as default for products not in at-risk list
+  if (!atRiskItem) {
+    return {
+      label: "Normal",
+      variant: "secondary",
+      icon: Package
+    };
+  }
+
+  // If product is in at-risk data but has no sales, it's a flop
+  if (avgDailySales === undefined || avgDailySales === 0) {
+    return {
+      label: "Flop",
+      variant: "destructive",
+      icon: TrendingDown
+    };
+  }
+
+  // Calculate percentiles from all at-risk items to determine thresholds
+  const allSalesVelocities = atRiskData?.at_risk
+    ?.map((item: any) => item.avg_daily_sales || 0)
+    .filter((v: number) => v > 0)
+    .sort((a: number, b: number) => b - a) || [];
+
+  if (allSalesVelocities.length === 0) {
+    return {
+      label: "Normal",
+      variant: "secondary",
+      icon: Package
+    };
+  }
+
+  // Calculate thresholds based on percentiles
+  // Top 20% = Best Seller
+  // Top 20-50% = Trending
+  // Bottom 20% = Slow Moving
+  const top20Index = Math.max(0, Math.floor(allSalesVelocities.length * 0.2));
+  const top50Index = Math.max(0, Math.floor(allSalesVelocities.length * 0.5));
+  const bottom20Index = Math.max(0, Math.floor(allSalesVelocities.length * 0.8));
+  
+  const top20Percentile = allSalesVelocities[top20Index] || 0;
+  const top50Percentile = allSalesVelocities[top50Index] || 0;
+  const bottom20Percentile = allSalesVelocities[bottom20Index] || 0;
+
+  // Determine trend category based on sales velocity
+  if (avgDailySales >= top20Percentile) {
+    return {
+      label: "Best Seller",
+      variant: "default",
+      icon: TrendingUp
+    };
+  } else if (avgDailySales >= top50Percentile) {
+    return {
+      label: "Trending",
+      variant: "default",
+      icon: TrendingUp
+    };
+  } else if (avgDailySales < bottom20Percentile && avgDailySales > 0) {
+    return {
+      label: "Slow Moving",
+      variant: "outline",
+      icon: TrendingDown
+    };
+  } else {
+    return {
+      label: "Normal",
+      variant: "secondary",
+      icon: Package
+    };
+  }
+};
+
 export default function SmartShelf() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -530,10 +615,10 @@ export default function SmartShelf() {
                   <TableHead>Product Name</TableHead>
                   <TableHead>SKU</TableHead>
                   <TableHead>Platform</TableHead>
-                  <TableHead>Quantity</TableHead>
-                  <TableHead>Expiry</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  <TableHead className="text-center">Quantity</TableHead>
+                  <TableHead className="text-center">Expiry</TableHead>
+                  <TableHead className="text-center">Trend</TableHead>
+                  <TableHead className="text-center">Status</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -541,6 +626,8 @@ export default function SmartShelf() {
                   const quantity = product.quantity || product.stock || 0;
                   const status = getInventoryStatus(product, quantity, product.expiryDate);
                   const isLowStock = quantity <= 10;
+                  const trend = getProductTrend(product.id, atRiskData, products);
+                  const TrendIcon = trend.icon;
 
                   return (
                     <TableRow
@@ -549,13 +636,84 @@ export default function SmartShelf() {
                       <TableCell className="font-medium">{product.name}</TableCell>
                       <TableCell className="text-muted-foreground">{product.sku}</TableCell>
                       <TableCell>{getPlatformName(product.platform)}</TableCell>
-                      <TableCell>
+                      <TableCell className="text-center">
                         <span className={isLowStock ? "text-destructive font-semibold" : "font-semibold"}>
                           {quantity}
                         </span>
                       </TableCell>
-                      <TableCell>{formatDate(product.expiryDate)}</TableCell>
-                      <TableCell>
+                      <TableCell className="text-center">{formatDate(product.expiryDate)}</TableCell>
+                      <TableCell className="text-center">
+                        {trend.label === "Best Seller" ? (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigate("/ads", {
+                                state: {
+                                  product: {
+                                    id: product.id,
+                                    productId: product.id,
+                                    name: product.name,
+                                    imageUrl: product.imageUrl,
+                                    shopId: product.shopId,
+                                  },
+                                  playbook: "Best Seller Spotlight"
+                                }
+                              });
+                            }}
+                            className="inline-flex items-center gap-1 w-fit mx-auto bg-transparent border-none p-0 cursor-pointer"
+                          >
+                            <Badge 
+                              variant={trend.variant}
+                              className="bg-green-600 text-white border-transparent hover:bg-green-700 flex items-center gap-1 cursor-pointer"
+                            >
+                              <TrendIcon className="h-3 w-3" />
+                              {trend.label}
+                            </Badge>
+                          </button>
+                        ) : trend.label === "Flop" ? (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigate("/ads", {
+                                state: {
+                                  product: {
+                                    id: product.id,
+                                    productId: product.id,
+                                    name: product.name,
+                                    imageUrl: product.imageUrl,
+                                    shopId: product.shopId,
+                                  },
+                                  playbook: "Bundle Up!"
+                                }
+                              });
+                            }}
+                            className="inline-flex items-center gap-1 w-fit mx-auto bg-transparent border-none p-0 cursor-pointer"
+                          >
+                            <Badge 
+                              variant={trend.variant}
+                              className="bg-red-600 text-white border-transparent hover:bg-red-700 flex items-center gap-1 cursor-pointer"
+                            >
+                              <TrendIcon className="h-3 w-3" />
+                              {trend.label}
+                            </Badge>
+                          </button>
+                        ) : (
+                          <Badge 
+                            variant={trend.variant}
+                            className={
+                              trend.label === "Trending"
+                                ? "bg-blue-600 text-white border-transparent hover:bg-blue-700 flex items-center gap-1 w-fit mx-auto"
+                                : trend.label === "Slow Moving"
+                                ? "bg-orange-500 text-white border-transparent hover:bg-orange-600 flex items-center gap-1 w-fit mx-auto"
+                                : "flex items-center gap-1 w-fit mx-auto"
+                            }
+                          >
+                            <TrendIcon className="h-3 w-3" />
+                            {trend.label}
+                          </Badge>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-center">
                         <Badge 
                           variant={status.variant}
                           className={
@@ -568,11 +726,6 @@ export default function SmartShelf() {
                         >
                           {status.label}
                         </Badge>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                          <Pencil className="h-4 w-4 text-muted-foreground" />
-                        </Button>
                       </TableCell>
                     </TableRow>
                   );
@@ -601,7 +754,12 @@ export default function SmartShelf() {
             </DialogDescription>
           </DialogHeader>
           
-          {selectedItem && (
+          {selectedItem && (() => {
+            // Find the product to get expiry date
+            const product = products?.find(p => p.id === selectedItem.product_id);
+            const expiryDate = product?.expiryDate;
+            
+            return (
             <div className="space-y-6 py-4">
               <div className="flex items-center justify-between">
                 <div>
@@ -624,9 +782,9 @@ export default function SmartShelf() {
                 </Card>
                 <Card className="glass-card-sm p-4">
                   <div className="text-sm text-muted-foreground mb-1">Expiration Date</div>
-                  {selectedItem.expiry_date ? (
+                  {expiryDate ? (
                     <div>
-                      <div className="text-lg font-bold">{formatDate(selectedItem.expiry_date)}</div>
+                      <div className="text-lg font-bold">{formatDate(expiryDate)}</div>
                       {selectedItem.days_to_expiry !== undefined && (
                         <div className={`text-sm ${selectedItem.days_to_expiry <= 30 ? "text-warning" : "text-muted-foreground"}`}>
                           {selectedItem.days_to_expiry} days left
@@ -682,7 +840,8 @@ export default function SmartShelf() {
                 </Button>
               </div>
             </div>
-          )}
+            );
+          })()}
         </DialogContent>
       </Dialog>
 

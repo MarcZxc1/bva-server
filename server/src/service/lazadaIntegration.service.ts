@@ -458,10 +458,11 @@ class LazadaIntegrationService {
             profit = revenue * 0.2;
           }
 
-          // TIME TRAVEL: Assign random past date within last 30 days
-          // Distribute evenly across the time range for better ML training
-          const randomOffset = Math.random() * timeRangeMs;
-          const timeTraveledDate = new Date(thirtyDaysAgo.getTime() + randomOffset);
+          // Use actual order creation date instead of fake time-traveled dates
+          // Check for createdAt field in order, otherwise use current date
+          const actualOrderDate = order.createdAt 
+            ? new Date(order.createdAt) 
+            : new Date();
 
           // DATA MAPPING: Lazada Order -> BVA Sale Table
           // - order.items -> Sale.items (required for Restock Planner analysis)
@@ -469,7 +470,7 @@ class LazadaIntegrationService {
           // - calculated profit -> Sale.profit (required for Reports, Restock Planner)
           // - order.status -> Sale.status (required for order tracking)
           // - order.id -> Sale.externalId (links to Lazada-Clone)
-          // - timeTraveledDate -> Sale.createdAt (distributed for ML service historical data)
+          // - actualOrderDate -> Sale.createdAt (use actual order creation date, not fake dates)
           await prisma.sale.upsert({
             where: {
               shopId_externalId: {
@@ -499,8 +500,8 @@ class LazadaIntegrationService {
               status: (order.status as any) || "COMPLETED",
               customerName: order.customerName || null,
               customerEmail: order.customerEmail || null,
-              // Use time-traveled date for ML service historical data
-              createdAt: timeTraveledDate,
+              // Use actual order creation date (not fake time-traveled dates)
+              createdAt: actualOrderDate,
             },
           });
           syncedCount++;

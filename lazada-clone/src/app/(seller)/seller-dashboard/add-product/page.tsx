@@ -3,22 +3,21 @@
 import Link from 'next/link';
 import { useState, useEffect } from 'react';
 
-import { useProductStore } from '@/store/products';
 import { sellerAPI } from '@/lib/api';
-import { webhookService } from '@/services/webhook.service';
 
 interface ProductData {
   productName: string;
   price: string;
+  cost?: string;
   stock: string;
   imageUrl?: string;
   description?: string;
 }
 
 export default function AddProductPage() {
-  const addProduct = useProductStore((state) => state.addProduct);
   const [productName, setProductName] = useState('');
   const [price, setPrice] = useState('');
+  const [cost, setCost] = useState('');
   const [stock, setStock] = useState('');
   const [imageUrl, setImageUrl] = useState('');
   const [description, setDescription] = useState('');
@@ -48,6 +47,7 @@ export default function AddProductPage() {
     const errors: string[] = [];
     if (!productName.trim()) errors.push('Product name is required');
     if (!price || Number.isNaN(parseFloat(price)) || parseFloat(price) <= 0) errors.push('Price must be a number greater than 0');
+    if (cost && (Number.isNaN(parseFloat(cost)) || parseFloat(cost) < 0)) errors.push('Cost must be a non-negative number');
     if (stock === '' || Number.isNaN(parseInt(stock)) || parseInt(stock) < 0) errors.push('Stock must be a non-negative integer');
 
     if (errors.length > 0) {
@@ -64,6 +64,7 @@ export default function AddProductPage() {
     const productData = {
       name: productName.trim(),
       price: parseFloat(price),
+      cost: cost ? parseFloat(cost) : undefined,
       stock: parseInt(stock, 10),
       imageUrl: imageUrl?.trim() || undefined,
       description: description?.trim() || undefined,
@@ -73,23 +74,10 @@ export default function AddProductPage() {
     try {
       const res = await sellerAPI.createProduct(productData);
       const created = res.data?.data || res.data;
-      // Add to local product store for immediate visibility
-      if (created) {
-        try {
-          addProduct(created);
-        } catch (e) {
-          console.warn('Failed to add product to local store', e);
-        }
-        
-        // Send webhook to BVA Server for real-time sync
-        try {
-          await webhookService.sendProductCreated(created);
-          console.log('✅ Webhook sent to BVA: Product created');
-        } catch (webhookError) {
-          console.warn('⚠️ Failed to send webhook to BVA:', webhookError);
-          // Don't fail the product creation if webhook fails
-        }
-      }
+      
+      // Note: Product is already created via API and socket.io will emit real-time update
+      // No need to send webhook - webhooks are for external systems, not direct API calls
+      // This prevents duplicate product creation
 
       setSubmitStatus('success');
       setSubmitMessage(isDraft ? 'Product saved as draft successfully!' : 'Product submitted successfully!');
@@ -309,10 +297,13 @@ export default function AddProductPage() {
                           <div className="col-span-3">
                             <span className="text-red-500">*</span> Price
                           </div>
+                          <div className="col-span-3">
+                            Cost (Optional)
+                          </div>
                           <div className="col-span-2">
                             Stock
                           </div>
-                          <div className="col-span-3">
+                          <div className="col-span-4">
                             Expiration Date
                           </div>
                         </div>
@@ -335,6 +326,24 @@ export default function AddProductPage() {
                                 required
                               />
                             </div>
+                            <p className="text-xs text-gray-500 mt-1">Selling price</p>
+                          </div>
+                          <div className="col-span-3">
+                            <div className="relative">
+                              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">₱</span>
+                              <input
+                                type="number"
+                                value={cost}
+                                onChange={(e) => setCost(e.target.value)}
+                                placeholder="0.00"
+                                min="0"
+                                step="0.01"
+                                className={`w-full pl-8 pr-3 py-2 border rounded text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                                  cost && (Number.isNaN(parseFloat(cost)) || parseFloat(cost) < 0) ? 'border-red-300' : 'border-gray-300'
+                                }`}
+                              />
+                            </div>
+                            <p className="text-xs text-gray-500 mt-1">Product cost (for profit calculation)</p>
                           </div>
                           <div className="col-span-2">
                             <input
@@ -349,8 +358,9 @@ export default function AddProductPage() {
                               }`}
                               required
                             />
+                            <p className="text-xs text-gray-500 mt-1">Available quantity</p>
                           </div>
-                          <div className="col-span-3">
+                          <div className="col-span-4">
                             <input
                               type="date"
                               value={expiryDate}

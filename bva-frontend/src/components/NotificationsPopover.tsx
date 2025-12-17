@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { Bell, Check, CheckCheck, Info, AlertTriangle, CheckCircle } from "lucide-react";
+import { useState } from "react";
+import { Bell, Check, Info, AlertTriangle, CheckCircle, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Popover,
@@ -7,9 +7,13 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
 import { notificationApi } from "@/lib/api";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { useNavigate } from "react-router-dom";
+import { useAllUserAtRiskInventory } from "@/hooks/useSmartShelf";
 
 interface Notification {
   id: string;
@@ -23,9 +27,10 @@ interface Notification {
 export function NotificationsPopover() {
   const [isOpen, setIsOpen] = useState(false);
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
 
   // Fetch notifications
-  const { data: notificationsData, isLoading } = useQuery({
+  const { data: notificationsData, isLoading: isLoadingNotifications } = useQuery({
     queryKey: ["notifications"],
     queryFn: async () => {
       const response = await notificationApi.getAll();
@@ -34,8 +39,20 @@ export function NotificationsPopover() {
     refetchInterval: 30000, // Poll every 30 seconds
   });
 
+  // Fetch at-risk inventory
+  const { data: atRiskData, isLoading: isLoadingAtRisk } = useAllUserAtRiskInventory(true);
+
   const notifications: Notification[] = notificationsData?.data || [];
   const unreadCount = notifications.filter((n) => !n.isRead).length;
+
+  // Get critical items (score >= 80)
+  const criticalItems = atRiskData?.at_risk?.filter(item => item.score >= 80) || [];
+  
+  // Get at-risk items (all flagged items, excluding critical)
+  const atRiskItems = atRiskData?.at_risk?.filter(item => item.score < 80) || [];
+
+  // Total count for badge (notifications + critical items)
+  const totalAlertCount = unreadCount + criticalItems.length;
 
   // Mark as read mutation
   const markAsReadMutation = useMutation({
@@ -73,17 +90,21 @@ export function NotificationsPopover() {
     }
   };
 
+  const isLoading = isLoadingNotifications || isLoadingAtRisk;
+
   return (
     <Popover open={isOpen} onOpenChange={setIsOpen}>
       <PopoverTrigger asChild>
         <Button variant="ghost" size="icon" className="rounded-md relative text-foreground hover:bg-primary/10">
           <Bell className="h-5 w-5" />
-          {unreadCount > 0 && (
-            <span className="absolute top-2 right-2 h-2 w-2 bg-destructive rounded-full animate-pulse" />
+          {totalAlertCount > 0 && (
+            <span className="absolute -top-1 -right-1 h-5 w-5 bg-destructive text-destructive-foreground text-xs font-bold rounded-full flex items-center justify-center animate-pulse">
+              {totalAlertCount > 9 ? '9+' : totalAlertCount}
+            </span>
           )}
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-80 p-0 glass-card border-card-glass-border" align="end">
+      <PopoverContent className="w-96 p-0 glass-card border-card-glass-border" align="end">
         <div className="flex items-center justify-between p-4 border-b border-border">
           <h4 className="font-semibold text-sm">Notifications</h4>
           {unreadCount > 0 && (
@@ -98,52 +119,328 @@ export function NotificationsPopover() {
             </Button>
           )}
         </div>
-        <ScrollArea className="h-[300px]">
-          {isLoading ? (
-            <div className="p-4 text-center text-sm text-muted-foreground">Loading...</div>
-          ) : notifications.length === 0 ? (
-            <div className="p-4 text-center text-sm text-muted-foreground">No notifications</div>
-          ) : (
-            <div className="flex flex-col">
-              {notifications.map((notification) => (
-                <div
-                  key={notification.id}
-                  className={`p-4 border-b border-border last:border-0 hover:bg-primary/5 transition-colors ${
-                    !notification.isRead ? "bg-primary/5" : ""
-                  }`}
-                >
-                  <div className="flex gap-3">
-                    <div className="mt-1">{getIcon(notification.type)}</div>
-                    <div className="flex-1 space-y-1">
-                      <div className="flex items-start justify-between gap-2">
-                        <p className={`text-sm ${!notification.isRead ? "font-semibold" : "font-medium"}`}>
-                          {notification.title}
-                        </p>
-                        {!notification.isRead && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-5 w-5 text-muted-foreground hover:text-primary"
-                            onClick={() => handleMarkAsRead(notification.id)}
-                            title="Mark as read"
+        <Tabs defaultValue="all" className="w-full">
+          <TabsList className="w-full rounded-none border-b border-border bg-transparent h-auto p-0">
+            <TabsTrigger 
+              value="all" 
+              className="flex-1 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent"
+            >
+              All
+              {totalAlertCount > 0 && (
+                <Badge variant="destructive" className="ml-2 h-5 min-w-5 px-1.5 text-xs">
+                  {totalAlertCount}
+                </Badge>
+              )}
+            </TabsTrigger>
+            <TabsTrigger 
+              value="critical" 
+              className="flex-1 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent"
+            >
+              Critical
+              {criticalItems.length > 0 && (
+                <Badge variant="destructive" className="ml-2 h-5 min-w-5 px-1.5 text-xs">
+                  {criticalItems.length}
+                </Badge>
+              )}
+            </TabsTrigger>
+            <TabsTrigger 
+              value="at-risk" 
+              className="flex-1 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent"
+            >
+              At-Risk
+              {atRiskItems.length > 0 && (
+                <Badge variant="secondary" className="ml-2 h-5 min-w-5 px-1.5 text-xs">
+                  {atRiskItems.length}
+                </Badge>
+              )}
+            </TabsTrigger>
+          </TabsList>
+
+          <ScrollArea className="h-[400px]">
+            {isLoading ? (
+              <div className="p-4 text-center text-sm text-muted-foreground">Loading...</div>
+            ) : (
+              <>
+                {/* All Tab */}
+                <TabsContent value="all" className="m-0 p-0">
+                  <div className="flex flex-col">
+                    {/* Critical Items */}
+                    {criticalItems.length > 0 && (
+                      <>
+                        <div className="px-4 pt-3 pb-2 bg-destructive/5 border-b border-border">
+                          <div className="flex items-center gap-2">
+                            <AlertCircle className="h-4 w-4 text-destructive" />
+                            <p className="text-xs font-semibold text-destructive">Critical Items ({criticalItems.length})</p>
+                          </div>
+                        </div>
+                        {criticalItems.slice(0, 5).map((item) => (
+                          <div
+                            key={item.product_id}
+                            className="p-4 border-b border-border hover:bg-primary/5 transition-colors cursor-pointer"
+                            onClick={() => {
+                              navigate("/smartshelf");
+                              setIsOpen(false);
+                            }}
                           >
-                            <Check className="h-3 w-3" />
-                          </Button>
+                            <div className="flex gap-3">
+                              <div className="mt-1">
+                                <AlertCircle className="h-4 w-4 text-destructive" />
+                              </div>
+                              <div className="flex-1 space-y-1">
+                                <div className="flex items-start justify-between gap-2">
+                                  <p className="text-sm font-semibold text-foreground">
+                                    {item.name}
+                                  </p>
+                                  <Badge variant="destructive" className="text-xs">
+                                    Score: {item.score}
+                                  </Badge>
+                                </div>
+                                <p className="text-xs text-muted-foreground leading-relaxed">
+                                  {item.reasons.join(", ")}
+                                </p>
+                                <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                                  <span>Stock: {item.current_quantity}</span>
+                                  {item.days_to_expiry !== undefined && (
+                                    <span>Expires in: {item.days_to_expiry} days</span>
+                                  )}
+                                </div>
+                                <p className="text-xs font-medium text-destructive mt-1">
+                                  {item.recommended_action.action_type}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                        {criticalItems.length > 5 && (
+                          <div className="p-2 text-center">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-xs"
+                              onClick={() => {
+                                navigate("/smartshelf");
+                                setIsOpen(false);
+                              }}
+                            >
+                              View all {criticalItems.length} critical items
+                            </Button>
+                          </div>
                         )}
-                      </div>
-                      <p className="text-xs text-muted-foreground leading-relaxed">
-                        {notification.message}
-                      </p>
-                      <p className="text-[10px] text-muted-foreground/70">
-                        {new Date(notification.createdAt).toLocaleString()}
-                      </p>
-                    </div>
+                      </>
+                    )}
+
+                    {/* At-Risk Items */}
+                    {atRiskItems.length > 0 && (
+                      <>
+                        <div className="px-4 pt-3 pb-2 bg-warning/5 border-b border-border">
+                          <div className="flex items-center gap-2">
+                            <AlertTriangle className="h-4 w-4 text-warning" />
+                            <p className="text-xs font-semibold text-warning">At-Risk Items ({atRiskItems.length})</p>
+                          </div>
+                        </div>
+                        {atRiskItems.slice(0, 3).map((item) => (
+                          <div
+                            key={item.product_id}
+                            className="p-4 border-b border-border hover:bg-primary/5 transition-colors cursor-pointer"
+                            onClick={() => {
+                              navigate("/smartshelf");
+                              setIsOpen(false);
+                            }}
+                          >
+                            <div className="flex gap-3">
+                              <div className="mt-1">
+                                <AlertTriangle className="h-4 w-4 text-warning" />
+                              </div>
+                              <div className="flex-1 space-y-1">
+                                <div className="flex items-start justify-between gap-2">
+                                  <p className="text-sm font-medium text-foreground">
+                                    {item.name}
+                                  </p>
+                                  <Badge variant="secondary" className="text-xs">
+                                    Score: {item.score}
+                                  </Badge>
+                                </div>
+                                <p className="text-xs text-muted-foreground leading-relaxed">
+                                  {item.reasons.slice(0, 2).join(", ")}
+                                </p>
+                                <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                                  <span>Stock: {item.current_quantity}</span>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                        {atRiskItems.length > 3 && (
+                          <div className="p-2 text-center">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-xs"
+                              onClick={() => {
+                                navigate("/smartshelf");
+                                setIsOpen(false);
+                              }}
+                            >
+                              View all {atRiskItems.length} at-risk items
+                            </Button>
+                          </div>
+                        )}
+                      </>
+                    )}
+
+                    {/* Regular Notifications */}
+                    {notifications.length > 0 && (
+                      <>
+                        <div className="px-4 pt-3 pb-2 bg-primary/5 border-b border-border">
+                          <div className="flex items-center gap-2">
+                            <Bell className="h-4 w-4 text-primary" />
+                            <p className="text-xs font-semibold text-primary">System Notifications ({notifications.length})</p>
+                          </div>
+                        </div>
+                        {notifications.map((notification) => (
+                          <div
+                            key={notification.id}
+                            className={`p-4 border-b border-border last:border-0 hover:bg-primary/5 transition-colors ${
+                              !notification.isRead ? "bg-primary/5" : ""
+                            }`}
+                          >
+                            <div className="flex gap-3">
+                              <div className="mt-1">{getIcon(notification.type)}</div>
+                              <div className="flex-1 space-y-1">
+                                <div className="flex items-start justify-between gap-2">
+                                  <p className={`text-sm ${!notification.isRead ? "font-semibold" : "font-medium"}`}>
+                                    {notification.title}
+                                  </p>
+                                  {!notification.isRead && (
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-5 w-5 text-muted-foreground hover:text-primary"
+                                      onClick={() => handleMarkAsRead(notification.id)}
+                                      title="Mark as read"
+                                    >
+                                      <Check className="h-3 w-3" />
+                                    </Button>
+                                  )}
+                                </div>
+                                <p className="text-xs text-muted-foreground leading-relaxed">
+                                  {notification.message}
+                                </p>
+                                <p className="text-[10px] text-muted-foreground/70">
+                                  {new Date(notification.createdAt).toLocaleString()}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </>
+                    )}
+
+                    {criticalItems.length === 0 && atRiskItems.length === 0 && notifications.length === 0 && (
+                      <div className="p-4 text-center text-sm text-muted-foreground">No notifications</div>
+                    )}
                   </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </ScrollArea>
+                </TabsContent>
+
+                {/* Critical Tab */}
+                <TabsContent value="critical" className="m-0 p-0">
+                  <div className="flex flex-col">
+                    {criticalItems.length === 0 ? (
+                      <div className="p-4 text-center text-sm text-muted-foreground">No critical items</div>
+                    ) : (
+                      criticalItems.map((item) => (
+                        <div
+                          key={item.product_id}
+                          className="p-4 border-b border-border hover:bg-primary/5 transition-colors cursor-pointer"
+                          onClick={() => {
+                            navigate("/smartshelf");
+                            setIsOpen(false);
+                          }}
+                        >
+                          <div className="flex gap-3">
+                            <div className="mt-1">
+                              <AlertCircle className="h-4 w-4 text-destructive" />
+                            </div>
+                            <div className="flex-1 space-y-1">
+                              <div className="flex items-start justify-between gap-2">
+                                <p className="text-sm font-semibold text-foreground">
+                                  {item.name}
+                                </p>
+                                <Badge variant="destructive" className="text-xs">
+                                  Score: {item.score}
+                                </Badge>
+                              </div>
+                              <p className="text-xs text-muted-foreground leading-relaxed">
+                                {item.reasons.join(", ")}
+                              </p>
+                              <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                                <span>Stock: {item.current_quantity}</span>
+                                {item.days_to_expiry !== undefined && (
+                                  <span>Expires in: {item.days_to_expiry} days</span>
+                                )}
+                              </div>
+                              <p className="text-xs font-medium text-destructive mt-1">
+                                {item.recommended_action.action_type}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </TabsContent>
+
+                {/* At-Risk Tab */}
+                <TabsContent value="at-risk" className="m-0 p-0">
+                  <div className="flex flex-col">
+                    {atRiskItems.length === 0 ? (
+                      <div className="p-4 text-center text-sm text-muted-foreground">No at-risk items</div>
+                    ) : (
+                      atRiskItems.map((item) => (
+                        <div
+                          key={item.product_id}
+                          className="p-4 border-b border-border hover:bg-primary/5 transition-colors cursor-pointer"
+                          onClick={() => {
+                            navigate("/smartshelf");
+                            setIsOpen(false);
+                          }}
+                        >
+                          <div className="flex gap-3">
+                            <div className="mt-1">
+                              <AlertTriangle className="h-4 w-4 text-warning" />
+                            </div>
+                            <div className="flex-1 space-y-1">
+                              <div className="flex items-start justify-between gap-2">
+                                <p className="text-sm font-medium text-foreground">
+                                  {item.name}
+                                </p>
+                                <Badge variant="secondary" className="text-xs">
+                                  Score: {item.score}
+                                </Badge>
+                              </div>
+                              <p className="text-xs text-muted-foreground leading-relaxed">
+                                {item.reasons.join(", ")}
+                              </p>
+                              <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                                <span>Stock: {item.current_quantity}</span>
+                                {item.days_to_expiry !== undefined && (
+                                  <span>Expires in: {item.days_to_expiry} days</span>
+                                )}
+                              </div>
+                              <p className="text-xs font-medium text-warning mt-1">
+                                {item.recommended_action.action_type}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </TabsContent>
+              </>
+            )}
+          </ScrollArea>
+        </Tabs>
       </PopoverContent>
     </Popover>
   );

@@ -31,6 +31,7 @@ interface AuthContextType {
   updateUser: (userData: Partial<User>) => void;
   handleGoogleAuth: (role?: 'BUYER' | 'SELLER') => void;
   handleGoogleCallback: () => void;
+  handleFacebookAuth: (role?: 'BUYER' | 'SELLER') => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -259,6 +260,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   }, [location, handleGoogleCallbackToken]);
 
+  const handleFacebookAuth = useCallback((role: 'BUYER' | 'SELLER' = 'BUYER') => {
+    const currentUrl = window.location.origin;
+    const state = encodeURIComponent(currentUrl);
+    const facebookAuthUrl = `${AUTH_API_BASE}/auth/facebook?state=${state}&role=${role}`;
+    window.location.href = facebookAuthUrl;
+  }, []);
+
   const contextValue = useMemo(() => ({
     user,
     token,
@@ -271,7 +279,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     updateUser,
     handleGoogleAuth,
     handleGoogleCallback,
-  }), [user, token, isLoading, error, login, register, logout, updateUser, handleGoogleAuth, handleGoogleCallback]);
+    handleFacebookAuth,
+  }), [user, token, isLoading, error, login, register, logout, updateUser, handleGoogleAuth, handleGoogleCallback, handleFacebookAuth]);
 
   return (
     <AuthContext.Provider value={contextValue}>

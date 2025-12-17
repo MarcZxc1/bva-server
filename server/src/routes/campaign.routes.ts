@@ -22,7 +22,10 @@ router.post("/:id/schedule", (req, res) => campaignController.scheduleCampaign(r
 // POST /api/campaigns/:id/publish - Publish campaign
 router.post("/:id/publish", (req, res) => campaignController.publishCampaign(req, res));
 
-// DELETE /api/campaigns/:id - Delete/cancel campaign
+// POST /api/campaigns/:id/unschedule - Unschedule campaign (change to DRAFT)
+router.post("/:id/unschedule", (req, res) => campaignController.unscheduleCampaign(req, res));
+
+// DELETE /api/campaigns/:id - Delete campaign
 router.delete("/:id", (req, res) => campaignController.deleteCampaign(req, res));
 
 export default router;

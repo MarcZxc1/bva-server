@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, Suspense, useCallback } from 'react';
+import { useState, useEffect, Suspense, useCallback, useRef } from 'react';
 import { ProductCard } from '@/components/ProductCard';
 import { productAPI } from '@/lib/api';
 import { useSearchParams } from 'next/navigation';
@@ -19,7 +19,20 @@ function ProductsContent() {
     try {
       const response = await productAPI.getAll({ search, category, sort });
       const fetchedProducts = response.data.data || response.data.products || response.data;
-      setProducts(fetchedProducts);
+      
+      // Deduplicate products by ID to prevent duplicates
+      const uniqueProducts = Array.isArray(fetchedProducts)
+        ? fetchedProducts.reduce((acc, product) => {
+            const productId = product.id || product._id;
+            const exists = acc.some(p => (p.id || p._id) === productId);
+            if (!exists) {
+              acc.push(product);
+            }
+            return acc;
+          }, [] as any[])
+        : [];
+      
+      setProducts(uniqueProducts);
     } catch (error) {
       console.error('Failed to fetch products:', error);
       setProducts([]);
@@ -28,12 +41,32 @@ function ProductsContent() {
     }
   }, [search, category, sort]);
   
+  // Debounce refetch to prevent multiple rapid calls
+  const updateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const handleProductUpdate = useCallback(() => {
+    console.log('🔄 Refreshing products due to real-time update...');
+    // Clear any pending timeout
+    if (updateTimeoutRef.current) {
+      clearTimeout(updateTimeoutRef.current);
+    }
+    // Use a small delay to debounce multiple rapid updates
+    updateTimeoutRef.current = setTimeout(() => {
+      fetchProducts();
+    }, 300);
+  }, [fetchProducts]);
+
+  useEffect(() => {
+    // Cleanup timeout on unmount
+    return () => {
+      if (updateTimeoutRef.current) {
+        clearTimeout(updateTimeoutRef.current);
+      }
+    };
+  }, []);
+
   useRealtimeProducts({
     enabled: true,
-    onProductUpdate: () => {
-      console.log('🔄 Refreshing products due to real-time update...');
-      fetchProducts();
-    },
+    onProductUpdate: handleProductUpdate,
   });
 
   useEffect(() => {

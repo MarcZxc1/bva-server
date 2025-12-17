@@ -6,6 +6,7 @@ export interface AdRequest {
     | "Best Seller Spotlight"
     | "Bundle Up!";
   discount?: string;
+  product_image_url?: string; // Optional: Product image URL for image-based ad copy generation
 }
 
 export interface AdResponse {

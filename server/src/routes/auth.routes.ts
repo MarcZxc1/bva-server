@@ -3,6 +3,7 @@ import { Router, Request, Response } from "express";
 import passport from "../config/passport";
 import { authController } from "../controllers/auth.controller";
 import { authService } from "../service/auth.service";
+import { facebookService } from "../service/facebook.service";
 import jwt from "jsonwebtoken";
 import prisma from "../lib/prisma";
 
@@ -894,6 +895,262 @@ router.get("/social-media/facebook", authMiddleware, async (req: Request, res: R
     return res.status(500).json({
       success: false,
       message: "Failed to fetch Facebook tokens",
+      error: error.message,
+    });
+  }
+});
+
+/**
+ * @route   GET /api/auth/facebook/connect
+ * @desc    Initiate Facebook OAuth for page access (for ad publishing)
+ * @access  Private
+ */
+router.get("/facebook/connect", authMiddleware, async (req: Request, res: Response) => {
+  try {
+    const clientID = process.env.FACEBOOK_APP_ID;
+    const clientSecret = process.env.FACEBOOK_APP_SECRET;
+
+    if (!clientID || !clientSecret) {
+      return res.status(500).json({
+        success: false,
+        message: "Facebook OAuth not configured on server",
+      });
+    }
+
+    const baseURL = process.env.BASE_URL || process.env.BACKEND_URL || "http://localhost:3000";
+    const redirectURI = `${baseURL}/api/auth/facebook/page-callback`;
+    
+    // Request permissions for managing pages and posting
+    const scope = "pages_manage_posts,pages_read_engagement,pages_show_list";
+    const state = (req as any).userId; // Use userId as state for security
+    
+    const authURL = `https://www.facebook.com/v18.0/dialog/oauth?client_id=${clientID}&redirect_uri=${encodeURIComponent(redirectURI)}&scope=${scope}&state=${state}&response_type=code`;
+
+    return res.json({
+      success: true,
+      authURL,
+    });
+  } catch (error: any) {
+    console.error("Error initiating Facebook OAuth:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to initiate Facebook OAuth",
+      error: error.message,
+    });
+  }
+});
+
+/**
+ * @route   GET /api/auth/facebook/page-callback
+ * @desc    Handle Facebook OAuth callback and get page access tokens
+ * @access  Private (via state parameter)
+ */
+router.get("/facebook/page-callback", async (req: Request, res: Response) => {
+  try {
+    const { code, state } = req.query;
+    const userId = state as string;
+
+    if (!code || !userId) {
+      return res.redirect(`${process.env.FRONTEND_URL || "http://localhost:5173"}/ads?error=missing_params`);
+    }
+
+    const clientID = process.env.FACEBOOK_APP_ID;
+    const clientSecret = process.env.FACEBOOK_APP_SECRET;
+    const baseURL = process.env.BASE_URL || process.env.BACKEND_URL || "http://localhost:3000";
+    const redirectURI = `${baseURL}/api/auth/facebook/page-callback`;
+
+    // Exchange code for access token
+    const tokenResponse = await fetch(
+      `https://graph.facebook.com/v18.0/oauth/access_token?client_id=${clientID}&client_secret=${clientSecret}&redirect_uri=${encodeURIComponent(redirectURI)}&code=${code}`
+    );
+
+    if (!tokenResponse.ok) {
+      const errorData = await tokenResponse.json();
+      console.error("Facebook token exchange error:", errorData);
+      return res.redirect(`${process.env.FRONTEND_URL || "http://localhost:5173"}/ads?error=token_exchange_failed`);
+    }
+
+    const tokenData = await tokenResponse.json();
+    const userAccessToken = tokenData.access_token;
+
+    // Get user's pages
+    const pagesResponse = await fetch(
+      `https://graph.facebook.com/v18.0/me/accounts?access_token=${userAccessToken}&fields=id,name,access_token`
+    );
+
+    if (!pagesResponse.ok) {
+      const errorData = await pagesResponse.json();
+      console.error("Facebook pages fetch error:", errorData);
+      return res.redirect(`${process.env.FRONTEND_URL || "http://localhost:5173"}/ads?error=pages_fetch_failed`);
+    }
+
+    const pagesData = await pagesResponse.json();
+    const pages = pagesData.data || [];
+
+    if (pages.length === 0) {
+      return res.redirect(`${process.env.FRONTEND_URL || "http://localhost:5173"}/ads?error=no_pages`);
+    }
+
+    // Use the first page (user can change this later)
+    const selectedPage = pages[0];
+
+    // Store Facebook account info
+    await prisma.socialMediaAccount.upsert({
+      where: {
+        userId_platform: {
+          userId,
+          platform: "facebook",
+        },
+      },
+      update: {
+        accessToken: selectedPage.access_token,
+        pageId: selectedPage.id,
+        accountId: selectedPage.id,
+        updatedAt: new Date(),
+      },
+      create: {
+        userId,
+        platform: "facebook",
+        accessToken: selectedPage.access_token,
+        pageId: selectedPage.id,
+        accountId: selectedPage.id,
+      },
+    });
+
+    return res.redirect(`${process.env.FRONTEND_URL || "http://localhost:5173"}/ads?facebook_connected=true`);
+  } catch (error: any) {
+    console.error("Error in Facebook page callback:", error);
+    return res.redirect(`${process.env.FRONTEND_URL || "http://localhost:5173"}/ads?error=callback_failed`);
+  }
+});
+
+/**
+ * @route   POST /api/auth/facebook/supabase-connect
+ * @desc    Process Facebook OAuth token from Supabase and get page tokens
+ * @access  Private
+ */
+router.post("/facebook/supabase-connect", authMiddleware, async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).userId;
+    const { accessToken, refreshToken } = req.body;
+
+    if (!accessToken) {
+      return res.status(400).json({
+        success: false,
+        message: "Access token is required",
+      });
+    }
+
+    // Get user's Facebook pages using the access token from Supabase
+    const pagesResponse = await fetch(
+      `https://graph.facebook.com/v18.0/me/accounts?access_token=${accessToken}&fields=id,name,access_token`
+    );
+
+    if (!pagesResponse.ok) {
+      const errorData = await pagesResponse.json();
+      console.error("Facebook pages fetch error:", errorData);
+      return res.status(400).json({
+        success: false,
+        message: errorData.error?.message || "Failed to fetch Facebook pages",
+      });
+    }
+
+    const pagesData = await pagesResponse.json();
+    const pages = pagesData.data || [];
+
+    if (pages.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "No Facebook Pages found. Please create a Facebook Page first.",
+      });
+    }
+
+    // Use the first page (user can change this later)
+    const selectedPage = pages[0];
+
+    // Store Facebook account info
+    const socialAccount = await prisma.socialMediaAccount.upsert({
+      where: {
+        userId_platform: {
+          userId,
+          platform: "facebook",
+        },
+      },
+      update: {
+        accessToken: selectedPage.access_token,
+        pageId: selectedPage.id,
+        accountId: selectedPage.id,
+        refreshToken: refreshToken || null,
+        updatedAt: new Date(),
+      },
+      create: {
+        userId,
+        platform: "facebook",
+        accessToken: selectedPage.access_token,
+        pageId: selectedPage.id,
+        accountId: selectedPage.id,
+        refreshToken: refreshToken || null,
+      },
+    });
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        id: socialAccount.id,
+        platform: socialAccount.platform,
+        pageId: socialAccount.pageId,
+        accountId: socialAccount.accountId,
+        expiresAt: socialAccount.expiresAt,
+        isConnected: true,
+      },
+    });
+  } catch (error: any) {
+    console.error("Error processing Supabase Facebook connection:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to process Facebook connection",
+      error: error.message,
+    });
+  }
+});
+
+/**
+ * @route   GET /api/auth/facebook/pages
+ * @desc    Get user's Facebook pages (requires existing connection)
+ * @access  Private
+ */
+router.get("/facebook/pages", authMiddleware, async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).userId;
+
+    const facebookAccount = await prisma.socialMediaAccount.findUnique({
+      where: {
+        userId_platform: {
+          userId,
+          platform: "facebook",
+        },
+      },
+    });
+
+    if (!facebookAccount || !facebookAccount.accessToken) {
+      return res.status(404).json({
+        success: false,
+        message: "Facebook account not connected",
+      });
+    }
+
+    // Get pages using the stored access token
+    const pages = await facebookService.getUserPages(facebookAccount.accessToken);
+
+    return res.json({
+      success: true,
+      data: pages,
+    });
+  } catch (error: any) {
+    console.error("Error fetching Facebook pages:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch Facebook pages",
       error: error.message,
     });
   }

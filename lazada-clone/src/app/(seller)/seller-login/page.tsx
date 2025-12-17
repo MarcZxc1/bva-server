@@ -29,9 +29,10 @@ export default function SellerLoginPasswordPage() {
       
       // Fetch user profile
       authAPI.getProfile()
-        .then((response) => {
-          const userData = response.data;
-          setUser(userData, token);
+        .then((response: any) => {
+          const userData = response.data as { shops?: any[]; role?: string; [key: string]: any };
+          const shops = userData.shops || [];
+          setUser(userData, token, shops);
           router.push('/seller-dashboard');
         })
         .catch((err) => {
@@ -60,14 +61,15 @@ export default function SellerLoginPasswordPage() {
 
     try {
       // Login - server will check if user is SELLER
-      const response = await authAPI.login({ 
+      const response: any = await authAPI.login({ 
         email: identifier, // Can be email or phone
         password: password,
         platform: 'LAZADA_CLONE' // Specify Lazada platform
       });
       
       // Server returns { success: true, data: { user, shops, token } }
-      const { token, user, shops } = response.data.data || response.data;
+      const responseData = response.data as { data?: { token: string; user: any; shops: any[] }; [key: string]: any };
+      const { token, user, shops } = responseData.data || responseData;
       
       // Check if user is a seller
       if (user.role !== 'SELLER') {

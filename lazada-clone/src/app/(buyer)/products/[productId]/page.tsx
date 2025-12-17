@@ -36,13 +36,14 @@ export default function ProductDetailsPage() {
       const fetchProduct = async () => {
         try {
           setLoading(true);
-          const response = await productAPI.getById(productId as string);
+          const response: any = await productAPI.getById(productId as string);
           console.log('📦 Fetched product:', response.data);
-          setProduct(response.data);
-          if (response.data.images && response.data.images.length > 0) {
-            setMainImage(response.data.images[0]);
-          } else if (response.data.imageUrl) {
-            setMainImage(response.data.imageUrl);
+          const productData = response.data as any;
+          setProduct(productData);
+          if (productData.images && productData.images.length > 0) {
+            setMainImage(productData.images[0]);
+          } else if (productData.imageUrl) {
+            setMainImage(productData.imageUrl);
           }
           setError('');
         } catch (err: any) {
@@ -66,6 +67,12 @@ export default function ProductDetailsPage() {
   }, [productId, products]);
 
   const handleBuyNow = async () => {
+    // Prevent duplicate order creation
+    if (isSubmitting) {
+      console.warn('Order is already being processed, ignoring duplicate request');
+      return;
+    }
+
     if (!isHydrated) {
       toast.info('Please wait...');
       return;
@@ -111,7 +118,7 @@ export default function ProductDetailsPage() {
         platform: 'LAZADA',
       });
       
-      const orderResponse = await orderAPI.create({
+      const orderResponse: any = await orderAPI.create({
         items: [{ 
           productId: product.id || product._id, 
           quantity: quantity, 
@@ -176,7 +183,7 @@ export default function ProductDetailsPage() {
         localStorage.removeItem('token');
         router.push(`/login?callbackUrl=${encodeURIComponent(pathname)}`);
       } else if (err.response?.data?.error) {
-        toast.error(err.response.data.error);
+        toast.error((err.response as any)?.data?.error || err.message || 'Failed to fetch product');
       } else {
         toast.error(err.message || 'Failed to place order. Please try again.');
       }
@@ -305,41 +312,63 @@ export default function ProductDetailsPage() {
             </div>
           </div>
 
-          <div className="flex items-center gap-4 mb-6">
-            <h3 className="font-semibold text-gray-800">Quantity:</h3>
-            <div className="flex items-center border border-gray-300 rounded">
-              <button 
-                onClick={() => handleQuantityChange(-1)} 
-                disabled={quantity <= 1}
-                className="px-3 py-1 text-gray-600 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                -
-              </button>
-              <span className="px-3 py-1 border-l border-r border-gray-300 min-w-[3rem] text-center">{quantity}</span>
-              <button 
-                onClick={() => handleQuantityChange(1)} 
-                disabled={product?.stock !== undefined && quantity >= product.stock}
-                className="px-3 py-1 text-gray-600 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                +
-              </button>
+          <div className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-semibold text-gray-800 text-lg">Quantity:</h3>
+              {product?.stock !== undefined && (
+                <span className={`text-sm font-medium px-3 py-1 rounded ${
+                  product.stock > 10 
+                    ? 'bg-green-100 text-green-700' 
+                    : product.stock > 0 
+                    ? 'bg-yellow-100 text-yellow-700' 
+                    : 'bg-red-100 text-red-700'
+                }`}>
+                  {product.stock > 0 ? `${product.stock} in stock` : 'Out of stock'}
+                </span>
+              )}
             </div>
-            {product?.stock !== undefined && (
-              <span className="text-sm text-gray-600">
-                {product.stock} available
-              </span>
-            )}
+            <div className="flex items-center gap-4">
+              <div className="flex items-center border-2 border-gray-300 rounded-lg overflow-hidden">
+                <button 
+                  onClick={() => handleQuantityChange(-1)} 
+                  disabled={quantity <= 1}
+                  className="px-4 py-2 text-gray-700 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed font-semibold text-lg transition-colors"
+                >
+                  −
+                </button>
+                <span className="px-6 py-2 border-l border-r border-gray-300 min-w-[4rem] text-center font-semibold text-lg bg-white">
+                  {quantity}
+                </span>
+                <button 
+                  onClick={() => handleQuantityChange(1)} 
+                  disabled={product?.stock !== undefined && quantity >= product.stock}
+                  className="px-4 py-2 text-gray-700 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed font-semibold text-lg transition-colors"
+                >
+                  +
+                </button>
+              </div>
+              {product?.stock !== undefined && product.stock > 0 && (
+                <span className="text-sm text-gray-600">
+                  Max: {product.stock} items
+                </span>
+              )}
+            </div>
           </div>
 
           <div className="flex gap-4">
             <button 
               onClick={handleBuyNow}
-              disabled={isSubmitting || !isHydrated}
-              className="bg-pink-500 text-white px-6 py-3 rounded-lg font-semibold hover:bg-pink-600 flex-1 disabled:opacity-50"
+              disabled={isSubmitting || !isHydrated || (product?.stock !== undefined && (product.stock === 0 || quantity > product.stock))}
+              className="bg-pink-500 text-white px-6 py-3 rounded-lg font-semibold hover:bg-pink-600 flex-1 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {isSubmitting ? 'Processing...' : 'Buy Now'}
+              {isSubmitting ? 'Processing...' : product?.stock === 0 ? 'Out of Stock' : quantity > (product?.stock || 0) ? 'Insufficient Stock' : 'Buy Now'}
             </button>
-            <button className="bg-red-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-red-700 flex-1">Add to Cart</button>
+            <button 
+              disabled={product?.stock !== undefined && product.stock === 0}
+              className="bg-red-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-red-700 flex-1 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {product?.stock === 0 ? 'Out of Stock' : 'Add to Cart'}
+            </button>
           </div>
         </div>
       </div>

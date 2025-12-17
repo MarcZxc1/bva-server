@@ -27,7 +27,7 @@ const Index = () => {
       <nav className="sticky top-4 z-50 glass-card-sm mx-4 mt-4">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <img src="/logo.svg" alt="BVA Logo" className="h-8 w-8 object-contain" />
+            <img src="/logo.svg" alt="BVA Logo" className="h-16 w-16 object-contain" />
             <span className="font-bold text-xl text-foreground">Business VA</span>
           </div>
           <div className="flex items-center gap-3 ml-auto">
@@ -271,7 +271,7 @@ const Index = () => {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
             <div>
               <div className="flex items-center gap-2 mb-4">
-                <img src="/logo.svg" alt="BVA Logo" className="h-8 w-8 object-contain" />
+                <img src="/logo.svg" alt="BVA Logo" className="h-16 w-16 object-contain" />
                 <span className="font-bold text-foreground">Business VA</span>
               </div>
               <p className="text-muted-foreground">Your AI-powered business assistant</p>

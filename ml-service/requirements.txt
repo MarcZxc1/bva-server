@@ -19,6 +19,7 @@ joblib==1.4.2
 
 # HTTP client for callbacks
 httpx==0.28.1
+requests==2.32.3
 
 # Google Generative AI (Gemini) - New SDK
 google-genai==0.3.0
