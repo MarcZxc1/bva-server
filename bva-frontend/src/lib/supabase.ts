@@ -9,7 +9,9 @@ const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 
 if (!supabaseUrl || !supabaseAnonKey) {
-  console.warn('⚠️ Supabase environment variables are not set. Facebook OAuth will not work.');
+  console.error('❌ Supabase environment variables are not set. Facebook OAuth will not work.');
+  console.error('Please add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to your .env file.');
+  console.error('See SUPABASE_FACEBOOK_SETUP.md for setup instructions.');
 }
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
@@ -17,6 +19,10 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: true,
+    // Ensure provider tokens are stored and returned
+    storage: window.localStorage,
+    storageKey: 'supabase.auth.token',
+    flowType: 'pkce', // Use PKCE flow for better security and token handling
   },
 });
 
@@ -25,6 +31,13 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
  * This handles redirect URIs automatically
  */
 export async function signInWithFacebook(redirectTo?: string) {
+  // Check if Supabase is configured
+  if (!supabaseUrl || !supabaseAnonKey) {
+    const error = new Error('Supabase is not configured. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your .env file.');
+    console.error('❌ Facebook OAuth error:', error.message);
+    throw error;
+  }
+
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: 'facebook',
     options: {

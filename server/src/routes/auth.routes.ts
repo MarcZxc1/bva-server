@@ -255,31 +255,67 @@ router.get("/google", (req: Request, res: Response, next) => {
  * @access  Public
  */
 router.get("/google/callback", (req, res, next) => {
+  console.log("🔵 [GOOGLE OAUTH CALLBACK] Starting callback processing...");
+  console.log("🔵 [CALLBACK] Query params:", JSON.stringify(req.query, null, 2));
+  console.log("🔵 [CALLBACK] Referer:", req.get('referer'));
+  console.log("🔵 [CALLBACK] User-Agent:", req.get('user-agent'));
+  
   // Extract state and validate it
   const state = req.query.state as string;
+  console.log("🔵 [CALLBACK] Raw state:", state);
+  
   // Default to TikTok seller clone (port 5174) for TikTok clone requests
-  // Check referer first to detect TikTok clone or Lazada clone
+  // Check referer first to detect TikTok clone, Lazada clone, or BVA
   const referer = req.get('referer') || '';
   const isTikTokReferer = referer.includes('5174') || referer.includes('5175') || referer.includes('tiktokseller') || referer.includes('tiktok');
   const isLazadaReferer = referer.includes('3001') || referer.includes('lazada');
-  let redirectUrl = isTikTokReferer ? 'http://localhost:5174' : isLazadaReferer ? 'http://localhost:3001' : FRONTEND_URL;
+  const isBVAReferer = referer.includes('8080') || referer.includes('bva-frontend') || referer.includes('bva.vercel.app');
+  
+  console.log("🔵 [CALLBACK] Referer detection:", {
+    referer,
+    isTikTokReferer,
+    isLazadaReferer,
+    isBVAReferer,
+  });
+  
+  let redirectUrl = isTikTokReferer ? 'http://localhost:5174' 
+                    : isLazadaReferer ? 'http://localhost:3001' 
+                    : isBVAReferer ? 'http://localhost:8080'
+                    : FRONTEND_URL;
+  
+  console.log("🔵 [CALLBACK] Initial redirectUrl:", redirectUrl);
+  console.log("🔵 [CALLBACK] FRONTEND_URL:", FRONTEND_URL);
+  
   let role: string = 'BUYER';
   let platform: string = 'BVA'; // Initialize platform variable
   let decodedState: { redirectUrl: string; role?: string; platform?: string } | null = null;
 
   try {
     if (state) {
+      console.log("🔵 [CALLBACK] Parsing state...");
       // Try URL-encoded JSON first (new format), then fall back to base64 (old format)
       try {
         decodedState = JSON.parse(decodeURIComponent(state));
-      } catch {
-        decodedState = JSON.parse(Buffer.from(state, 'base64').toString('utf-8'));
+        console.log("🔵 [CALLBACK] State parsed as URL-encoded JSON:", decodedState);
+      } catch (e1) {
+        console.log("🔵 [CALLBACK] URL-encoded parse failed, trying base64...", e1);
+        try {
+          decodedState = JSON.parse(Buffer.from(state, 'base64').toString('utf-8'));
+          console.log("🔵 [CALLBACK] State parsed as base64:", decodedState);
+        } catch (e2) {
+          console.log("🔵 [CALLBACK] Base64 parse also failed, treating as plain URL:", e2);
+          // If both fail, treat state as plain redirectUrl
+          decodedState = { redirectUrl: state, role: 'BUYER', platform: 'BVA' };
+          console.log("🔵 [CALLBACK] Using state as plain redirectUrl:", decodedState);
+        }
       }
       if (decodedState) {
+        console.log("🔵 [CALLBACK] Decoded state:", decodedState);
         if (decodedState.redirectUrl) {
           // Validate redirect URL is in allowed list
           // IMPORTANT: Ensure frontend users stay in their respective frontends, never redirect to wrong frontend
           const requestedUrl = decodedState.redirectUrl;
+          const isBVARequest = requestedUrl.includes('8080') || requestedUrl.includes('bva-frontend') || requestedUrl.includes('bva.vercel.app');
           const isShopeeCloneRequest = requestedUrl.includes('5173') || requestedUrl.includes('shopee') || requestedUrl.includes('localhost:5173');
           const isTikTokSellerCloneRequest = requestedUrl.includes('5174') || requestedUrl.includes('5175') || requestedUrl.includes('tiktokseller') || requestedUrl.includes('tiktok') && requestedUrl.includes('seller');
           const isLazadaCloneRequest = requestedUrl.includes('3001') || requestedUrl.includes('lazada') || requestedUrl.includes('localhost:3001');
@@ -293,8 +329,24 @@ router.get("/google/callback", (req, res, next) => {
             baseUrl = requestedUrl.split('/').slice(0, 3).join('/');
           }
           
+          console.log("🔵 [CALLBACK] Request detection:", {
+            isBVARequest,
+            isShopeeCloneRequest,
+            isTikTokSellerCloneRequest,
+            isLazadaCloneRequest,
+            baseUrl,
+            requestedUrl,
+          });
+          
           // Check if base URL is in allowed list
-          if (ALLOWED_FRONTENDS.includes(baseUrl) || ALLOWED_FRONTENDS.some(allowed => baseUrl.startsWith(allowed))) {
+          const isAllowed = ALLOWED_FRONTENDS.includes(baseUrl) || ALLOWED_FRONTENDS.some(allowed => baseUrl.startsWith(allowed));
+          console.log("🔵 [CALLBACK] URL validation:", {
+            baseUrl,
+            isAllowed,
+            allowedFrontends: ALLOWED_FRONTENDS,
+          });
+          
+          if (isAllowed) {
             // If request came from shopee-clone, ensure we redirect back to shopee-clone
             if (isShopeeCloneRequest) {
               // Use the base URL from allowed list, but preserve the path if it's a shopee-clone path
@@ -314,8 +366,13 @@ router.get("/google/callback", (req, res, next) => {
             } else if (isLazadaCloneRequest) {
               // If request came from lazada-clone, ensure we redirect back to lazada-clone
               redirectUrl = baseUrl.includes('3001') ? baseUrl : 'http://localhost:3001';
+            } else if (isBVARequest) {
+              // If request came from BVA frontend, ensure we redirect back to BVA
+              redirectUrl = baseUrl.includes('8080') ? baseUrl : (baseUrl.includes('bva-frontend') || baseUrl.includes('bva.vercel.app') ? baseUrl : 'http://localhost:8080');
+              console.log(`🔧 [CALLBACK] BVA request detected, setting redirectUrl: ${redirectUrl}`);
             } else {
               redirectUrl = baseUrl;
+              console.log(`🔧 [CALLBACK] Using baseUrl as redirectUrl: ${redirectUrl}`);
             }
           } else {
             console.warn(`⚠️  Redirect URL base not in allowed list: ${baseUrl}, requested: ${requestedUrl}, using default: ${redirectUrl}`);
@@ -329,6 +386,9 @@ router.get("/google/callback", (req, res, next) => {
             } else if (isLazadaCloneRequest) {
               redirectUrl = 'http://localhost:3001';
               console.log(`🔧 Lazada clone request detected, forcing redirectUrl to port 3001: ${redirectUrl}`);
+            } else if (isBVARequest) {
+              redirectUrl = baseUrl.includes('8080') ? baseUrl : (baseUrl.includes('bva-frontend') || baseUrl.includes('bva.vercel.app') ? baseUrl : 'http://localhost:8080');
+              console.log(`🔧 BVA request detected, forcing redirectUrl: ${redirectUrl}`);
             } else if (platform === 'TIKTOK_CLONE') {
               // If platform is TIKTOK_CLONE, force port 5174
               redirectUrl = 'http://localhost:5174';
@@ -341,10 +401,11 @@ router.get("/google/callback", (req, res, next) => {
         }
         if (decodedState.role) {
           role = decodedState.role;
+          console.log(`🔵 [CALLBACK] Role from state: ${role}`);
         }
         if (decodedState.platform) {
           platform = decodedState.platform;
-          console.log(`🔍 Platform extracted from state: ${platform}`);
+          console.log(`🔵 [CALLBACK] Platform extracted from state: ${platform}`);
           // If platform is TIKTOK_CLONE, ensure redirectUrl is port 5174
           if (platform === 'TIKTOK_CLONE' && !redirectUrl.includes('5174') && !redirectUrl.includes('5175') && !redirectUrl.includes('tiktokseller-clone.vercel.app')) {
             redirectUrl = 'http://localhost:5174';
@@ -370,6 +431,9 @@ router.get("/google/callback", (req, res, next) => {
       redirectUrl = referer.includes('5175') ? 'http://localhost:5175' : 'http://localhost:5174';
     } else if (referer.includes('3001') || referer.includes('lazada')) {
       redirectUrl = 'http://localhost:3001';
+    } else if (referer.includes('8080') || referer.includes('bva-frontend') || referer.includes('bva.vercel.app')) {
+      redirectUrl = 'http://localhost:8080';
+      console.log(`🔧 BVA referer detected, setting redirectUrl: ${redirectUrl}`);
     } else if (platform === 'TIKTOK_CLONE') {
       // If platform is explicitly TIKTOK_CLONE, always use port 5174
       redirectUrl = 'http://localhost:5174';
@@ -381,9 +445,17 @@ router.get("/google/callback", (req, res, next) => {
     }
   }
   
+  console.log("🔵 [CALLBACK] Before platform detection:", {
+    platform,
+    redirectUrl,
+  });
+  
   // CRITICAL: If platform is still 'BVA' after state parsing, detect it from redirectUrl
   if (platform === 'BVA') {
-    if (redirectUrl.includes('3001') || redirectUrl.includes('lazada')) {
+    if (redirectUrl.includes('8080') || redirectUrl.includes('bva-frontend') || redirectUrl.includes('bva.vercel.app')) {
+      platform = 'BVA';
+      console.log(`🔵 [CALLBACK] Platform detected from redirectUrl: BVA (${redirectUrl})`);
+    } else if (redirectUrl.includes('3001') || redirectUrl.includes('lazada')) {
       platform = 'LAZADA_CLONE';
       console.log(`🔍 Platform detected from redirectUrl: LAZADA_CLONE`);
     } else if (redirectUrl.includes('5174') || redirectUrl.includes('5175') || redirectUrl.includes('tiktokseller')) {
@@ -633,8 +705,21 @@ router.get("/google/callback", (req, res, next) => {
       
       // Determine destination based on role and frontend
       // IMPORTANT: Frontend users should NEVER redirect to wrong frontend
+      const isBVA = redirectUrl.includes('8080') || redirectUrl.includes('bva-frontend') || redirectUrl.includes('bva.vercel.app');
       const isShopeeClone = redirectUrl.includes('5173') || redirectUrl.includes('shopee') || redirectUrl.includes('localhost:5173');
       const isTikTokSellerClone = redirectUrl.includes('5174') || redirectUrl.includes('5175') || redirectUrl.includes('tiktokseller') || redirectUrl.includes('tiktok');
+      const isLazadaClone = redirectUrl.includes('3001') || redirectUrl.includes('lazada') || redirectUrl.includes('localhost:3001');
+      
+      console.log("🔵 [CALLBACK] Final redirect detection:", {
+        redirectUrl,
+        isBVA,
+        isShopeeClone,
+        isTikTokSellerClone,
+        isLazadaClone,
+        platform,
+        role: platformUser.role,
+      });
+      
       let destination = '/';
       
       if (isShopeeClone) {
@@ -664,13 +749,20 @@ router.get("/google/callback", (req, res, next) => {
         // User requirement: "login or register account in tiktokseller-clone should only redirected on sellers page"
         destination = '/login?token=' + token; // Always redirect to /login, frontend will show dashboard
         console.log(`✅ Google OAuth success (TikTok-Seller-Clone) - Redirecting ${platformUser.role} to seller dashboard: ${redirectUrl}${destination}`);
-      } else {
+      } else if (isBVA) {
         // BVA frontend: always use /login
         destination = '/login?token=' + token;
-        console.log(`✅ Google OAuth success (BVA Frontend) - Redirecting to: ${redirectUrl}${destination}`);
+        console.log(`✅ [CALLBACK] Google OAuth success (BVA Frontend) - Redirecting to: ${redirectUrl}${destination}`);
+      } else {
+        // Fallback: assume BVA if not detected
+        destination = '/login?token=' + token;
+        console.log(`✅ [CALLBACK] Google OAuth success (BVA Frontend - fallback) - Redirecting to: ${redirectUrl}${destination}`);
       }
       
-      res.redirect(`${redirectUrl}${destination}`);
+      const finalRedirect = `${redirectUrl}${destination}`;
+      console.log("🔵 [CALLBACK] Final redirect URL:", finalRedirect);
+      console.log("🔵 [CALLBACK] Token length:", token.length);
+      res.redirect(finalRedirect);
 
     } catch (error: any) {
       console.error("Google callback error:", error);
@@ -873,9 +965,15 @@ router.get("/social-media/facebook", authMiddleware, async (req: Request, res: R
     });
 
     if (!socialAccount) {
-      return res.status(404).json({
+      return res.status(200).json({
         success: false,
         message: "Facebook account not connected",
+        data: {
+          isConnected: false,
+          platform: "facebook",
+          pageId: null,
+          accountId: null,
+        },
       });
     }
 
@@ -994,6 +1092,18 @@ router.get("/facebook/page-callback", async (req: Request, res: Response) => {
     // Use the first page (user can change this later)
     const selectedPage = pages[0];
 
+    // Check if this is a new connection or reconnection
+    const existingAccount = await prisma.socialMediaAccount.findUnique({
+      where: {
+        userId_platform: {
+          userId,
+          platform: "facebook",
+        },
+      },
+    });
+
+    const isNewConnection = !existingAccount;
+
     // Store Facebook account info
     await prisma.socialMediaAccount.upsert({
       where: {
@@ -1016,6 +1126,19 @@ router.get("/facebook/page-callback", async (req: Request, res: Response) => {
         accountId: selectedPage.id,
       },
     });
+
+    // Create notification for Facebook connection
+    if (isNewConnection || !existingAccount?.pageId) {
+      const { createNotificationWithDeduplication } = require("../utils/notificationHelper");
+      await createNotificationWithDeduplication({
+        userId,
+        title: "Facebook Connected",
+        message: `Your Facebook Page "${selectedPage.name}" has been successfully connected at ${new Date().toLocaleString()}. You can now publish campaigns!`,
+        type: "success",
+        deduplicationKey: `facebook_connected_${userId}`,
+        deduplicationWindowHours: 1, // Only prevent duplicates within 1 hour
+      });
+    }
 
     return res.redirect(`${process.env.FRONTEND_URL || "http://localhost:5173"}/ads?facebook_connected=true`);
   } catch (error: any) {
@@ -1041,6 +1164,8 @@ router.post("/facebook/supabase-connect", authMiddleware, async (req: Request, r
       });
     }
 
+    console.log("🔐 Processing Facebook connection from Supabase for user:", userId);
+    
     // Get user's Facebook pages using the access token from Supabase
     const pagesResponse = await fetch(
       `https://graph.facebook.com/v18.0/me/accounts?access_token=${accessToken}&fields=id,name,access_token`
@@ -1048,7 +1173,7 @@ router.post("/facebook/supabase-connect", authMiddleware, async (req: Request, r
 
     if (!pagesResponse.ok) {
       const errorData = await pagesResponse.json();
-      console.error("Facebook pages fetch error:", errorData);
+      console.error("❌ Facebook pages fetch error:", errorData);
       return res.status(400).json({
         success: false,
         message: errorData.error?.message || "Failed to fetch Facebook pages",
@@ -1058,7 +1183,10 @@ router.post("/facebook/supabase-connect", authMiddleware, async (req: Request, r
     const pagesData = await pagesResponse.json();
     const pages = pagesData.data || [];
 
+    console.log("📱 Found Facebook pages:", pages.length);
+
     if (pages.length === 0) {
+      console.warn("⚠️ No Facebook Pages found for user");
       return res.status(400).json({
         success: false,
         message: "No Facebook Pages found. Please create a Facebook Page first.",
@@ -1067,6 +1195,19 @@ router.post("/facebook/supabase-connect", authMiddleware, async (req: Request, r
 
     // Use the first page (user can change this later)
     const selectedPage = pages[0];
+    console.log("✅ Selected Facebook page:", selectedPage.id, selectedPage.name);
+
+    // Check if this is a new connection or reconnection
+    const existingAccount = await prisma.socialMediaAccount.findUnique({
+      where: {
+        userId_platform: {
+          userId,
+          platform: "facebook",
+        },
+      },
+    });
+
+    const isNewConnection = !existingAccount;
 
     // Store Facebook account info
     const socialAccount = await prisma.socialMediaAccount.upsert({
@@ -1092,6 +1233,25 @@ router.post("/facebook/supabase-connect", authMiddleware, async (req: Request, r
         refreshToken: refreshToken || null,
       },
     });
+
+    console.log("✅ Facebook account saved successfully:", {
+      id: socialAccount.id,
+      pageId: socialAccount.pageId,
+      platform: socialAccount.platform,
+    });
+
+    // Create notification for Facebook connection
+    if (isNewConnection || !existingAccount?.pageId) {
+      const { createNotificationWithDeduplication } = await import("../utils/notificationHelper");
+      await createNotificationWithDeduplication({
+        userId,
+        title: "Facebook Connected",
+        message: `Your Facebook Page "${selectedPage.name}" has been successfully connected at ${new Date().toLocaleString()}. You can now publish campaigns!`,
+        type: "success",
+        deduplicationKey: `facebook_connected_${userId}`,
+        deduplicationWindowHours: 1, // Only prevent duplicates within 1 hour
+      });
+    }
 
     return res.status(200).json({
       success: true,

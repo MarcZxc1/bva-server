@@ -18,6 +18,7 @@ import { useGenerateAdCopy, useGenerateAdImage, useCreateCampaign, useUpdateCamp
 import { useAllUserProducts } from "@/hooks/useProducts";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface AdGeneratorDialogProps {
   trigger?: React.ReactNode;
@@ -68,6 +69,7 @@ export function AdGeneratorDialog({
 
   // Fetch all products for bundling
   const { data: allProducts } = useAllUserProducts();
+  const { user } = useAuth();
   
   // Determine the shopId to use - try initialShopId first, then find from product
   const effectiveShopId = useMemo(() => {
@@ -82,6 +84,31 @@ export function AdGeneratorDialog({
     }
     return null;
   }, [initialShopId, initialProductId, allProducts]);
+
+  // Determine the platform from product or shop
+  const effectivePlatform = useMemo(() => {
+    // First, try to get platform from the product
+    if (initialProductId && allProducts) {
+      const product = allProducts.find(p => p.id === initialProductId);
+      if (product?.platform) {
+        console.log("🔍 Found platform from product:", product.platform);
+        return product.platform.toUpperCase();
+      }
+    }
+    
+    // If no product platform, try to get from shop
+    if (effectiveShopId && user?.shops) {
+      const shop = user.shops.find(s => s.id === effectiveShopId);
+      if (shop && 'platform' in shop && shop.platform) {
+        console.log("🔍 Found platform from shop:", shop.platform);
+        return (shop.platform as string).toUpperCase();
+      }
+    }
+    
+    // Default to SHOPEE if no platform found
+    console.log("⚠️ No platform found, defaulting to SHOPEE");
+    return "SHOPEE";
+  }, [initialProductId, allProducts, effectiveShopId, user]);
   
   // Filter products from the same shop, excluding the current product
   const availableBundleProducts = useMemo(() => {
@@ -700,31 +727,31 @@ export function AdGeneratorDialog({
               <div className="flex items-center justify-between mb-2">
                 <Label className="text-sm font-semibold">Generated Image</Label>
                 <div className="flex gap-2">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      // Download image functionality
-                      try {
-                        // Create a temporary anchor element
-                        const link = document.createElement('a');
-                        link.href = imageUrl;
-                        link.download = `ad-image-${productName.replace(/\s+/g, '-')}-${Date.now()}.png`;
-                        document.body.appendChild(link);
-                        link.click();
-                        document.body.removeChild(link);
-                        toast.success("Image downloaded successfully!");
-                      } catch (error) {
-                        console.error("Error downloading image:", error);
-                        toast.error("Failed to download image");
-                      }
-                    }}
-                    className="gap-2"
-                  >
-                    <Download className="h-4 w-4" />
-                    Download
-                  </Button>
-                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    // Download image functionality
+                    try {
+                      // Create a temporary anchor element
+                      const link = document.createElement('a');
+                      link.href = imageUrl;
+                      link.download = `ad-image-${productName.replace(/\s+/g, '-')}-${Date.now()}.png`;
+                      document.body.appendChild(link);
+                      link.click();
+                      document.body.removeChild(link);
+                      toast.success("Image downloaded successfully!");
+                    } catch (error) {
+                      console.error("Error downloading image:", error);
+                      toast.error("Failed to download image");
+                    }
+                  }}
+                  className="gap-2"
+                >
+                  <Download className="h-4 w-4" />
+                  Download
+                </Button>
+              </div>
               </div>
               <div className="relative w-full max-w-md mx-auto rounded-lg overflow-hidden bg-muted border border-card-glass-border mb-4">
                 <img 
@@ -957,19 +984,19 @@ export function AdGeneratorDialog({
                       // Get the original product image URL (not the generated ad image)
                       const originalProductImageUrl = uploadedImage || productImageUrl || initialProductImageUrl;
                       
-                      await createCampaignMutation.mutateAsync({
-                        name: `${productName} - ${playbook}`,
-                        content: {
-                          ad_copy: generatedAd || "",
-                          promo_copy: generatedAd || "",
-                          playbook,
-                          product_name: productName,
+                    await createCampaignMutation.mutateAsync({
+                      name: `${productName} - ${playbook}`,
+                      content: {
+                        ad_copy: generatedAd || "",
+                        promo_copy: generatedAd || "",
+                        playbook,
+                        product_name: productName,
                           image_url: imageUrl || undefined, // Generated ad image
                           product_image_url: originalProductImageUrl || undefined, // Original product image for regeneration
-                        },
-                        status: "DRAFT",
-                        platform: "SHOPEE",
-                      });
+                      },
+                      status: "DRAFT",
+                      platform: effectivePlatform,
+                    });
                     }
 
                     // Invalidate campaigns query to refresh the list
@@ -982,8 +1009,8 @@ export function AdGeneratorDialog({
                     
                     // Only close and reset if creating new campaign (not editing)
                     if (!isEditing && !isGenerating) {
-                      setOpen(false);
-                      handleReset();
+                    setOpen(false);
+                    handleReset();
                     } else if (isEditing) {
                       // When editing, keep modal open but refresh data
                       // Don't reset - allow user to continue editing

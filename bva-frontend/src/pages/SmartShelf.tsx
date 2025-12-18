@@ -40,6 +40,13 @@ const getActionIcon = (actionType: string) => {
 
 const getInventoryStatus = (product: any, quantity: number, expiryDate?: string | null) => {
   const isLowStock = quantity <= 10;
+  const isExpired = expiryDate ? (() => {
+    const expiry = new Date(expiryDate);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // Reset time to compare dates only
+    expiry.setHours(0, 0, 0, 0);
+    return expiry.getTime() < today.getTime();
+  })() : false;
   const isExpiringSoon = expiryDate ? (() => {
     const expiry = new Date(expiryDate);
     const today = new Date();
@@ -47,7 +54,11 @@ const getInventoryStatus = (product: any, quantity: number, expiryDate?: string 
     return daysUntilExpiry > 0 && daysUntilExpiry <= 30;
   })() : false;
 
-  // Expiring Soon takes priority
+  // Expired takes highest priority
+  if (isExpired) {
+    return { label: "Expired", variant: "destructive" as const };
+  }
+  // Expiring Soon takes priority over low stock
   if (isExpiringSoon) {
     return { label: "Expiring Soon", variant: "outline" as const };
   }
@@ -183,6 +194,19 @@ export default function SmartShelf() {
     if (selectedPlatform === 'ALL') return allProducts;
     return allProducts.filter(p => p.platform?.toUpperCase() === selectedPlatform);
   }, [allProducts, selectedPlatform]);
+
+  // Filter expired items
+  const expiredItems = useMemo(() => {
+    if (!products) return [];
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return products.filter(product => {
+      if (!product.expiryDate) return false;
+      const expiry = new Date(product.expiryDate);
+      expiry.setHours(0, 0, 0, 0);
+      return expiry.getTime() < today.getTime();
+    });
+  }, [products]);
   
   const [selectedItem, setSelectedItem] = useState<any>(null);
   const [promotionsData, setPromotionsData] = useState<PromotionResponse | null>(null);
@@ -451,6 +475,78 @@ export default function SmartShelf() {
         </Card>
       </div>
 
+      {/* Expired Items - Show First */}
+      {expiredItems.length > 0 && (
+        <Card className="glass-card border-2 border-destructive">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-destructive">
+              <AlertTriangle className="h-5 w-5 text-destructive" />
+              🚨 Expired Items ({expiredItems.length})
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {expiredItems.map((product) => {
+                const quantity = product.quantity || product.stock || 0;
+                return (
+                  <div 
+                    key={product.id}
+                    className="flex items-center justify-between p-4 glass-card-sm border-2 border-destructive/50 bg-destructive/5"
+                  >
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <h3 className="font-semibold text-destructive">{product.name}</h3>
+                        <Badge variant="destructive" className="bg-destructive">
+                          EXPIRED
+                        </Badge>
+                        <span className="text-xs text-muted-foreground">SKU: {product.sku}</span>
+                      </div>
+                      <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                        <span className="flex items-center gap-1">
+                          <Package className="h-3 w-3" />
+                          Stock: <strong className="text-foreground">{quantity} units</strong>
+                        </span>
+                        <span>•</span>
+                        <span className="flex items-center gap-1">
+                          <Calendar className="h-3 w-3" />
+                          Expired: <strong className="text-destructive">{formatDate(product.expiryDate)}</strong>
+                        </span>
+                        {product.platform && (
+                          <>
+                            <span>•</span>
+                            <span>{getPlatformName(product.platform)}</span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                    <Button 
+                      variant="destructive" 
+                      size="sm"
+                      onClick={() => {
+                        navigate("/ads", {
+                          state: {
+                            product: {
+                              id: product.id,
+                              productId: product.id,
+                              name: product.name,
+                              imageUrl: product.imageUrl,
+                              shopId: product.shopId,
+                            },
+                            playbook: "Flash Sale"
+                          }
+                        });
+                      }}
+                    >
+                      Create Clearance Sale
+                    </Button>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* At-Risk Inventory */}
       <Card className="glass-card">
         <CardHeader>
@@ -717,7 +813,9 @@ export default function SmartShelf() {
                         <Badge 
                           variant={status.variant}
                           className={
-                            status.label === "Healthy" 
+                            status.label === "Expired"
+                              ? "bg-red-600 text-white border-transparent hover:bg-red-700"
+                              : status.label === "Healthy" 
                               ? "bg-green-500 text-white border-transparent hover:bg-green-600" 
                               : status.label === "Expiring Soon"
                               ? "bg-orange-500 text-white border-transparent hover:bg-orange-600"

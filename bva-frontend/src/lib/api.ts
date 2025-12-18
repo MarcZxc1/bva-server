@@ -131,6 +131,10 @@ export const smartShelfApi = {
   getDashboardAnalytics: async (shopId: string): Promise<any> => {
     return apiClient.get(`/api/smart-shelf/${shopId}/dashboard`);
   },
+  
+  getExpiredItems: async (): Promise<Array<any>> => {
+    return apiClient.get<Array<any>>(`/api/smart-shelf/expired/user`);
+  },
 };
 
 // Health check

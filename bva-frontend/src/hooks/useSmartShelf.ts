@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { analyticsService, AtRiskResponse, DashboardResponse } from "@/services/analytics.service";
+import { smartShelfApi } from "@/lib/api";
 
 /**
  * Hook to fetch aggregated at-risk inventory from all accessible shops
@@ -49,6 +50,18 @@ export function useAllUserDashboardAnalytics(enabled: boolean = true, platform?:
     cacheTime: 120000, // Keep in cache for 2 minutes
     refetchInterval: 300000, // Refetch every 5 minutes
     refetchOnWindowFocus: true, // Refetch when user returns to tab
+  });
+}
+
+/**
+ * Hook to fetch expired items for the current user
+ */
+export function useExpiredItems(enabled: boolean = true) {
+  return useQuery<Array<any>>({
+    queryKey: ["expired-items", "user"],
+    queryFn: () => smartShelfApi.getExpiredItems(),
+    enabled: enabled,
+    refetchInterval: 60000, // Refetch every minute
   });
 }
 

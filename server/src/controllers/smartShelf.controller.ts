@@ -8,6 +8,7 @@ import {
   getUserAtRiskInventory as getUserAtRiskInventoryService
 } from "../service/smartShelf.service";
 import { AdService } from "../service/ad.service";
+import { getUserExpiredItems as getUserExpiredItemsService, checkAndNotifyExpiredItems } from "../service/expiredItems.service";
 
 const adService = new AdService();
 import { 
@@ -495,6 +496,42 @@ export const generatePromotionsForItem = async (req: Request, res: Response) => 
     });
   } catch (error: any) {
     console.error("Error in generatePromotionsForItem:", error);
+    return res.status(500).json({
+      success: false,
+      error: error.message || "Internal Server Error",
+    });
+  }
+};
+
+/**
+ * GET /api/smart-shelf/expired/user
+ * Get expired items for the current user
+ * Also checks and creates notifications for expired items
+ */
+export const getUserExpiredItems = async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user.id;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: "Unauthorized",
+      });
+    }
+
+    // Check and create notifications for expired items (non-blocking)
+    checkAndNotifyExpiredItems().catch(err => {
+      console.error("Error checking expired items:", err);
+    });
+
+    const expiredItems = await getUserExpiredItemsService(userId);
+
+    return res.json({
+      success: true,
+      data: expiredItems,
+    });
+  } catch (error: any) {
+    console.error("Error in getUserExpiredItems:", error);
     return res.status(500).json({
       success: false,
       error: error.message || "Internal Server Error",

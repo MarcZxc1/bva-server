@@ -370,6 +370,17 @@ class IntegrationService {
     // Use the integration's shopId (this can be a linked shop)
     const shopId = integration.shopId;
 
+    // Get shop owner for notification
+    const shop = await prisma.shop.findUnique({
+      where: { id: shopId },
+      select: { ownerId: true },
+    });
+
+    const userId = shop?.ownerId;
+    if (!userId) {
+      throw new Error("Shop owner not found");
+    }
+
     // Sync based on platform
     switch (integration.platform) {
       case Platform.SHOPEE:
@@ -380,6 +391,18 @@ class IntegrationService {
         }
         // Pass shopId instead of userId - syncAllData now accepts shopId directly
         const shopeeResult = await shopeeIntegrationService.syncAllData(shopId, shopeeToken);
+        
+        // Create notification for successful sync (with deduplication)
+        const { createNotificationWithDeduplication } = require("../utils/notificationHelper");
+        await createNotificationWithDeduplication({
+          userId,
+          title: "Shopee Sync Completed",
+          message: `Successfully synced ${shopeeResult.products} products and ${shopeeResult.sales} sales from Shopee.`,
+          type: "success",
+          deduplicationKey: `sync_shopee_${shopId}`,
+          deduplicationWindowHours: 1, // Prevent duplicates within 1 hour
+        });
+        
         return {
           success: true,
           message: "Sync completed",
@@ -393,6 +416,18 @@ class IntegrationService {
         }
         // Pass shopId instead of userId - syncAllData now accepts shopId directly
         const lazadaResult = await lazadaIntegrationService.syncAllData(shopId, lazadaToken);
+        
+        // Create notification for successful sync (with deduplication)
+        const { createNotificationWithDeduplication: createLazadaNotification } = require("../utils/notificationHelper");
+        await createLazadaNotification({
+          userId,
+          title: "Lazada Sync Completed",
+          message: `Successfully synced ${lazadaResult.products} products and ${lazadaResult.sales} sales from Lazada.`,
+          type: "success",
+          deduplicationKey: `sync_lazada_${shopId}`,
+          deduplicationWindowHours: 1, // Prevent duplicates within 1 hour
+        });
+        
         return {
           success: true,
           message: "Sync completed",

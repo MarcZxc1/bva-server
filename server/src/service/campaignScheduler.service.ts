@@ -219,7 +219,7 @@ export class CampaignSchedulerService {
               userId: userId,
               title: "Campaign Published",
               message: `Your campaign "${campaign.name}" has been successfully published to Facebook!`,
-              type: "campaign_published",
+              type: "success",
               isRead: false,
             },
           });

@@ -58,7 +58,7 @@ const BACKEND_API_BASE = (() => {
 export default function Login() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { login, register, setToken, isLoading, isAuthenticated } = useAuth();
+  const { login, register, setToken, isLoading, isAuthenticated, user } = useAuth();
   
   // Track OAuth processing to prevent infinite loops
   const oauthProcessedRef = useRef(false);
@@ -78,15 +78,52 @@ export default function Login() {
 
   // Redirect to dashboard if already authenticated (but not if processing OAuth callback)
   useEffect(() => {
+    // Don't redirect if we're currently processing OAuth
+    if (oauthProcessedRef.current) {
+      console.log("🔵 [FRONTEND] Skipping redirect - OAuth processing");
+      return;
+    }
+    
     const hasToken = searchParams.has("token");
     const hasError = searchParams.has("error");
     
-    // Only redirect if authenticated, no OAuth params, and not processing OAuth
-    if (isAuthenticated && !hasToken && !hasError && !oauthProcessedRef.current) {
-      console.log("✅ Already authenticated, redirecting to dashboard...");
-      navigate("/dashboard", { replace: true });
+    // Only redirect if no OAuth params and not processing OAuth
+    if (hasToken || hasError) {
+      console.log("🔵 [FRONTEND] Skipping redirect - OAuth params present", { hasToken, hasError });
+      return;
     }
-  }, [isAuthenticated, searchParams, navigate]);
+    
+    // Check both state and localStorage
+    const savedToken = localStorage.getItem("auth_token");
+    const savedUser = localStorage.getItem("user");
+    const isAuth = isAuthenticated || (savedToken && savedUser);
+    
+    console.log("🔵 [FRONTEND] Checking if should redirect:", {
+      isAuthenticated,
+      isLoading,
+      hasToken: !!savedToken,
+      hasUser: !!savedUser,
+      isAuth,
+    });
+    
+    // Only redirect if authenticated and not loading
+    // Add a small delay to prevent redirect loops
+    if (isAuth && !isLoading) {
+      const timer = setTimeout(() => {
+        // Double-check auth is still valid before redirecting
+        const finalToken = localStorage.getItem("auth_token");
+        const finalUser = localStorage.getItem("user");
+        if (finalToken && finalUser) {
+          console.log("✅ [FRONTEND] Already authenticated, redirecting to dashboard...");
+          navigate("/dashboard", { replace: true });
+        } else {
+          console.log("⚠️ [FRONTEND] Auth lost during delay, not redirecting");
+        }
+      }, 100);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [isAuthenticated, isLoading, searchParams, navigate]);
 
   // Handle token from Google OAuth callback - SINGLE EFFECT, NO LOOPS
   useEffect(() => {
@@ -102,25 +139,89 @@ export default function Login() {
     if (token && !oauthProcessedRef.current) {
       oauthProcessedRef.current = true; // Mark as processed immediately
       
+      console.log("🔵 [FRONTEND] OAuth token detected in URL:", {
+        tokenLength: token.length,
+        tokenPreview: token.substring(0, 50) + "...",
+        currentUrl: window.location.href,
+        searchParams: Object.fromEntries(searchParams.entries()),
+      });
+      
       const processToken = async () => {
         try {
-          console.log("🔑 Processing OAuth token...");
+          console.log("🔑 [FRONTEND] Processing OAuth token...");
           
           // Remove token from URL immediately to prevent re-processing
           setSearchParams({}, { replace: true });
+          console.log("🔵 [FRONTEND] URL cleaned, token removed from search params");
           
           // Save token and fetch user data
+          console.log("🔵 [FRONTEND] Calling setToken...");
           await setToken(token);
-          console.log("✅ Token saved and user data loaded");
+          console.log("✅ [FRONTEND] setToken completed");
+          
+          // Verify token is in localStorage
+          const savedToken = localStorage.getItem("auth_token");
+          const savedUser = localStorage.getItem("user");
+          let parsedUserData = null;
+          try {
+            parsedUserData = savedUser ? JSON.parse(savedUser) : null;
+          } catch (e) {
+            console.warn("Failed to parse user data:", e);
+          }
+          
+          console.log("🔍 [FRONTEND] Verification after setToken:", {
+            hasToken: !!savedToken,
+            hasUser: !!savedUser,
+            tokenLength: savedToken?.length,
+            userData: parsedUserData,
+            isAuthenticated,
+            currentToken: token,
+          });
+          
+          if (!savedToken || !savedUser) {
+            console.error("❌ [FRONTEND] Token or user not saved to localStorage!", {
+              savedToken: !!savedToken,
+              savedUser: !!savedUser,
+              localStorageKeys: Object.keys(localStorage),
+            });
+            toast.error("Failed to save authentication. Please try again.");
+            oauthProcessedRef.current = false;
+            return;
+          }
+          
           toast.success("Google login successful!");
           
-          // Navigate after a brief delay to ensure state is updated
+          // Force a small delay to ensure everything is set, then navigate
+          // Use window.location.href for a hard navigation to ensure clean state
           setTimeout(() => {
-            console.log("🚀 Navigating to dashboard...");
-            navigate("/dashboard", { replace: true });
-          }, 200);
+            const finalToken = localStorage.getItem("auth_token");
+            const finalUser = localStorage.getItem("user");
+            console.log("🚀 [FRONTEND] Final check before navigation:", {
+              hasToken: !!finalToken,
+              hasUser: !!finalUser,
+              isAuthenticated,
+              tokenMatch: finalToken === token,
+            });
+            
+            if (finalToken && finalUser) {
+              // Use window.location for a hard navigation to ensure ProtectedRoute sees the auth
+              console.log("🚀 [FRONTEND] Navigating to /dashboard via window.location.href");
+              window.location.href = "/dashboard";
+            } else {
+              console.error("❌ [FRONTEND] Auth lost before navigation!", {
+                finalToken: !!finalToken,
+                finalUser: !!finalUser,
+              });
+              toast.error("Authentication failed. Please try again.");
+              oauthProcessedRef.current = false;
+            }
+          }, 1000);
         } catch (err) {
-          console.error("OAuth token error:", err);
+          console.error("❌ [FRONTEND] OAuth token error:", err);
+          console.error("❌ [FRONTEND] Error details:", {
+            message: err instanceof Error ? err.message : String(err),
+            stack: err instanceof Error ? err.stack : undefined,
+          });
           toast.error("Failed to complete login. Please try again.");
           oauthProcessedRef.current = false; // Reset on error
           setSearchParams({}, { replace: true }); // Clear URL
@@ -145,7 +246,7 @@ export default function Login() {
       // Clear error from URL
       setSearchParams({}, { replace: true });
     }
-  }, [searchParams, setToken, navigate, setSearchParams]);
+  }, [searchParams, setToken, navigate, setSearchParams, isAuthenticated]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -210,10 +311,25 @@ export default function Login() {
   };
 
   const handleGoogleLogin = () => {
-    // We pass the frontend's origin as the 'state' parameter.
+    // We pass the frontend's origin as the 'state' parameter in JSON format.
     // The backend will use this to redirect the user back to the correct application.
-    const state = window.location.origin;
-    window.location.href = `${BACKEND_API_BASE}/auth/google?state=${state}`;
+    const stateData = {
+      redirectUrl: window.location.origin,
+      role: 'BUYER',
+      platform: 'BVA'
+    };
+    const state = encodeURIComponent(JSON.stringify(stateData));
+    const oauthUrl = `${BACKEND_API_BASE}/auth/google?state=${state}`;
+    
+    console.log("🔵 [FRONTEND] Initiating Google OAuth:", {
+      stateData,
+      encodedState: state,
+      oauthUrl,
+      backendApiBase: BACKEND_API_BASE,
+      currentOrigin: window.location.origin,
+    });
+    
+    window.location.href = oauthUrl;
   };
 
   return (

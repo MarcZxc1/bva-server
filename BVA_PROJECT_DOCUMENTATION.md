@@ -355,9 +355,9 @@ SmartShelf is an intelligent inventory management system that detects at-risk pr
    - `compute_risk_scores` function processes inventory and sales data
    - Uses pandas for vectorized operations (O(n log n) complexity)
    - Detects three risk types:
-     - Low stock: `0.3 * (1 - qty/threshold)`
-     - Near expiry: `0.4 * (1 - days_left/warning_days)`
-     - Slow moving: `0.3 * (1 - velocity/threshold)`
+- Low stock: `0.3 * (1 - qty/threshold)`
+- Near expiry: `0.4 * (1 - days_left/warning_days)`
+- Slow moving: `0.3 * (1 - velocity/threshold)`
    - Combines into normalized 0-1 risk score
 
 2. **Recommendation Generation**:

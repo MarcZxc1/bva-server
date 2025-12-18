@@ -32,10 +32,48 @@ class ApiClient {
       (response) => response,
       (error: AxiosError) => {
         if (error.response?.status === 401) {
-          // Unauthorized - clear token and redirect to login
-          localStorage.removeItem("auth_token");
-          localStorage.removeItem("user");
-          window.location.href = "/login";
+          // Only clear auth if we're not on the login page (to avoid redirect loops)
+          const currentPath = window.location.pathname;
+          const requestUrl = error.config?.url || 'unknown';
+          const requestMethod = error.config?.method || 'unknown';
+          const hasToken = !!localStorage.getItem("auth_token");
+          const hasUser = !!localStorage.getItem("user");
+          
+          console.error("❌ [API Client] 401 Unauthorized:", {
+            url: requestUrl,
+            method: requestMethod,
+            currentPath,
+            hasToken,
+            hasUser,
+            fullUrl: error.config?.url ? `${error.config.baseURL}${error.config.url}` : 'unknown',
+            responseData: error.response?.data,
+          });
+          
+          // Don't redirect for auth endpoints (they might return 401 for valid reasons)
+          const isAuthEndpoint = requestUrl?.includes('/auth/') || requestUrl?.includes('/login') || requestUrl?.includes('/register');
+          
+          // Don't redirect if we have valid auth in localStorage - might be a temporary API issue
+          // Only redirect if we're on a protected route and have no auth
+          const isProtectedRoute = currentPath.startsWith('/dashboard') || 
+                                   currentPath.startsWith('/inventory') || 
+                                   currentPath.startsWith('/restock') || 
+                                   currentPath.startsWith('/ads') || 
+                                   currentPath.startsWith('/smartshelf') || 
+                                   currentPath.startsWith('/reports') || 
+                                   currentPath.startsWith('/settings');
+          
+          if (currentPath !== "/login" && 
+              currentPath !== "/" && 
+              !isAuthEndpoint && 
+              isProtectedRoute && 
+              (!hasToken || !hasUser)) {
+            console.log("⚠️ [API Client] 401 Unauthorized - no valid auth, clearing and redirecting to login");
+            localStorage.removeItem("auth_token");
+            localStorage.removeItem("user");
+            window.location.href = "/login";
+          } else {
+            console.log("ℹ️ [API Client] 401 but keeping auth - might be temporary API issue or auth endpoint");
+          }
         }
         return Promise.reject(error);
       }
@@ -101,8 +139,18 @@ class ApiClient {
   }
 
   async delete<T>(url: string, config?: AxiosRequestConfig): Promise<T> {
-    const response = await this.client.delete<{ success: boolean; data: T }>(url, config);
-    return response.data.data; // Unwrap the data property
+    const response = await this.client.delete<{ success: boolean; data?: T; message?: string } | T>(url, config);
+    
+    // Handle both wrapped and unwrapped responses
+    if (response.data && typeof response.data === 'object' && 'success' in response.data) {
+      // Wrapped response: { success: boolean, data?: T, message?: string }
+      const wrappedResponse = response.data as { success: boolean; data?: T; message?: string };
+      // If data exists, return it; otherwise return the whole response (for responses like { success, message })
+      return (wrappedResponse.data !== undefined ? wrappedResponse.data : wrappedResponse) as T;
+    } else {
+      // Unwrapped response: T directly
+      return response.data as T;
+    }
   }
 }
 

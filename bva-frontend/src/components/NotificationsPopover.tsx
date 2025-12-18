@@ -13,7 +13,7 @@ import { notificationApi } from "@/lib/api";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
-import { useAllUserAtRiskInventory } from "@/hooks/useSmartShelf";
+import { useAllUserAtRiskInventory, useExpiredItems } from "@/hooks/useSmartShelf";
 
 interface Notification {
   id: string;
@@ -41,6 +41,9 @@ export function NotificationsPopover() {
 
   // Fetch at-risk inventory
   const { data: atRiskData, isLoading: isLoadingAtRisk } = useAllUserAtRiskInventory(true);
+  
+  // Fetch expired items
+  const { data: expiredItems, isLoading: isLoadingExpired } = useExpiredItems(true);
 
   const notifications: Notification[] = notificationsData?.data || [];
   const unreadCount = notifications.filter((n) => !n.isRead).length;
@@ -50,9 +53,12 @@ export function NotificationsPopover() {
   
   // Get at-risk items (all flagged items, excluding critical)
   const atRiskItems = atRiskData?.at_risk?.filter(item => item.score < 80) || [];
+  
+  // Get expired items count
+  const expiredCount = expiredItems?.length || 0;
 
-  // Total count for badge (notifications + critical items)
-  const totalAlertCount = unreadCount + criticalItems.length;
+  // Total count for badge (notifications + critical items + expired items)
+  const totalAlertCount = unreadCount + criticalItems.length + expiredCount;
 
   // Mark as read mutation
   const markAsReadMutation = useMutation({
@@ -90,7 +96,7 @@ export function NotificationsPopover() {
     }
   };
 
-  const isLoading = isLoadingNotifications || isLoadingAtRisk;
+  const isLoading = isLoadingNotifications || isLoadingAtRisk || isLoadingExpired;
 
   return (
     <Popover open={isOpen} onOpenChange={setIsOpen}>
@@ -164,6 +170,68 @@ export function NotificationsPopover() {
                 {/* All Tab */}
                 <TabsContent value="all" className="m-0 p-0">
                   <div className="flex flex-col">
+                    {/* Expired Items */}
+                    {expiredCount > 0 && (
+                      <>
+                        <div className="px-4 pt-3 pb-2 bg-destructive/10 border-b border-destructive/20">
+                          <div className="flex items-center gap-2">
+                            <AlertCircle className="h-4 w-4 text-destructive" />
+                            <p className="text-xs font-semibold text-destructive">🚨 Expired Items ({expiredCount})</p>
+                          </div>
+                        </div>
+                        {expiredItems?.slice(0, 3).map((item) => (
+                          <div
+                            key={item.id}
+                            className="p-4 border-b border-destructive/20 hover:bg-destructive/5 transition-colors cursor-pointer"
+                            onClick={() => {
+                              navigate("/smartshelf");
+                              setIsOpen(false);
+                            }}
+                          >
+                            <div className="flex gap-3">
+                              <div className="mt-1">
+                                <AlertCircle className="h-4 w-4 text-destructive" />
+                              </div>
+                              <div className="flex-1 space-y-1">
+                                <div className="flex items-start justify-between gap-2">
+                                  <p className="text-sm font-semibold text-destructive">
+                                    {item.name}
+                                  </p>
+                                  <Badge variant="destructive" className="text-xs bg-destructive">
+                                    EXPIRED
+                                  </Badge>
+                                </div>
+                                <p className="text-xs text-muted-foreground leading-relaxed">
+                                  SKU: {item.sku}
+                                </p>
+                                <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                                  <span>Stock: {item.stock || item.quantity || 0}</span>
+                                  {item.expiryDate && (
+                                    <span>Expired: {new Date(item.expiryDate).toLocaleDateString()}</span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                        {expiredCount > 3 && (
+                          <div className="p-2 text-center">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-xs"
+                              onClick={() => {
+                                navigate("/smartshelf");
+                                setIsOpen(false);
+                              }}
+                            >
+                              View all {expiredCount} expired items
+                            </Button>
+                          </div>
+                        )}
+                      </>
+                    )}
+
                     {/* Critical Items */}
                     {criticalItems.length > 0 && (
                       <>
@@ -336,7 +404,7 @@ export function NotificationsPopover() {
                       </>
                     )}
 
-                    {criticalItems.length === 0 && atRiskItems.length === 0 && notifications.length === 0 && (
+                    {expiredCount === 0 && criticalItems.length === 0 && atRiskItems.length === 0 && notifications.length === 0 && (
                       <div className="p-4 text-center text-sm text-muted-foreground">No notifications</div>
                     )}
                   </div>

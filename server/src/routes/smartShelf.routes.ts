@@ -18,6 +18,13 @@ router.get(
   smartShelfController.getUserAtRiskInventory
 );
 
+// GET /api/smart-shelf/expired/user - Get expired items for the current user
+router.get(
+  "/expired/user",
+  authMiddleware,
+  smartShelfController.getUserExpiredItems
+);
+
 // GET /api/smart-shelf/:shopId/at-risk
 router.get(
   "/:shopId/at-risk",

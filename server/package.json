@@ -11,7 +11,10 @@
     "db:view": "npx prisma studio",
     "db:clear": "ts-node prisma/clear-db.ts",
     "db:clear-sales": "ts-node prisma/clear-sales-inventory.ts",
-    "db:clear-products": "ts-node prisma/clear-products.ts"
+    "db:clear-products": "ts-node prisma/clear-products.ts",
+    "db:seed-demo": "ts-node prisma/seed-demo-data.ts",
+    "db:seed-demo-shopee": "ts-node prisma/seed-demo-shopee.ts",
+    "db:seed-demo-lazada": "ts-node prisma/seed-demo-lazada.ts"
   },
   "keywords": [],
   "author": "",

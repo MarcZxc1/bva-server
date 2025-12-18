@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useLocation } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -6,11 +6,12 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Megaphone, Sparkles, Calendar, Eye, TrendingUp, Loader2, Lightbulb, PackageOpen, Package, BarChart3, Download, Image as ImageIcon, Copy, Facebook, CheckCircle2, XCircle, Clock, ChevronUp, ChevronDown } from "lucide-react";
+import { Megaphone, Sparkles, Calendar, Eye, TrendingUp, Loader2, Lightbulb, PackageOpen, Package, Download, Image as ImageIcon, Copy, Facebook, CheckCircle2, XCircle, Clock, ChevronUp, ChevronDown } from "lucide-react";
 import { AdGeneratorDialog } from "@/components/AdGeneratorDialog";
 import { usePromotions, useCampaigns, useCreateCampaign, useScheduleCampaign, usePublishCampaign, useUnscheduleCampaign, useDeleteCampaign } from "@/hooks/useMarketMate";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
+import { useAllUserProducts } from "@/hooks/useProducts";
 import { toast } from "sonner";
 import { socialMediaApi } from "@/lib/api";
 import { signInWithFacebook, getSession, onAuthStateChange } from "@/lib/supabase";
@@ -47,6 +48,7 @@ export default function MarketMate() {
   const shopId = user?.shops?.[0]?.id || "";
   const { data: promotionsData, isLoading: promotionsLoading } = usePromotions(shopId, !!shopId);
   const { data: campaignsData, isLoading: campaignsLoading, refetch: refetchCampaigns } = useCampaigns(shopId, !!shopId);
+  const { data: allProducts } = useAllUserProducts();
   const createCampaignMutation = useCreateCampaign();
   const scheduleCampaignMutation = useScheduleCampaign();
   const publishCampaignMutation = usePublishCampaign();
@@ -64,6 +66,10 @@ export default function MarketMate() {
   const [selectedDate, setSelectedDate] = useState<string>("");
   const [viewingCampaign, setViewingCampaign] = useState<any>(null);
   const [isConnectingFacebook, setIsConnectingFacebook] = useState(false);
+  const [isProcessingFacebookCallback, setIsProcessingFacebookCallback] = useState(false);
+  const [showReconnectDialog, setShowReconnectDialog] = useState(false);
+  const successNotificationShownRef = useRef(false);
+  const disconnectNotificationShownRef = useRef(false);
 
   const campaigns = campaignsData || [];
   const hasCampaigns = campaigns && campaigns.length > 0;
@@ -79,7 +85,8 @@ export default function MarketMate() {
         
         // apiClient.get unwraps the response, so response IS the data object
         // Backend returns: { success: true, data: { id, platform, pageId, accountId, expiresAt, isConnected } }
-        // apiClient.get returns: { id, platform, pageId, accountId, expiresAt, isConnected }
+        // Or: { success: false, data: { isConnected: false, platform, pageId: null } }
+        // apiClient.get returns: the data object directly
         const accountData = response;
         
         // Ensure we always return an object, never undefined
@@ -88,18 +95,9 @@ export default function MarketMate() {
           return { isConnected: false, pageId: null, platform: 'facebook' };
         }
         
-        // Check if this is a wrapped response (shouldn't happen, but handle it)
-        if (accountData && 'success' in accountData && accountData.success === false) {
-          console.log("📱 Facebook Account: Response indicates not connected");
-          return { isConnected: false, pageId: null, platform: 'facebook' };
-        }
-        
-        // The apiClient unwraps the response, so accountData is the data object directly
-        // Check if it has the expected structure
+        // Check if account is connected (backend now returns isConnected: false when not connected)
+        const isConnected = accountData.isConnected === true;
         const hasPageId = !!accountData.pageId;
-        const isConnected = accountData.isConnected !== undefined 
-          ? accountData.isConnected 
-          : hasPageId; // Fallback: if isConnected not set, use pageId as indicator
         
         console.log("📱 Processed Account Data:", {
           hasPageId,
@@ -114,10 +112,7 @@ export default function MarketMate() {
           isConnected: isConnected && hasPageId, // Must have both
         };
       } catch (error: any) {
-        if (error?.response?.status === 404) {
-          console.log("📱 Facebook Account: Not connected (404)");
-          return { isConnected: false, pageId: null, platform: 'facebook' }; // Return object, not null
-        }
+        // Handle any unexpected errors (network, 500, etc.)
         console.error("📱 Facebook Account: Error fetching", error);
         return { isConnected: false, pageId: null, platform: 'facebook' }; // Return object on error
       }
@@ -149,16 +144,39 @@ export default function MarketMate() {
 
   // Handle Facebook OAuth callback from Supabase
   useEffect(() => {
-    const handleSupabaseCallback = async () => {
+    const handleSupabaseCallback = async (retryCount = 0) => {
+      // Prevent duplicate processing
+      if (isProcessingFacebookCallback) {
+        console.log("⏸️ Facebook callback already being processed, skipping...");
+        return;
+      }
+
       try {
+        setIsProcessingFacebookCallback(true);
+        
+        // Wait longer for Supabase to process the session (especially on first load)
+        // Increase wait time based on retry count
+        const waitTime = retryCount === 0 ? 2000 : retryCount === 1 ? 3000 : 2000;
+        await new Promise(resolve => setTimeout(resolve, waitTime));
+
         const session = await getSession();
         const provider = session?.user?.app_metadata?.provider || 
           session?.user?.identities?.find((id: any) => id.provider)?.provider;
         
-        console.log("🔐 Supabase Session:", {
+        console.log("🔐 Supabase Session (attempt " + (retryCount + 1) + "):", {
           hasSession: !!session,
           provider: provider,
           hasProviderToken: !!session?.provider_token,
+          hasRefreshToken: !!session?.provider_refresh_token,
+          user: session?.user ? {
+            id: session.user.id,
+            email: session.user.email,
+            app_metadata: session.user.app_metadata,
+            identities: session.user.identities?.map((id: any) => ({
+              provider: id.provider,
+              id: id.id
+            }))
+          } : null,
         });
 
         // Check if session has Facebook provider token
@@ -167,6 +185,7 @@ export default function MarketMate() {
            session.user?.identities?.some((id: any) => id.provider === 'facebook'));
         
         if (hasFacebookToken) {
+          console.log("✅ Facebook token found! Processing connection...");
           // We have a Facebook token from Supabase, now get pages and store
           try {
             const response = await socialMediaApi.connectFacebookFromSupabase({
@@ -174,45 +193,260 @@ export default function MarketMate() {
               refreshToken: session.provider_refresh_token || undefined,
             });
             
-            if (response.success) {
-              toast.success("Facebook connected successfully!", {
-                description: "You can now publish campaigns to Facebook",
-              });
-              refetchFacebook();
+            console.log("📱 Facebook connection response:", response);
+            
+            if (response.success && response.data) {
+              // Optimistically update the query cache immediately with full connection data
+              const connectedAccountData = {
+                ...response.data,
+                isConnected: true,
+                pageId: response.data.pageId,
+                platform: 'facebook',
+              };
+              
+              // Force immediate cache update to trigger UI re-render
+              queryClient.setQueryData(["facebookAccount"], connectedAccountData);
+              
+              // Also invalidate to ensure fresh data
               queryClient.invalidateQueries({ queryKey: ["facebookAccount"] });
+              
+              // Show success notification immediately
+              if (!successNotificationShownRef.current) {
+                successNotificationShownRef.current = true;
+                toast.success("Facebook connected successfully!", {
+                  description: "You can now publish campaigns to Facebook",
+                });
+                // Reset flag after 5 seconds to allow future notifications
+                setTimeout(() => {
+                  successNotificationShownRef.current = false;
+                }, 5000);
+              }
+              
+              // Wait a moment for the backend to fully process, then verify
+              await new Promise(resolve => setTimeout(resolve, 500));
+              
+              // Verify connection was successful by checking again
+              const verifyAccount = await socialMediaApi.getFacebookAccount();
+              const isConnected = verifyAccount?.isConnected === true && !!verifyAccount?.pageId;
+              
+              if (isConnected) {
+                // Update cache with verified data
+                queryClient.setQueryData(["facebookAccount"], {
+                  ...verifyAccount,
+                  isConnected: true,
+                });
+                
+                // Force refetch to ensure UI is updated
+                await refetchFacebook();
+              } else {
+                // Connection might still be processing, retry verification
+                console.log("⏳ Connection processed but not yet verified. Retrying verification...");
+                if (retryCount < 2) {
+                  setIsProcessingFacebookCallback(false);
+                  setTimeout(() => handleSupabaseCallback(retryCount + 1), 2000);
+                  return;
+                } else {
+                  // After retries, check one more time before showing error
+                  setTimeout(async () => {
+                    const finalCheck = await socialMediaApi.getFacebookAccount();
+                    const finalConnected = finalCheck?.isConnected === true && !!finalCheck?.pageId;
+                    if (!finalConnected) {
+                      // Revert optimistic update
+                      queryClient.setQueryData(["facebookAccount"], {
+                        isConnected: false,
+                        pageId: null,
+                        platform: 'facebook',
+                      });
+                      toast.error("Failed to connect Facebook", {
+                        description: response.message || "Please try again",
+                      });
+                    } else {
+                      // Update cache with verified data
+                      queryClient.setQueryData(["facebookAccount"], {
+                        ...finalCheck,
+                        isConnected: true,
+                      });
+                      await refetchFacebook();
+                    }
+                  }, 2000);
+                }
+              }
             } else {
-              toast.error("Failed to connect Facebook", {
-                description: response.message || "Please try again",
-              });
+              // Only show error after verifying it's truly not connected
+              setTimeout(async () => {
+                const verifyAccount = await socialMediaApi.getFacebookAccount();
+                const isConnected = verifyAccount?.isConnected === true && !!verifyAccount?.pageId;
+                if (!isConnected) {
+                  toast.error("Failed to connect Facebook", {
+                    description: response.message || "Please try again",
+                  });
+                }
+              }, 2000);
             }
           } catch (err: any) {
-            console.error("Error processing Supabase Facebook token:", err);
-            toast.error("Failed to process Facebook connection", {
-              description: err?.response?.data?.message || err?.message || "Please try again",
-            });
+            console.error("❌ Error processing Supabase Facebook token:", err);
+            // Wait and verify before showing error
+            setTimeout(async () => {
+              const verifyAccount = await socialMediaApi.getFacebookAccount();
+              const isConnected = verifyAccount?.isConnected === true && !!verifyAccount?.pageId;
+              if (!isConnected) {
+                toast.error("Failed to process Facebook connection", {
+                  description: err?.response?.data?.message || err?.message || "Please try again",
+                });
+              }
+            }, 2000);
+          } finally {
+            setIsProcessingFacebookCallback(false);
           }
+        } else if (session && retryCount < 5) {
+          // Session exists but no token yet, retry more times with longer delays
+          console.log("⏳ Session exists but no Facebook token yet. Retrying in 3 seconds... (attempt " + (retryCount + 1) + "/5)");
+          setIsProcessingFacebookCallback(false);
+          setTimeout(() => handleSupabaseCallback(retryCount + 1), 3000);
+        } else {
+          setIsProcessingFacebookCallback(false);
+          // Final check before showing error - connection might have succeeded in background
+          setTimeout(async () => {
+            try {
+              const finalCheck = await socialMediaApi.getFacebookAccount();
+              const isConnected = finalCheck?.isConnected === true && !!finalCheck?.pageId;
+              if (!isConnected && session) {
+                console.warn("⚠️ Session exists but no Facebook provider token found after all retries.");
+                console.warn("This might mean:");
+                console.warn("1. Supabase Facebook provider is not configured correctly");
+                console.warn("2. Facebook permissions were not granted");
+                console.warn("3. The OAuth flow did not complete successfully");
+                toast.error("Facebook connection incomplete", {
+                  description: "No access token received. Please try connecting again and ensure you grant all permissions.",
+                  duration: 10000,
+                });
+              } else if (isConnected) {
+                console.log("✅ Facebook connection verified after retries - connection successful!");
+                // Update cache immediately with full connection data
+                const connectedData = {
+                  ...finalCheck,
+                  isConnected: true,
+                  pageId: finalCheck.pageId,
+                  platform: 'facebook',
+                };
+                queryClient.setQueryData(["facebookAccount"], connectedData);
+                
+                // Invalidate to ensure fresh data
+                queryClient.invalidateQueries({ queryKey: ["facebookAccount"] });
+                
+                // Show success notification only once
+                if (!successNotificationShownRef.current) {
+                  successNotificationShownRef.current = true;
+                  toast.success("Facebook connected successfully!", {
+                    description: "You can now publish campaigns to Facebook",
+                  });
+                  // Reset flag after 5 seconds to allow future notifications
+                  setTimeout(() => {
+                    successNotificationShownRef.current = false;
+                  }, 5000);
+                }
+                
+                // Force refetch to ensure UI is updated
+                await refetchFacebook();
+              }
+            } catch (e) {
+              // If we can't verify, don't show error - might be a temporary issue
+              console.log("Could not verify final connection status, skipping error notification");
+            }
+          }, 2000);
         }
       } catch (error: any) {
-        console.error("Error checking Supabase session:", error);
+        console.error("❌ Error checking Supabase session:", error);
+        setIsProcessingFacebookCallback(false);
+        if (retryCount < 4) {
+          setTimeout(() => handleSupabaseCallback(retryCount + 1), 3000);
+        } else {
+          // Final verification before giving up
+          setTimeout(async () => {
+            try {
+              const finalCheck = await socialMediaApi.getFacebookAccount();
+              const isConnected = finalCheck?.isConnected === true && !!finalCheck?.pageId;
+              if (!isConnected) {
+                toast.error("Failed to connect Facebook", {
+                  description: "Please try again or refresh the page",
+                });
+              }
+            } catch (e) {
+              // Don't show error if we can't verify
+            }
+          }, 2000);
+        }
       }
     };
 
-    // Check URL params for callback
+    // Check URL params and hash for callback
     const params = new URLSearchParams(window.location.search);
-    const facebookConnected = params.get("facebook_connected");
-    const error = params.get("error");
+    const hashParams = new URLSearchParams(window.location.hash.substring(1));
+    const facebookConnected = params.get("facebook_connected") || hashParams.get("facebook_connected");
+    const error = params.get("error") || hashParams.get("error");
+    
+    // Check for Supabase tokens in URL hash (Supabase sometimes puts them there)
+    const accessToken = hashParams.get("access_token");
+    const providerToken = hashParams.get("provider_token");
+    
+    console.log("🔐 URL Check:", {
+      search: window.location.search,
+      hash: window.location.hash.substring(0, 100), // First 100 chars of hash
+      facebookConnected,
+      error,
+      hasAccessToken: !!accessToken,
+      hasProviderToken: !!providerToken,
+    });
 
-    if (facebookConnected === "true") {
+    if (facebookConnected === "true" || providerToken) {
+      console.log("🔐 Facebook OAuth callback detected. Processing session...");
+      // Don't check connection status immediately - let the callback handler process it
+      // This prevents false negatives when connection is still processing
+      
+      // Clear any existing cache to ensure fresh data
+      queryClient.removeQueries({ queryKey: ["facebookAccount"] });
+      
       // Supabase redirected back, check for session
-      handleSupabaseCallback();
-      // Clean URL
-      window.history.replaceState({}, document.title, window.location.pathname);
+      // If we have provider_token in URL, we can use it directly
+      if (providerToken) {
+        console.log("✅ Found provider_token in URL hash!");
+        // Process the token directly
+        handleSupabaseCallback(0).then(() => {
+          // Also try to get session after a delay
+          setTimeout(() => handleSupabaseCallback(1), 2000);
+        });
+      } else {
+        handleSupabaseCallback(0);
+      }
+      // Clean URL after a longer delay to allow full session processing
+      setTimeout(() => {
+        const cleanUrl = window.location.pathname + (window.location.search.split('facebook_connected')[0] || '');
+        window.history.replaceState({}, document.title, cleanUrl);
+      }, 5000);
     } else if (error) {
-      toast.error("Facebook connection failed", {
-        description: error === "no_pages" 
-          ? "You need to have a Facebook Page to publish ads"
-          : "Please try again or check your Facebook permissions",
-      });
+      // Wait a bit before checking - connection might still be processing
+      setTimeout(() => {
+        // Check if Facebook is already connected before showing error
+        socialMediaApi.getFacebookAccount().then((currentAccount) => {
+          const isCurrentlyConnected = currentAccount?.isConnected === true && !!currentAccount?.pageId;
+          if (!isCurrentlyConnected) {
+            toast.error("Facebook connection failed", {
+              description: error === "no_pages" 
+                ? "You need to have a Facebook Page to publish ads"
+                : "Please try again or check your Facebook permissions",
+            });
+          } else {
+            console.log("ℹ️ Facebook already connected, skipping error notification");
+          }
+        }).catch((e) => {
+          // If we can't check, show the error (better safe than sorry)
+          toast.error("Facebook connection failed", {
+            description: error === "no_pages" 
+              ? "You need to have a Facebook Page to publish ads"
+              : "Please try again or check your Facebook permissions",
+          });
+        });
+      }, 3000);
       // Clean URL
       window.history.replaceState({}, document.title, window.location.pathname);
     }
@@ -222,11 +456,23 @@ export default function MarketMate() {
       const provider = session?.user?.app_metadata?.provider || 
         session?.user?.identities?.find((id: any) => id.provider)?.provider;
       console.log("🔐 Supabase auth state changed:", event, provider);
+      console.log("🔐 Session details:", {
+        hasSession: !!session,
+        hasProviderToken: !!session?.provider_token,
+        provider: provider,
+      });
+      
       const isFacebookProvider = session?.user?.app_metadata?.provider === 'facebook' || 
         session?.user?.identities?.some((id: any) => id.provider === 'facebook');
       
-      if (event === 'SIGNED_IN' && isFacebookProvider && session?.provider_token) {
-        handleSupabaseCallback();
+      if (event === 'SIGNED_IN' && isFacebookProvider && !isProcessingFacebookCallback) {
+        console.log("✅ Facebook sign-in detected! Processing...");
+        // Don't check connection status - let the callback handler process it
+        // This prevents race conditions where we skip processing but connection isn't complete
+        // Wait a bit for provider_token to be available
+        setTimeout(() => handleSupabaseCallback(), 1000);
+      } else if (event === 'SIGNED_IN' && !isFacebookProvider) {
+        console.log("ℹ️ User signed in but not via Facebook provider");
       }
     });
 
@@ -320,6 +566,23 @@ export default function MarketMate() {
 
   const handleUsePromotion = async (promo: any) => {
     try {
+      // Determine platform from product
+      let platform = "SHOPEE"; // Default
+      if (promo.product_id && allProducts) {
+        const product = allProducts.find(p => p.id === promo.product_id);
+        if (product?.platform) {
+          platform = product.platform.toUpperCase();
+          console.log("🔍 Found platform from promotion product:", platform);
+        } else if (product?.shopId && user?.shops) {
+          // Try to get platform from shop
+          const shop = user.shops.find(s => s.id === product.shopId);
+          if (shop && 'platform' in shop && shop.platform) {
+            platform = (shop.platform as string).toUpperCase();
+            console.log("🔍 Found platform from promotion product's shop:", platform);
+          }
+        }
+      }
+      
       await createCampaignMutation.mutateAsync({
         name: `${promo.product_name} - ${promo.event_title}`,
         content: {
@@ -329,7 +592,7 @@ export default function MarketMate() {
           discount: `${promo.suggested_discount_pct}% OFF`,
         },
         status: "DRAFT",
-        platform: "SHOPEE",
+        platform: platform,
       });
       queryClient.invalidateQueries({ queryKey: ["campaigns"] });
       toast.success("Campaign created from promotion!");
@@ -372,9 +635,9 @@ export default function MarketMate() {
       }
       // Show date picker dialog
       setSchedulingCampaign(campaign);
-      // Set default to 1 hour from now
+      // Set default to 15 minutes from now (ensures it's at least 10 minutes ahead as required by Facebook)
       const defaultDate = new Date();
-      defaultDate.setHours(defaultDate.getHours() + 1);
+      defaultDate.setMinutes(defaultDate.getMinutes() + 15);
       const hours = defaultDate.getHours();
       const minutes = defaultDate.getMinutes();
       
@@ -469,14 +732,34 @@ export default function MarketMate() {
   const handleConnectFacebook = async () => {
     try {
       setIsConnectingFacebook(true);
+      
+      // Check if Supabase is configured
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      
+      if (!supabaseUrl || !supabaseAnonKey) {
+        toast.error("Facebook connection not configured", {
+          description: "Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your .env file. See SUPABASE_FACEBOOK_SETUP.md for instructions.",
+          duration: 10000,
+        });
+        setIsConnectingFacebook(false);
+        return;
+      }
+      
       // Use Supabase OAuth for Facebook connection
       const redirectTo = `${window.location.origin}/ads?facebook_connected=true`;
-      await signInWithFacebook(redirectTo);
+      console.log("🔐 Initiating Facebook OAuth with redirect:", redirectTo);
+      
+      const result = await signInWithFacebook(redirectTo);
+      console.log("🔐 Facebook OAuth result:", result);
+      
       // Note: signInWithFacebook redirects the user, so setIsConnectingFacebook(false) won't be reached
+      // The redirect happens automatically via Supabase
     } catch (error: any) {
-      console.error("Facebook OAuth error:", error);
+      console.error("❌ Facebook OAuth error:", error);
       toast.error("Failed to connect Facebook", {
-        description: error?.message || "Please try again",
+        description: error?.message || "Please check your Supabase configuration and try again",
+        duration: 8000,
       });
       setIsConnectingFacebook(false);
     }
@@ -506,67 +789,35 @@ export default function MarketMate() {
             {/* Facebook Connection Status */}
             <div className="flex items-center gap-2">
               {isFacebookConnected ? (
-                <>
-                  <Badge variant="default" className="bg-green-600 hover:bg-green-700 gap-2">
-                    <CheckCircle2 className="h-3 w-3" />
-                    Facebook Connected
-                  </Badge>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleConnectFacebook}
-                    disabled={isConnectingFacebook}
-                    className="gap-2"
-                    title="Reconnect Facebook"
-                  >
-                    {isConnectingFacebook ? (
-                      <>
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        Reconnecting...
-                      </>
-                    ) : (
-                      <>
-                        <Facebook className="h-4 w-4" />
-                        Reconnect
-                      </>
-                    )}
-                  </Button>
-                </>
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={() => setShowReconnectDialog(true)}
+                  className="bg-green-600 hover:bg-green-700 gap-2"
+                >
+                  <CheckCircle2 className="h-3 w-3" />
+                  Facebook Connected
+                </Button>
               ) : (
-                <>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleConnectFacebook}
-                    disabled={isConnectingFacebook}
-                    className="gap-2"
-                  >
-                    {isConnectingFacebook ? (
-                      <>
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        Connecting...
-                      </>
-                    ) : (
-                      <>
-                        <Facebook className="h-4 w-4" />
-                        Connect Facebook
-                      </>
-                    )}
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      refetchFacebook();
-                      queryClient.invalidateQueries({ queryKey: ["facebookAccount"] });
-                      toast.info("Refreshing Facebook connection status...");
-                    }}
-                    className="gap-2"
-                    title="Refresh connection status"
-                  >
-                    <Loader2 className="h-4 w-4" />
-                  </Button>
-                </>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleConnectFacebook}
+                  disabled={isConnectingFacebook}
+                  className="gap-2"
+                >
+                  {isConnectingFacebook ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Connecting...
+                    </>
+                  ) : (
+                    <>
+                      <Facebook className="h-4 w-4" />
+                      Connect Facebook
+                    </>
+                  )}
+                </Button>
               )}
             </div>
             <AdGeneratorDialog 
@@ -960,19 +1211,6 @@ export default function MarketMate() {
                           </Button>
                         </>
                       )}
-                      {campaign.status === "published" && (
-                        <Button 
-                          variant="outline" 
-                          size="sm" 
-                          className="glass-card-sm"
-                          onClick={() => {
-                            toast.info("Analytics feature coming soon!");
-                          }}
-                        >
-                          <BarChart3 className="h-3 w-3 mr-1" />
-                          View Analytics
-                        </Button>
-                      )}
                     </div>
                   </div>
                 </div>
@@ -1200,21 +1438,40 @@ export default function MarketMate() {
                 </p>
               </div>
 
-              {scheduledDateTime && (
-                <div className="p-3 glass-card-sm border-card-glass-border rounded-lg">
-                  <p className="text-sm text-muted-foreground mb-1">Scheduled for:</p>
-                  <p className="text-base font-semibold text-foreground">
-                    {new Date(scheduledDateTime).toLocaleString(undefined, {
-                      weekday: 'long',
-                      year: 'numeric',
-                      month: 'long',
-                      day: 'numeric',
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })}
-                  </p>
-                </div>
-              )}
+              {scheduledDateTime && (() => {
+                const scheduledDate = new Date(scheduledDateTime);
+                const now = new Date();
+                const timeDifference = scheduledDate.getTime() - now.getTime();
+                const minutesDifference = timeDifference / (1000 * 60);
+                const isValidTime = minutesDifference >= 10;
+                
+                return (
+                  <div className={`p-3 glass-card-sm border-card-glass-border rounded-lg ${!isValidTime ? 'border-destructive/50 bg-destructive/5' : ''}`}>
+                    <p className="text-sm text-muted-foreground mb-1">Scheduled for:</p>
+                    <p className={`text-base font-semibold ${isValidTime ? 'text-foreground' : 'text-destructive'}`}>
+                      {scheduledDate.toLocaleString(undefined, {
+                        weekday: 'long',
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                    </p>
+                    {!isValidTime && (
+                      <p className="text-xs text-destructive mt-2 flex items-center gap-1">
+                        <XCircle className="h-3 w-3" />
+                        Must be at least 10 minutes in the future (Facebook requirement)
+                      </p>
+                    )}
+                    {isValidTime && minutesDifference < 60 && (
+                      <p className="text-xs text-muted-foreground mt-2">
+                        ⏰ Campaign will be published in {Math.round(minutesDifference)} minute{Math.round(minutesDifference) !== 1 ? 's' : ''}
+                      </p>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
           )}
           <DialogFooter className="gap-2">
@@ -1235,12 +1492,36 @@ export default function MarketMate() {
             <Button 
               onClick={() => {
                 if (scheduledDateTime) {
-                  handleSchedule(schedulingCampaign, new Date(scheduledDateTime).toISOString());
+                  const scheduledDate = new Date(scheduledDateTime);
+                  const now = new Date();
+                  const timeDifference = scheduledDate.getTime() - now.getTime();
+                  const minutesDifference = timeDifference / (1000 * 60);
+                  
+                  // Check if scheduled time is at least 10 minutes in the future
+                  if (minutesDifference < 10) {
+                    toast.error("Schedule time must be at least 10 minutes in the future", {
+                      description: `Facebook requires campaigns to be scheduled at least 10 minutes ahead. Please select a later time.`,
+                      duration: 5000,
+                    });
+                    return;
+                  }
+                  
+                  handleSchedule(schedulingCampaign, scheduledDate.toISOString());
                 } else {
                   toast.error("Please select a date and time");
                 }
               }}
-              disabled={!scheduledDateTime || scheduleCampaignMutation.isPending || !isFacebookConnected}
+              disabled={(() => {
+                if (!scheduledDateTime || scheduleCampaignMutation.isPending || !isFacebookConnected) {
+                  return true;
+                }
+                // Check if scheduled time is at least 10 minutes in the future
+                const scheduledDate = new Date(scheduledDateTime);
+                const now = new Date();
+                const timeDifference = scheduledDate.getTime() - now.getTime();
+                const minutesDifference = timeDifference / (1000 * 60);
+                return minutesDifference < 10;
+              })()}
               className="bg-primary hover:bg-primary/90 text-primary-foreground"
             >
               {scheduleCampaignMutation.isPending ? (
@@ -1546,6 +1827,119 @@ export default function MarketMate() {
           }}
         />
       )}
+
+      {/* Reconnect/Disconnect Facebook Dialog */}
+      <Dialog open={showReconnectDialog} onOpenChange={setShowReconnectDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Facebook Connection</DialogTitle>
+            <DialogDescription>
+              Manage your Facebook account connection. You can reconnect to update your Facebook Page or disconnect to remove the connection.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="p-4 glass-card-sm border-card-glass-border rounded-lg">
+              <div className="flex items-center gap-2 mb-2">
+                <CheckCircle2 className="h-5 w-5 text-green-600" />
+                <span className="font-semibold text-foreground">Currently Connected</span>
+              </div>
+              {facebookAccount?.pageId && (
+                <p className="text-sm text-muted-foreground">
+                  Page ID: {facebookAccount.pageId}
+                </p>
+              )}
+            </div>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setShowReconnectDialog(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={async () => {
+                try {
+                  // Optimistically update the cache immediately
+                  queryClient.setQueryData(["facebookAccount"], {
+                    isConnected: false,
+                    pageId: null,
+                    accountId: null,
+                    platform: 'facebook',
+                  });
+                  
+                  // Close dialog immediately for better UX
+                  setShowReconnectDialog(false);
+                  
+                  const result = await socialMediaApi.disconnectFacebook();
+                  // Handle both response formats: { success, message } or just the message
+                  const isSuccess = result && typeof result === 'object' && 'success' in result 
+                    ? (result as any).success === true 
+                    : true; // If no success field, assume success (for backward compatibility)
+                  
+                  if (isSuccess) {
+                    // Show disconnect notification only once
+                    if (!disconnectNotificationShownRef.current) {
+                      disconnectNotificationShownRef.current = true;
+                      toast.success("Facebook disconnected successfully", {
+                        description: "You can reconnect anytime from the Facebook Connected button",
+                      });
+                      // Reset flag after 5 seconds to allow future notifications
+                      setTimeout(() => {
+                        disconnectNotificationShownRef.current = false;
+                      }, 5000);
+                    }
+                    
+                    // Refetch to ensure UI is updated
+                    await refetchFacebook();
+                    queryClient.invalidateQueries({ queryKey: ["facebookAccount"] });
+                  } else {
+                    // Revert optimistic update on failure
+                    await refetchFacebook();
+                    const errorMessage = result && typeof result === 'object' && 'message' in result
+                      ? (result as any).message
+                      : "Please try again";
+                    toast.error("Failed to disconnect Facebook", {
+                      description: errorMessage,
+                    });
+                  }
+                } catch (error: any) {
+                  console.error("Error disconnecting Facebook:", error);
+                  // Revert optimistic update on error
+                  await refetchFacebook();
+                  toast.error("Failed to disconnect Facebook", {
+                    description: error?.response?.data?.message || error?.message || "Please try again",
+                  });
+                }
+              }}
+            >
+              <XCircle className="h-4 w-4 mr-2" />
+              Disconnect
+            </Button>
+            <Button
+              onClick={async () => {
+                setShowReconnectDialog(false);
+                await handleConnectFacebook();
+              }}
+              disabled={isConnectingFacebook}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              {isConnectingFacebook ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Reconnecting...
+                </>
+              ) : (
+                <>
+                  <Facebook className="h-4 w-4 mr-2" />
+                  Reconnect
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

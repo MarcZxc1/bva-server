@@ -322,9 +322,9 @@ class AdService:
             if product_image_url:
                 try:
                     image_url, is_placeholder = self._generate_ad_image(
-                        product_name=product_name,
-                        playbook_config=config,
-                        discount=discount,
+                product_name=product_name,
+                playbook_config=config,
+                discount=discount,
                         style=style,
                         product_image_url=product_image_url,
                         custom_prompt=custom_prompt,

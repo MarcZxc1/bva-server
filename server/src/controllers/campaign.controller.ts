@@ -646,6 +646,23 @@ export class CampaignController {
         },
       });
 
+      // Create notification for the user when campaign is published
+      try {
+        await prisma.notification.create({
+          data: {
+            userId: userId,
+            title: "Campaign Published",
+            message: `Your campaign "${campaign.name}" has been successfully published${facebookPostId ? " to Facebook" : ""}!`,
+            type: "success",
+            isRead: false,
+          },
+        });
+        console.log(`📬 Notification created for user ${userId} about campaign ${campaign.id}`);
+      } catch (notifError) {
+        console.error(`⚠️  Failed to create notification for campaign ${campaign.id}:`, notifError);
+        // Don't fail the whole operation if notification creation fails
+      }
+
       // Transform campaign to match frontend format
       const transformedCampaign = {
         id: campaign.id,

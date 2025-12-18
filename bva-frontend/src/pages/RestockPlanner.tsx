@@ -37,6 +37,48 @@ const getPriorityLabel = (priorityScore: number) => {
   return "medium";
 };
 
+/**
+ * Get the next upcoming sale event based on current date
+ * Returns the sale date in format "MM.DD" (e.g., "11.11", "12.25")
+ */
+const getNextUpcomingSale = (): string | null => {
+  const now = new Date();
+  const currentMonth = now.getMonth() + 1; // 1-12
+  const currentDay = now.getDate();
+  const currentYear = now.getFullYear();
+
+  // Define major sales throughout the year
+  const sales = [
+    { month: 1, day: 1, name: "New Year", value: "01.01" },
+    { month: 2, day: 14, name: "Valentine's Day", value: "02.14" },
+    { month: 6, day: 18, name: "6.18 Sale", value: "06.18" },
+    { month: 9, day: 9, name: "9.9 Sale", value: "09.09" },
+    { month: 10, day: 10, name: "10.10 Sale", value: "10.10" },
+    { month: 11, day: 11, name: "11.11 Mega Sale", value: "11.11" },
+    { month: 12, day: 12, name: "12.12 Sale", value: "12.12" },
+    { month: 12, day: 25, name: "Christmas", value: "12.25" },
+  ];
+
+  // Find the next sale from today
+  for (const sale of sales) {
+    const saleDate = new Date(currentYear, sale.month - 1, sale.day);
+    
+    // If sale is today or in the future this year
+    if (saleDate >= now) {
+      return sale.value;
+    }
+  }
+
+  // If no sale found this year, return the first sale of next year
+  if (sales.length > 0) {
+    const nextYear = currentYear + 1;
+    const firstSale = sales[0];
+    return firstSale.value;
+  }
+
+  return null;
+};
+
 export default function RestockPlanner() {
   const { user } = useAuth();
   const [shopId, setShopId] = useState(user?.shops?.[0]?.id || "");
@@ -49,7 +91,18 @@ export default function RestockPlanner() {
   const [weatherCondition, setWeatherCondition] = useState<"sunny" | "rainy" | "storm" | null>(null);
   const [isPayday, setIsPayday] = useState(false);
   const [upcomingHoliday, setUpcomingHoliday] = useState<string | null>(null);
+  const [nextSaleDate, setNextSaleDate] = useState<string | null>(getNextUpcomingSale());
   const [isShoppingListOpen, setIsShoppingListOpen] = useState(false);
+  
+  // Update next sale date when month changes
+  useEffect(() => {
+    const newSaleDate = getNextUpcomingSale();
+    setNextSaleDate(newSaleDate);
+    // If current holiday was set to old date, update it to new date
+    if (upcomingHoliday && upcomingHoliday !== newSaleDate) {
+      setUpcomingHoliday(null);
+    }
+  }, []); // Run once on mount and when month changes
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [selectedForecastDate, setSelectedForecastDate] = useState<Date | null>(null);
   const [selectedForecastEvent, setSelectedForecastEvent] = useState<CalendarEvent | null>(null);
@@ -454,15 +507,15 @@ export default function RestockPlanner() {
                   <div className="flex items-center space-x-2">
                     <Checkbox 
                       id="holiday" 
-                      checked={upcomingHoliday === "11.11"}
-                      onCheckedChange={(checked) => setUpcomingHoliday(checked === true ? "11.11" : null)}
+                      checked={upcomingHoliday === nextSaleDate}
+                      onCheckedChange={(checked) => setUpcomingHoliday(checked === true ? nextSaleDate : null)}
                     />
                     <Label 
                       htmlFor="holiday" 
                       className="text-sm font-normal cursor-pointer flex items-center gap-2"
                     >
                       <Sparkles className="h-4 w-4 text-primary" />
-                      Upcoming Mega Sale
+                      Upcoming Mega Sale {nextSaleDate ? `(${nextSaleDate})` : ''}
                     </Label>
                   </div>
                 </div>
