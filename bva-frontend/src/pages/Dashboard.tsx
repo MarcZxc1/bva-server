@@ -58,24 +58,6 @@ export default function Dashboard() {
     },
   });
 
-  // Handle data sync from Shopee-Clone
-  const handleSyncData = async () => {
-    if (!shopId) return;
-    
-    // Find the Shopee integration
-    const shopeeIntegration = integrations?.find(i => i.platform === "SHOPEE");
-    if (!shopeeIntegration) {
-      toast.error("No Shopee integration found. Please connect Shopee-Clone first.");
-      return;
-    }
-    
-    try {
-      await syncIntegrationMutation.mutateAsync(shopeeIntegration.id);
-    } catch (error) {
-      console.error("Error syncing data:", error);
-    }
-  };
-
   // Prepare sales data from API response
   // The forecast structure: forecast.forecasts[].predictions[]
   // Aggregate all product forecasts into a single time series
@@ -562,51 +544,6 @@ export default function Dashboard() {
             )}
           </CardContent>
         </Card>
-
-        {/* Quick Actions - Show when no data but integration exists */}
-        {(hasNoSalesData || hasNoInventory) && (
-        <Card className="glass-card border-primary/20">
-          <CardHeader>
-            <CardTitle className="text-foreground">🚀 Get Started</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <p className="text-sm text-muted-foreground">
-                {hasNoSalesData && hasNoInventory 
-                  ? "Your shop is set up! Now you need data to see insights:"
-                  : hasNoSalesData
-                  ? "Add sales data to see AI-powered forecasts:"
-                  : "Your inventory looks good! Add more products to track:"}
-              </p>
-              <ul className="text-sm text-muted-foreground space-y-2 ml-4">
-                {hasNoSalesData && (
-                  <>
-                    <li>• Sync your sales data from Shopee-Clone</li>
-                    <li>• Or manually add sales records through the API</li>
-                  </>
-                )}
-                {hasNoInventory && (
-                  <>
-                    <li>• Add products to your inventory</li>
-                    <li>• Sync products from Shopee-Clone</li>
-                  </>
-                )}
-                <li>• Get real-time AI-powered recommendations once you have data</li>
-              </ul>
-              <div className="pt-2">
-                <Button
-                  onClick={handleSyncData}
-                  disabled={syncIntegrationMutation.isPending}
-                  className="gap-2 bg-primary hover:bg-primary/90"
-                >
-                  <RefreshCw className={`h-4 w-4 ${syncIntegrationMutation.isPending ? 'animate-spin' : ''}`} />
-                  {syncIntegrationMutation.isPending ? "Syncing..." : "Sync Data from Shopee-Clone"}
-                </Button>
-              </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
         </>
       )}
     </div>

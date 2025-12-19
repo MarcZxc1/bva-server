@@ -33,6 +33,9 @@ router.post("/", authMiddleware, productController.createProduct);
 // Update product (protected - seller only)
 router.put("/:id", authMiddleware, productController.updateProduct);
 
+// Restock product (protected - seller only)
+router.patch("/:id/restock", authMiddleware, productController.restockProduct);
+
 // Delete product (protected - seller only)
 router.delete("/:id", authMiddleware, productController.deleteProduct);
 

@@ -248,6 +248,44 @@ export const updateProduct = async (req: Request, res: Response) => {
   }
 };
 
+export const restockProduct = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { quantity, reason } = req.body;
+
+    if (!id) {
+      return res.status(400).json({
+        success: false,
+        error: "Product ID is required",
+      });
+    }
+
+    if (!quantity || quantity <= 0) {
+      return res.status(400).json({
+        success: false,
+        error: "Quantity must be greater than 0",
+      });
+    }
+
+    const product = await productService.restockProduct(id, quantity, reason);
+    
+    // Notify clients about the restock
+    socketService.notifyProductUpdated(product);
+
+    res.json({
+      success: true,
+      data: product,
+      message: `Successfully restocked ${quantity} units`,
+    });
+  } catch (error: any) {
+    console.error("Error in restockProduct:", error);
+    res.status(500).json({
+      success: false,
+      error: error.message || "Internal Server Error",
+    });
+  }
+};
+
 export const deleteProduct = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;

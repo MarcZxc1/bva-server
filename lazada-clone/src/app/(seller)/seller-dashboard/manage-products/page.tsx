@@ -13,6 +13,10 @@ export default function ManageProductsPage() {
   const user = useAuthStore((state) => state.user);
   const shopId = user?.shops?.[0]?.id;
   const fetchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [restockingProduct, setRestockingProduct] = useState<any | null>(null);
+  const [restockQuantity, setRestockQuantity] = useState<string>('');
+  const [restockReason, setRestockReason] = useState<string>('');
+  const [isRestocking, setIsRestocking] = useState(false);
 
   const fetchProducts = useCallback(async () => {
     try {
@@ -73,6 +77,53 @@ export default function ManageProductsPage() {
       }
     };
   }, [fetchProducts]);
+
+  const handleRestockProduct = (product: any) => {
+    setRestockingProduct(product);
+    setRestockQuantity('');
+    setRestockReason('');
+  };
+
+  const handleRestockSubmit = async () => {
+    if (!restockingProduct) return;
+    
+    const quantity = parseInt(restockQuantity);
+    if (isNaN(quantity) || quantity <= 0) {
+      alert('Please enter a valid quantity greater than 0');
+      return;
+    }
+
+    try {
+      setIsRestocking(true);
+      const response = await sellerAPI.restockProduct(
+        restockingProduct.id || restockingProduct._id,
+        quantity,
+        restockReason || undefined
+      );
+      
+      const updatedProduct = response.data?.data || response.data;
+      
+      // Update the product in the list
+      setProducts(products.map(p => {
+        const productId = p.id || p._id;
+        const restockId = restockingProduct.id || restockingProduct._id;
+        return productId === restockId
+          ? { ...p, stock: updatedProduct.stock || (p.stock || 0) + quantity }
+          : p;
+      }));
+      
+      // Close modal and reset
+      setRestockingProduct(null);
+      setRestockQuantity('');
+      setRestockReason('');
+      alert(`Successfully restocked ${quantity} units. New stock: ${updatedProduct.stock || (restockingProduct.stock || 0) + quantity}`);
+    } catch (err: any) {
+      console.error('Failed to restock product:', err);
+      alert(err.response?.data?.error || err.message || 'Failed to restock product');
+    } finally {
+      setIsRestocking(false);
+    }
+  };
 
   return (
     <div className="flex h-screen bg-gray-50">
@@ -152,6 +203,12 @@ export default function ManageProductsPage() {
                           <div className="text-sm text-gray-900">{product.stock || 0}</div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                          <button
+                            onClick={() => handleRestockProduct(product)}
+                            className="text-green-600 hover:text-green-900 mr-4"
+                          >
+                            Restock
+                          </button>
                           <a href="#" className="text-indigo-600 hover:text-indigo-900">Edit</a>
                           <a href="#" className="ml-4 text-red-600 hover:text-red-900">Delete</a>
                         </td>
@@ -164,6 +221,97 @@ export default function ManageProductsPage() {
           )}
         </div>
       </div>
+
+      {/* Restock Modal */}
+      {restockingProduct && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-8 w-full max-w-md">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-2xl font-bold text-gray-800">Restock Product</h2>
+              <button
+                onClick={() => setRestockingProduct(null)}
+                className="text-gray-400 hover:text-gray-600 text-2xl"
+                disabled={isRestocking}
+              >
+                ✕
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Product Name
+                </label>
+                <input
+                  type="text"
+                  value={restockingProduct.name}
+                  disabled
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-600"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Current Stock
+                </label>
+                <input
+                  type="text"
+                  value={restockingProduct.stock || 0}
+                  disabled
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-600"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Quantity to Add *
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  value={restockQuantity}
+                  onChange={(e) => setRestockQuantity(e.target.value)}
+                  placeholder="Enter quantity"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  autoFocus
+                  disabled={isRestocking}
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Reason (Optional)
+                </label>
+                <input
+                  type="text"
+                  value={restockReason}
+                  onChange={(e) => setRestockReason(e.target.value)}
+                  placeholder="e.g., New shipment received"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  disabled={isRestocking}
+                />
+              </div>
+            </div>
+            
+            <div className="flex justify-end gap-3 mt-6">
+              <button
+                onClick={() => setRestockingProduct(null)}
+                className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+                disabled={isRestocking}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleRestockSubmit}
+                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={isRestocking || !restockQuantity}
+              >
+                {isRestocking ? 'Restocking...' : 'Restock'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

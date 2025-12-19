@@ -453,6 +453,87 @@ export async function updateProduct(
   };
 }
 
+export async function restockProduct(
+  productId: string,
+  quantity: number,
+  reason?: string
+) {
+  if (quantity <= 0) {
+    throw new Error("Restock quantity must be greater than 0");
+  }
+
+  // Get the product first
+  const product = await prisma.product.findUnique({
+    where: { id: productId },
+  });
+
+  if (!product) {
+    throw new Error("Product not found");
+  }
+
+  // Update product stock (increment)
+  const updatedProduct = await prisma.product.update({
+    where: { id: productId },
+    data: {
+      stock: {
+        increment: quantity,
+      },
+    },
+  });
+
+  // Get or create inventory record
+  let inventory = await prisma.inventory.findFirst({
+    where: { productId },
+    orderBy: { updatedAt: "desc" },
+  });
+
+  if (!inventory) {
+    // Create inventory if it doesn't exist
+    inventory = await prisma.inventory.create({
+      data: {
+        productId: product.id,
+        quantity: quantity,
+        threshold: 10,
+      },
+    });
+  } else {
+    // Update existing inventory
+    inventory = await prisma.inventory.update({
+      where: { id: inventory.id },
+      data: {
+        quantity: {
+          increment: quantity,
+        },
+      },
+    });
+  }
+
+  // Create inventory log entry
+  await prisma.inventoryLog.create({
+    data: {
+      inventoryId: inventory.id,
+      delta: quantity,
+      reason: reason || "Manual restock",
+    },
+  });
+
+  // Return updated product with shopId for socket notifications
+  return {
+    id: updatedProduct.id,
+    sku: updatedProduct.sku,
+    name: updatedProduct.name,
+    description: updatedProduct.description,
+    price: updatedProduct.price,
+    cost: updatedProduct.cost,
+    stock: updatedProduct.stock,
+    category: updatedProduct.category,
+    imageUrl: updatedProduct.imageUrl,
+    shopId: updatedProduct.shopId,
+    createdAt: updatedProduct.createdAt.toISOString(),
+    updatedAt: updatedProduct.updatedAt.toISOString(),
+  };
+}
+
 export async function deleteProduct(productId: string) {
   // Delete inventory logs first
   const Inventory = await prisma.inventory.findMany({

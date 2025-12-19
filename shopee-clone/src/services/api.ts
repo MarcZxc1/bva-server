@@ -273,6 +273,13 @@ class ApiClient {
     });
   }
 
+  async restockProduct(productId: string, quantity: number, reason?: string) {
+    return this.request<any>(`/api/products/${productId}/restock`, {
+      method: 'PATCH',
+      body: JSON.stringify({ quantity, reason }),
+    });
+  }
+
   async deleteProduct(productId: string) {
     return this.request<void>(`/api/products/${productId}`, {
       method: 'DELETE',

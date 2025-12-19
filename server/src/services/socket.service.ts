@@ -137,6 +137,32 @@ export function notifyNewOrder(order: any): void {
 }
 
 /**
+ * Notify all clients about a product update (e.g., restock, price change)
+ */
+export function notifyProductUpdated(product: any): void {
+  if (!io) {
+    console.warn("⚠️  Socket.IO not initialized. Skipping product update notification.");
+    return;
+  }
+
+  // Emit to all clients (for buyer landing page)
+  io.emit("product_update", {
+    type: "product_updated",
+    data: product,
+  });
+
+  // Also emit to shop room (for seller dashboard)
+  if (product.shopId) {
+    io.to(`shop_${product.shopId}`).emit("dashboard_update", {
+      type: "product_update",
+      data: product
+    });
+  }
+
+  console.log(`🚀 Notified all clients about product update: ${product.name}`);
+}
+
+/**
  * Notify shop and user about order status update
  */
 export function notifyOrderStatusUpdate(order: any): void {

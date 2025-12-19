@@ -5,7 +5,7 @@ import { useAuth } from '../../../contexts/AuthContext';
 import apiClient from '../../../services/api';
 import { useRealtimeProducts } from '../../../hooks/useRealtimeProducts';
 import AddProductModal from './AddProductModal';
-import { Plus, Edit, Trash2, Package, Search, Wifi } from 'lucide-react';
+import { Plus, Edit, Trash2, Package, Search, Wifi, PackagePlus } from 'lucide-react';
 import './MyProducts.css';
 
 interface Product {
@@ -32,6 +32,10 @@ const MyProducts: React.FC = () => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [restockingProduct, setRestockingProduct] = useState<Product | null>(null);
+  const [restockQuantity, setRestockQuantity] = useState<string>('');
+  const [restockReason, setRestockReason] = useState<string>('');
+  const [isRestocking, setIsRestocking] = useState(false);
   const [refreshingShop, setRefreshingShop] = useState(false);
   const [hasCheckedShop, setHasCheckedShop] = useState(false);
 
@@ -120,6 +124,48 @@ const MyProducts: React.FC = () => {
   const handleEditProduct = (product: Product) => {
     setEditingProduct(product);
     setShowAddModal(true);
+  };
+
+  const handleRestockProduct = (product: Product) => {
+    setRestockingProduct(product);
+    setRestockQuantity('');
+    setRestockReason('');
+  };
+
+  const handleRestockSubmit = async () => {
+    if (!restockingProduct) return;
+    
+    const quantity = parseInt(restockQuantity);
+    if (isNaN(quantity) || quantity <= 0) {
+      alert('Please enter a valid quantity greater than 0');
+      return;
+    }
+
+    try {
+      setIsRestocking(true);
+      const updatedProduct = await apiClient.restockProduct(
+        restockingProduct.id,
+        quantity,
+        restockReason || undefined
+      );
+      
+      // Update the product in the list
+      setProducts(products.map(p => 
+        p.id === restockingProduct.id 
+          ? { ...p, stock: updatedProduct.stock }
+          : p
+      ));
+      
+      // Close modal and reset
+      setRestockingProduct(null);
+      setRestockQuantity('');
+      setRestockReason('');
+      alert(`Successfully restocked ${quantity} units. New stock: ${updatedProduct.stock}`);
+    } catch (err: any) {
+      alert(err.message || 'Failed to restock product');
+    } finally {
+      setIsRestocking(false);
+    }
   };
 
   const handleDeleteProduct = async (productId: string) => {
@@ -422,6 +468,13 @@ const MyProducts: React.FC = () => {
                 </div>
                 <div className="product-actions">
                   <button
+                    onClick={() => handleRestockProduct(product)}
+                    className="btn-restock"
+                    title="Restock Product"
+                  >
+                    <PackagePlus size={16} />
+                  </button>
+                  <button
                     onClick={() => handleEditProduct(product)}
                     className="btn-edit"
                     title="Edit Product"
@@ -449,6 +502,81 @@ const MyProducts: React.FC = () => {
           editingProduct={editingProduct}
           isSubmitting={isSubmitting}
         />
+
+        {/* Restock Product Modal */}
+        {restockingProduct && (
+          <div className="modal-overlay" onClick={() => setRestockingProduct(null)}>
+            <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-header">
+                <h2>Restock Product</h2>
+                <button 
+                  className="modal-close" 
+                  onClick={() => setRestockingProduct(null)}
+                >
+                  ×
+                </button>
+              </div>
+              <div className="modal-body">
+                <div className="form-group">
+                  <label>Product Name</label>
+                  <input 
+                    type="text" 
+                    value={restockingProduct.name} 
+                    disabled 
+                    className="form-input"
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Current Stock</label>
+                  <input 
+                    type="text" 
+                    value={restockingProduct.stock || 0} 
+                    disabled 
+                    className="form-input"
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Quantity to Add *</label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={restockQuantity}
+                    onChange={(e) => setRestockQuantity(e.target.value)}
+                    placeholder="Enter quantity"
+                    className="form-input"
+                    autoFocus
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Reason (Optional)</label>
+                  <input
+                    type="text"
+                    value={restockReason}
+                    onChange={(e) => setRestockReason(e.target.value)}
+                    placeholder="e.g., New shipment received"
+                    className="form-input"
+                  />
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button
+                  onClick={() => setRestockingProduct(null)}
+                  className="btn-secondary"
+                  disabled={isRestocking}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleRestockSubmit}
+                  className="btn-primary"
+                  disabled={isRestocking || !restockQuantity}
+                >
+                  {isRestocking ? 'Restocking...' : 'Restock'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </SellerLayout>
   );

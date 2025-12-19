@@ -78,6 +78,8 @@ export const orderAPI = {
 export const sellerAPI = {
   getProducts: () => api.get('/seller/products'),
   createProduct: (data: any) => api.post('/seller/products', data),
+  restockProduct: (productId: string, quantity: number, reason?: string) => 
+    api.patch(`/products/${productId}/restock`, { quantity, reason }),
   getOrders: (shopId: string) => orderAPI.getSellerOrders(shopId),
   getDashboard: (shopId: string) => api.get(`/seller/${shopId}/dashboard`),
   getIncome: (shopId: string, params?: any) => api.get(`/seller/${shopId}/income`, { params }),

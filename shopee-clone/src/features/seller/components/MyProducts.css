@@ -222,6 +222,7 @@
   border-top: 1px solid #e0e0e0;
 }
 
+.btn-restock,
 .btn-edit,
 .btn-delete {
   flex: 1;
@@ -235,6 +236,12 @@
   background: white;
   cursor: pointer;
   transition: all 0.2s;
+}
+
+.btn-restock:hover {
+  background: #f0fff4;
+  border-color: #28a745;
+  color: #28a745;
 }
 
 .btn-edit:hover {
@@ -284,6 +291,91 @@
   margin: 0;
   font-size: 20px;
   font-weight: 600;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  font-size: 28px;
+  cursor: pointer;
+  color: #666;
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+.modal-close:hover {
+  color: #333;
+}
+
+.modal-body {
+  padding: 24px;
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 20px 24px;
+  border-top: 1px solid #e0e0e0;
+}
+
+.btn-secondary {
+  padding: 10px 20px;
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  background: white;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.2s;
+}
+
+.btn-secondary:hover {
+  background: #f5f5f5;
+}
+
+.btn-primary {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 4px;
+  background: #ee4d2d;
+  color: white;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: background 0.2s;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: #d73211;
+}
+
+.btn-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.form-input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  font-size: 14px;
+  font-family: inherit;
+}
+
+.form-input:focus {
+  outline: none;
+  border-color: #ee4d2d;
+}
+
+.form-input:disabled {
+  background: #f5f5f5;
+  cursor: not-allowed;
 }
 
 .btn-close {
