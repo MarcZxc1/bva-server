@@ -165,6 +165,23 @@ async function seedLazadaDemoData(userId: string) {
       expiryDate.setDate(expiryDate.getDate() + template.expiryDays);
     }
 
+    // Generate realistic image URL based on category and product name
+    const getImageUrl = (category: string, productName: string): string => {
+      const categoryKeywords: Record<string, string> = {
+        "Home & Living": "home-decor",
+        "Food & Beverages": "food-product",
+        "Health & Wellness": "health-supplement",
+      };
+      
+      const keyword = categoryKeywords[category] || "product";
+      const productSlug = productName.toLowerCase().replace(/\s+/g, "-").substring(0, 30);
+      
+      // Use Unsplash Source API for realistic product images
+      // Using seed parameter for consistent images per product
+      const seed = productSlug.replace(/[^a-z0-9-]/g, "");
+      return `https://source.unsplash.com/400x400/?${keyword},${productSlug}&sig=${seed}`;
+    };
+
     // Lazada product
     const lazadaProduct = await prisma.product.create({
       data: {
@@ -177,7 +194,7 @@ async function seedLazadaDemoData(userId: string) {
         category: template.category,
         stock: stock,
         expiryDate: expiryDate,
-        imageUrl: `https://via.placeholder.com/400x400/DC2626/FFFFFF?text=${encodeURIComponent(template.name.substring(0, 20))}`,
+        imageUrl: getImageUrl(template.category, template.name),
       },
     });
 

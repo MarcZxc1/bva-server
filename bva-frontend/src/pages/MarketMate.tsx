@@ -70,6 +70,7 @@ export default function MarketMate() {
   const [showReconnectDialog, setShowReconnectDialog] = useState(false);
   const successNotificationShownRef = useRef(false);
   const disconnectNotificationShownRef = useRef(false);
+  const errorNotificationShownRef = useRef(false);
 
   const campaigns = campaignsData || [];
   const hasCampaigns = campaigns && campaigns.length > 0;
@@ -257,9 +258,15 @@ export default function MarketMate() {
                         pageId: null,
                         platform: 'facebook',
                       });
-                      toast.error("Failed to connect Facebook", {
-                        description: response.message || "Please try again",
-                      });
+                      if (!errorNotificationShownRef.current) {
+                        errorNotificationShownRef.current = true;
+                        toast.error("Failed to connect Facebook", {
+                          description: response.message || "Please try again",
+                        });
+                        setTimeout(() => {
+                          errorNotificationShownRef.current = false;
+                        }, 5000);
+                      }
                     } else {
                       // Update cache with verified data
                       queryClient.setQueryData(["facebookAccount"], {
@@ -276,10 +283,14 @@ export default function MarketMate() {
               setTimeout(async () => {
                 const verifyAccount = await socialMediaApi.getFacebookAccount();
                 const isConnected = verifyAccount?.isConnected === true && !!verifyAccount?.pageId;
-                if (!isConnected) {
+                if (!isConnected && !errorNotificationShownRef.current) {
+                  errorNotificationShownRef.current = true;
                   toast.error("Failed to connect Facebook", {
                     description: response.message || "Please try again",
                   });
+                  setTimeout(() => {
+                    errorNotificationShownRef.current = false;
+                  }, 5000);
                 }
               }, 2000);
             }
@@ -289,10 +300,14 @@ export default function MarketMate() {
             setTimeout(async () => {
               const verifyAccount = await socialMediaApi.getFacebookAccount();
               const isConnected = verifyAccount?.isConnected === true && !!verifyAccount?.pageId;
-              if (!isConnected) {
+              if (!isConnected && !errorNotificationShownRef.current) {
+                errorNotificationShownRef.current = true;
                 toast.error("Failed to process Facebook connection", {
                   description: err?.response?.data?.message || err?.message || "Please try again",
                 });
+                setTimeout(() => {
+                  errorNotificationShownRef.current = false;
+                }, 5000);
               }
             }, 2000);
           } finally {
@@ -310,16 +325,20 @@ export default function MarketMate() {
             try {
               const finalCheck = await socialMediaApi.getFacebookAccount();
               const isConnected = finalCheck?.isConnected === true && !!finalCheck?.pageId;
-              if (!isConnected && session) {
+              if (!isConnected && session && !errorNotificationShownRef.current) {
                 console.warn("⚠️ Session exists but no Facebook provider token found after all retries.");
                 console.warn("This might mean:");
                 console.warn("1. Supabase Facebook provider is not configured correctly");
                 console.warn("2. Facebook permissions were not granted");
                 console.warn("3. The OAuth flow did not complete successfully");
+                errorNotificationShownRef.current = true;
                 toast.error("Facebook connection incomplete", {
                   description: "No access token received. Please try connecting again and ensure you grant all permissions.",
                   duration: 10000,
                 });
+                setTimeout(() => {
+                  errorNotificationShownRef.current = false;
+                }, 10000);
               } else if (isConnected) {
                 console.log("✅ Facebook connection verified after retries - connection successful!");
                 // Update cache immediately with full connection data
@@ -334,17 +353,8 @@ export default function MarketMate() {
                 // Invalidate to ensure fresh data
                 queryClient.invalidateQueries({ queryKey: ["facebookAccount"] });
                 
-                // Show success notification only once
-                if (!successNotificationShownRef.current) {
-                  successNotificationShownRef.current = true;
-                  toast.success("Facebook connected successfully!", {
-                    description: "You can now publish campaigns to Facebook",
-                  });
-                  // Reset flag after 5 seconds to allow future notifications
-                  setTimeout(() => {
-                    successNotificationShownRef.current = false;
-                  }, 5000);
-                }
+                // Note: Success notification is already shown in the earlier code path (line ~216)
+                // No need to show duplicate notification here
                 
                 // Force refetch to ensure UI is updated
                 await refetchFacebook();
@@ -429,22 +439,32 @@ export default function MarketMate() {
         // Check if Facebook is already connected before showing error
         socialMediaApi.getFacebookAccount().then((currentAccount) => {
           const isCurrentlyConnected = currentAccount?.isConnected === true && !!currentAccount?.pageId;
-          if (!isCurrentlyConnected) {
+          if (!isCurrentlyConnected && !errorNotificationShownRef.current) {
+            errorNotificationShownRef.current = true;
             toast.error("Facebook connection failed", {
               description: error === "no_pages" 
                 ? "You need to have a Facebook Page to publish ads"
                 : "Please try again or check your Facebook permissions",
             });
+            setTimeout(() => {
+              errorNotificationShownRef.current = false;
+            }, 5000);
           } else {
             console.log("ℹ️ Facebook already connected, skipping error notification");
           }
         }).catch((e) => {
-          // If we can't check, show the error (better safe than sorry)
-          toast.error("Facebook connection failed", {
-            description: error === "no_pages" 
-              ? "You need to have a Facebook Page to publish ads"
-              : "Please try again or check your Facebook permissions",
-          });
+          // If we can't check, show the error (better safe than sorry) - but only if not already shown
+          if (!errorNotificationShownRef.current) {
+            errorNotificationShownRef.current = true;
+            toast.error("Facebook connection failed", {
+              description: error === "no_pages" 
+                ? "You need to have a Facebook Page to publish ads"
+                : "Please try again or check your Facebook permissions",
+            });
+            setTimeout(() => {
+              errorNotificationShownRef.current = false;
+            }, 5000);
+          }
         });
       }, 3000);
       // Clean URL
@@ -757,10 +777,16 @@ export default function MarketMate() {
       // The redirect happens automatically via Supabase
     } catch (error: any) {
       console.error("❌ Facebook OAuth error:", error);
-      toast.error("Failed to connect Facebook", {
-        description: error?.message || "Please check your Supabase configuration and try again",
-        duration: 8000,
-      });
+      if (!errorNotificationShownRef.current) {
+        errorNotificationShownRef.current = true;
+        toast.error("Failed to connect Facebook", {
+          description: error?.message || "Please check your Supabase configuration and try again",
+          duration: 8000,
+        });
+        setTimeout(() => {
+          errorNotificationShownRef.current = false;
+        }, 8000);
+      }
       setIsConnectingFacebook(false);
     }
   };

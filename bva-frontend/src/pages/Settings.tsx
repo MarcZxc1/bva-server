@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -41,6 +41,13 @@ export default function Settings() {
   const [showShopeeModal, setShowShopeeModal] = useState(false);
   const [showLazadaModal, setShowLazadaModal] = useState(false);
   const [selectedPlatform, setSelectedPlatform] = useState<"SHOPEE" | "LAZADA" | "TIKTOK" | "OTHER">("SHOPEE");
+  
+  // Notification deduplication refs
+  const shopeeSuccessNotificationRef = useRef(false);
+  const shopeeActiveNotificationRef = useRef(false);
+  const lazadaSuccessNotificationRef = useRef(false);
+  const lazadaActiveNotificationRef = useRef(false);
+  const syncSuccessNotificationRef = useRef(false);
 
   // Password Form State
   const [currentPassword, setCurrentPassword] = useState("");
@@ -176,10 +183,16 @@ export default function Settings() {
       // So data might be { products, sales } directly or { data: { products, sales } }
       const products = data?.data?.products ?? data?.products ?? 0;
       const sales = data?.data?.sales ?? data?.sales ?? 0;
-      if (products > 0 || sales > 0) {
-        toast.success(`Sync completed! ${products} products, ${sales} sales synced.`);
-      } else {
-        toast.success("Sync completed successfully!");
+      if (!syncSuccessNotificationRef.current) {
+        syncSuccessNotificationRef.current = true;
+        if (products > 0 || sales > 0) {
+          toast.success(`Sync completed! ${products} products, ${sales} sales synced.`);
+        } else {
+          toast.success("Sync completed successfully!");
+        }
+        setTimeout(() => {
+          syncSuccessNotificationRef.current = false;
+        }, 3000);
       }
     },
     onError: (error: any) => {
@@ -266,7 +279,13 @@ export default function Settings() {
         // Handle 409 Conflict - Integration already exists
         if (error.response?.status === 409 || error.message?.includes("already exists")) {
           console.log(`ℹ️ Integration already exists, treating as success...`);
-          toast.success("Integration already active. Refreshing data...");
+          if (!shopeeActiveNotificationRef.current) {
+            shopeeActiveNotificationRef.current = true;
+            toast.success("Integration already active. Refreshing data...");
+            setTimeout(() => {
+              shopeeActiveNotificationRef.current = false;
+            }, 3000);
+          }
           
           // Get existing integration and proceed to sync
           const integrations = await integrationService.getIntegrations();
@@ -299,21 +318,39 @@ export default function Settings() {
         try {
           await syncIntegrationMutation.mutateAsync(shopeeIntegration.id);
           console.log(`✅ Integration synced successfully`);
-          toast.success("Shopee-Clone connected successfully! Seller data synced.");
+          if (!shopeeSuccessNotificationRef.current) {
+            shopeeSuccessNotificationRef.current = true;
+            toast.success("Shopee-Clone connected successfully! Seller data synced.");
+            setTimeout(() => {
+              shopeeSuccessNotificationRef.current = false;
+            }, 3000);
+          }
         } catch (syncError: any) {
           console.error(`⚠️ Sync failed:`, syncError);
           toast.info("Integration created. Auto-sync in progress...");
         }
       } else {
         console.log(`ℹ️ Integration not found for manual sync - auto-sync should handle it`);
-        toast.success("Shopee-Clone integration created! Data is being synced automatically.");
+        if (!shopeeSuccessNotificationRef.current) {
+          shopeeSuccessNotificationRef.current = true;
+          toast.success("Shopee-Clone integration created! Data is being synced automatically.");
+          setTimeout(() => {
+            shopeeSuccessNotificationRef.current = false;
+          }, 3000);
+        }
       }
     } catch (error: any) {
       console.error(`❌ Error in handleShopeeConnect:`, error);
       
       // Enhanced error handling for 409
       if (error.response?.status === 409) {
-        toast.success("Integration already active. Refreshing data...");
+        if (!shopeeActiveNotificationRef.current) {
+          shopeeActiveNotificationRef.current = true;
+          toast.success("Integration already active. Refreshing data...");
+          setTimeout(() => {
+            shopeeActiveNotificationRef.current = false;
+          }, 3000);
+        }
         // Try to sync anyway
         try {
           const integrations = await integrationService.getIntegrations();
@@ -367,7 +404,13 @@ export default function Settings() {
         // Handle 409 Conflict - Integration already exists
         if (error.response?.status === 409 || error.message?.includes("already exists")) {
           console.log(`ℹ️ Integration already exists, treating as success...`);
-          toast.success("Integration already active. Refreshing data...");
+          if (!lazadaActiveNotificationRef.current) {
+            lazadaActiveNotificationRef.current = true;
+            toast.success("Integration already active. Refreshing data...");
+            setTimeout(() => {
+              lazadaActiveNotificationRef.current = false;
+            }, 3000);
+          }
           
           // Get existing integration and proceed to sync
           const integrations = await integrationService.getIntegrations();
@@ -400,21 +443,39 @@ export default function Settings() {
         try {
           await syncIntegrationMutation.mutateAsync(lazadaIntegration.id);
           console.log(`✅ Integration synced successfully`);
-          toast.success("Lazada-Clone connected successfully! Seller data synced.");
+          if (!lazadaSuccessNotificationRef.current) {
+            lazadaSuccessNotificationRef.current = true;
+            toast.success("Lazada-Clone connected successfully! Seller data synced.");
+            setTimeout(() => {
+              lazadaSuccessNotificationRef.current = false;
+            }, 3000);
+          }
         } catch (syncError: any) {
           console.error(`⚠️ Sync failed:`, syncError);
           toast.info("Integration created. Auto-sync in progress...");
         }
       } else {
         console.log(`ℹ️ Integration not found for manual sync - auto-sync should handle it`);
-        toast.success("Lazada-Clone integration created! Data is being synced automatically.");
+        if (!lazadaSuccessNotificationRef.current) {
+          lazadaSuccessNotificationRef.current = true;
+          toast.success("Lazada-Clone integration created! Data is being synced automatically.");
+          setTimeout(() => {
+            lazadaSuccessNotificationRef.current = false;
+          }, 3000);
+        }
       }
     } catch (error: any) {
       console.error(`❌ Error in handleLazadaConnect:`, error);
       
       // Enhanced error handling for 409
       if (error.response?.status === 409) {
-        toast.success("Integration already active. Refreshing data...");
+        if (!lazadaActiveNotificationRef.current) {
+          lazadaActiveNotificationRef.current = true;
+          toast.success("Integration already active. Refreshing data...");
+          setTimeout(() => {
+            lazadaActiveNotificationRef.current = false;
+          }, 3000);
+        }
         // Try to sync anyway
         try {
           const integrations = await integrationService.getIntegrations();

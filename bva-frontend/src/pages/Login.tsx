@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
-import { ArrowLeft, Mail, Lock, User } from "lucide-react";
+import { ArrowLeft, Mail, Lock, User, Eye, EyeOff } from "lucide-react";
 
 // Type for axios error response
 type AxiosErrorResponse = {
@@ -75,6 +75,11 @@ export default function Login() {
   
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeTab, setActiveTab] = useState<"login" | "register">("login");
+  
+  // Password visibility states
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
+  const [showRegisterPassword, setShowRegisterPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   // Redirect to dashboard if already authenticated (but not if processing OAuth callback)
   useEffect(() => {
@@ -389,7 +394,7 @@ export default function Login() {
                     <Input
                       id="login-email"
                       type="email"
-                      placeholder="seller@example.com"
+                      placeholder="Enter your email address"
                       value={loginEmail}
                       onChange={(e) => setLoginEmail(e.target.value)}
                       className="glass-card-sm border-card-glass-border focus:ring-primary/20"
@@ -402,15 +407,31 @@ export default function Login() {
                       <Lock className="inline h-4 w-4 mr-1" />
                       Password
                     </Label>
-                    <Input
-                      id="login-password"
-                      type="password"
-                      placeholder="••••••••"
-                      value={loginPassword}
-                      onChange={(e) => setLoginPassword(e.target.value)}
-                      className="glass-card-sm border-card-glass-border focus:ring-primary/20"
-                      required
-                    />
+                    <div className="relative">
+                      <Input
+                        id="login-password"
+                        type={showLoginPassword ? "text" : "password"}
+                        placeholder="Enter your password"
+                        value={loginPassword}
+                        onChange={(e) => setLoginPassword(e.target.value)}
+                        className="glass-card-sm border-card-glass-border focus:ring-primary/20 pr-10"
+                        required
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
+                        onClick={() => setShowLoginPassword(!showLoginPassword)}
+                        tabIndex={-1}
+                      >
+                        {showLoginPassword ? (
+                          <EyeOff className="h-4 w-4 text-muted-foreground" />
+                        ) : (
+                          <Eye className="h-4 w-4 text-muted-foreground" />
+                        )}
+                      </Button>
+                    </div>
                   </div>
 
                   <Button 
@@ -434,7 +455,7 @@ export default function Login() {
                     <Input
                       id="register-name"
                       type="text"
-                      placeholder="John Doe"
+                      placeholder="Enter your full name"
                       value={registerName}
                       onChange={(e) => setRegisterName(e.target.value)}
                       className="glass-card-sm border-card-glass-border focus:ring-primary/20"
@@ -450,7 +471,7 @@ export default function Login() {
                     <Input
                       id="register-email"
                       type="email"
-                      placeholder="seller@example.com"
+                      placeholder="Enter your email address"
                       value={registerEmail}
                       onChange={(e) => setRegisterEmail(e.target.value)}
                       className="glass-card-sm border-card-glass-border focus:ring-primary/20"
@@ -463,16 +484,32 @@ export default function Login() {
                       <Lock className="inline h-4 w-4 mr-1" />
                       Password
                     </Label>
-                    <Input
-                      id="register-password"
-                      type="password"
-                      placeholder="••••••••"
-                      value={registerPassword}
-                      onChange={(e) => setRegisterPassword(e.target.value)}
-                      className="glass-card-sm border-card-glass-border focus:ring-primary/20"
-                      required
-                      minLength={6}
-                    />
+                    <div className="relative">
+                      <Input
+                        id="register-password"
+                        type={showRegisterPassword ? "text" : "password"}
+                        placeholder="Create a password (min. 6 characters)"
+                        value={registerPassword}
+                        onChange={(e) => setRegisterPassword(e.target.value)}
+                        className="glass-card-sm border-card-glass-border focus:ring-primary/20 pr-10"
+                        required
+                        minLength={6}
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
+                        onClick={() => setShowRegisterPassword(!showRegisterPassword)}
+                        tabIndex={-1}
+                      >
+                        {showRegisterPassword ? (
+                          <EyeOff className="h-4 w-4 text-muted-foreground" />
+                        ) : (
+                          <Eye className="h-4 w-4 text-muted-foreground" />
+                        )}
+                      </Button>
+                    </div>
                   </div>
 
                   <div className="space-y-2">
@@ -480,16 +517,32 @@ export default function Login() {
                       <Lock className="inline h-4 w-4 mr-1" />
                       Confirm Password
                     </Label>
-                    <Input
-                      id="confirm-password"
-                      type="password"
-                      placeholder="••••••••"
-                      value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
-                      className="glass-card-sm border-card-glass-border focus:ring-primary/20"
-                      required
-                      minLength={6}
-                    />
+                    <div className="relative">
+                      <Input
+                        id="confirm-password"
+                        type={showConfirmPassword ? "text" : "password"}
+                        placeholder="Confirm your password"
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        className="glass-card-sm border-card-glass-border focus:ring-primary/20 pr-10"
+                        required
+                        minLength={6}
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
+                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                        tabIndex={-1}
+                      >
+                        {showConfirmPassword ? (
+                          <EyeOff className="h-4 w-4 text-muted-foreground" />
+                        ) : (
+                          <Eye className="h-4 w-4 text-muted-foreground" />
+                        )}
+                      </Button>
+                    </div>
                   </div>
 
                   <Button 

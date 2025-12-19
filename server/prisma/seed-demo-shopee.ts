@@ -162,6 +162,23 @@ async function seedShopeeDemoData(userId: string) {
       expiryDate.setDate(expiryDate.getDate() + template.expiryDays);
     }
 
+    // Generate realistic image URL based on category and product name
+    const getImageUrl = (category: string, productName: string): string => {
+      const categoryKeywords: Record<string, string> = {
+        "Electronics": "electronics-gadget",
+        "Fashion": "fashion-clothing",
+        "Beauty": "beauty-cosmetics",
+      };
+      
+      const keyword = categoryKeywords[category] || "product";
+      const productSlug = productName.toLowerCase().replace(/\s+/g, "-").substring(0, 30);
+      
+      // Use Unsplash Source API for realistic product images
+      // Using seed parameter for consistent images per product
+      const seed = productSlug.replace(/[^a-z0-9-]/g, "");
+      return `https://source.unsplash.com/400x400/?${keyword},${productSlug}&sig=${seed}`;
+    };
+
     // Shopee product
     const shopeeProduct = await prisma.product.create({
       data: {
@@ -174,7 +191,7 @@ async function seedShopeeDemoData(userId: string) {
         category: template.category,
         stock: stock,
         expiryDate: expiryDate,
-        imageUrl: `https://via.placeholder.com/400x400/4F46E5/FFFFFF?text=${encodeURIComponent(template.name.substring(0, 20))}`,
+        imageUrl: getImageUrl(template.category, template.name),
       },
     });
 

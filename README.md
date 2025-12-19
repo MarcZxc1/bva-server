@@ -36,35 +36,9 @@ npm start
 
 ## 📖 Documentation
 
-For detailed guides, see:
+For detailed setup guide, see:
 
-**[📘 SETUP.md](./SETUP.md)** - Complete development setup (Windows & Linux)
-
-**[🚀 DEPLOYMENT_GUIDE.md](./DEPLOYMENT_GUIDE.md)** - Production deployment guide (Free tiers)
-
-**[✅ DEPLOYMENT_CHECKLIST.md](./DEPLOYMENT_CHECKLIST.md)** - Step-by-step deployment checklist
-
-## 🚢 Deployment
-
-Deploy your BVA project to production for **FREE** using:
-- **Database**: Neon (3GB PostgreSQL)
-- **Cache**: Upstash Redis (10K commands/day)
-- **Backend**: Render (750 hours/month)
-- **Frontend**: Vercel (Unlimited bandwidth)
-
-### Quick Deployment Check
-
-Run the deployment readiness check:
-
-```bash
-./check-deployment-readiness.sh
-```
-
-Then follow the [Deployment Guide](./DEPLOYMENT_GUIDE.md) or use the [Deployment Checklist](./DEPLOYMENT_CHECKLIST.md).
-
-## 📖 For Development Setup
-
-**[📘 SETUP.md](./SETUP.md)** - Complete setup documentation
+**[📘 SETUP.md](./SETUP.md)** - Complete development setup guide for Windows and Linux
 
 ## 📁 Project Structure
 
@@ -121,8 +95,7 @@ Once running, access:
 ## 📚 Documentation
 
 - **[SETUP.md](./SETUP.md)** - Complete setup guide for Windows and Linux
-- **[SHOPEE_CLONE_INTEGRATION.md](./SHOPEE_CLONE_INTEGRATION.md)** - Integration guide
-- **[DOCKER_DEPLOYMENT.md](./DOCKER_DEPLOYMENT.md)** - Docker deployment guide
+- **[ARCHITECTURE_GUIDE.md](./ARCHITECTURE_GUIDE.md)** - Technical architecture and engineering guide
 
 ## 🐛 Troubleshooting
 
