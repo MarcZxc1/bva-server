@@ -25,6 +25,9 @@ dotenv.config({ path: path.join(__dirname, "../.env") });
 type Product = Awaited<ReturnType<typeof prisma.product.create>>;
 
 // Lazada-specific product templates - Home & Living, Food & Beverages, Health focus
+// NOTE: These products are unique to Lazada and do NOT overlap with Shopee products.
+// Shopee uses: Electronics, Fashion, Beauty categories
+// Lazada uses: Home & Living, Food & Beverages, Health & Wellness categories
 const lazadaProductTemplates = [
   // Home & Living - Various stock levels
   { name: "Stainless Steel Kitchen Knife Set (7pc)", category: "Home & Living", basePrice: 1299, baseCost: 550, avgDailySales: 2, hasExpiry: false, stockLevel: "medium" },
@@ -379,7 +382,7 @@ async function seedLazadaDemoData(userId: string) {
         total,
         revenue: total,
         profit,
-        status: day === daysInCurrentMonth - 1 ? OrderStatus.TO_RECEIVE : OrderStatus.COMPLETED,
+        status: OrderStatus.COMPLETED,
         customerName: customerNames[randomInt(0, customerNames.length - 1)] || null,
         customerEmail: customerEmails[randomInt(0, customerEmails.length - 1)] || null,
         createdAt: new Date(saleDate),

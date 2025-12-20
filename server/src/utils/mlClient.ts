@@ -101,6 +101,24 @@ export class MLServiceClient {
   }
 
   /**
+   * MarketMate: Get AI-powered prompt suggestions
+   * Endpoint: POST /api/v1/ads/prompt-suggestions
+   */
+  async getPromptSuggestions(request: {
+    product_name: string;
+    product_image_url?: string | undefined;
+    playbook?: string | undefined;
+    current_prompt?: string | undefined;
+    result_type?: "attention" | "conversion" | "engagement" | "brand" | "urgency" | undefined;
+  }): Promise<{
+    image_based_suggestions?: string[];
+    result_based_suggestions?: string[];
+    general_tips?: string[];
+  }> {
+    return this.post("/api/v1/ads/prompt-suggestions", request);
+  }
+
+  /**
    * Smart Restock Planner: Calculate optimal restocking strategy
    * Endpoint: POST /api/v1/restock/strategy
    */

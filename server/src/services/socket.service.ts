@@ -75,6 +75,22 @@ export function getSocketIO(): SocketIOServer {
   return io;
 }
 
+/**
+ * Close Socket.IO server gracefully
+ */
+export function closeSocketIO(): Promise<void> {
+  return new Promise((resolve) => {
+    if (!io) {
+      resolve();
+      return;
+    }
+    io.close(() => {
+      io = null;
+      resolve();
+    });
+  });
+}
+
 // ... (existing notification functions)
 
 /**

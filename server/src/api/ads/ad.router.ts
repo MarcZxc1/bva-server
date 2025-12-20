@@ -10,6 +10,9 @@ router.post("/generate-ad", controller.generateAd.bind(controller));
 // Ad image generation
 router.post("/generate-ad-image", controller.generateAdImage.bind(controller));
 
+// Prompt suggestions
+router.post("/prompt-suggestions", controller.getPromptSuggestions.bind(controller));
+
 // Smart promotions
 router.get("/:shopId/promotions", controller.getPromotions.bind(controller));
 

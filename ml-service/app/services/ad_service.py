@@ -22,6 +22,8 @@ import io
 import base64
 import time
 import requests
+import json
+import re
 from app.config import settings
 
 logger = structlog.get_logger()
@@ -1052,6 +1054,248 @@ class AdService:
         image_url = f"https://placehold.co/1200x630/{colors}?text={playbook_config.name}:+{product_encoded}"
         
         return image_url
+
+    def get_prompt_suggestions(
+        self,
+        product_name: str,
+        product_image_url: Optional[str] = None,
+        playbook: Optional[str] = None,
+        current_prompt: Optional[str] = None,
+        result_type: Optional[str] = None
+    ) -> Dict[str, List[str]]:
+        """
+        Get AI-powered prompt suggestions for ad generation.
+        
+        Args:
+            product_name: Name of the product
+            product_image_url: Optional product image URL for analysis
+            playbook: Optional marketing playbook
+            current_prompt: Optional current prompt to improve
+            result_type: Optional desired result type (attention, conversion, engagement, brand, urgency)
+        
+        Returns:
+            Dictionary with image_based_suggestions, result_based_suggestions, and general_tips
+        """
+        suggestions: Dict[str, List[str]] = {
+            "image_based_suggestions": [],
+            "result_based_suggestions": [],
+            "general_tips": []
+        }
+        
+        try:
+            # Use Gemini for prompt suggestions
+            if not self.gemini_configured:
+                logger.warning("gemini_not_configured_for_suggestions")
+                return self._get_fallback_suggestions(result_type)
+            
+            # Build prompt for Gemini
+            prompt_parts = [
+                f"Product: {product_name}",
+            ]
+            
+            if playbook:
+                prompt_parts.append(f"Playbook: {playbook}")
+            
+            if current_prompt:
+                prompt_parts.append(f"Current prompt: {current_prompt}")
+            
+            if result_type:
+                result_descriptions = {
+                    "attention": "grab attention and stand out in crowded feeds",
+                    "conversion": "drive immediate sales and purchases",
+                    "engagement": "boost likes, shares, and comments",
+                    "brand": "reinforce brand identity and values",
+                    "urgency": "create urgency and prompt quick action"
+                }
+                prompt_parts.append(f"Goal: {result_descriptions.get(result_type, result_type)}")
+            
+            analysis_prompt = f"""
+You are an expert marketing prompt engineer. Provide suggestions to improve ad generation prompts.
+
+{'Analyze the product image provided and suggest specific improvements based on visual elements.' if product_image_url else ''}
+
+Context:
+{chr(10).join(prompt_parts)}
+
+Provide:
+1. {'3-5 specific image-based suggestions' if product_image_url else '3-5 general visual suggestions'} for improving the ad prompt
+2. {'3-5 result-based suggestions' if result_type else '3-5 general improvement suggestions'} tailored to the goal
+3. 5 general tips for creating effective ad prompts
+
+Format your response as JSON with keys: image_based_suggestions, result_based_suggestions, general_tips
+Each should be an array of strings.
+"""
+            
+            # If image URL provided, include it in the request
+            if product_image_url:
+                try:
+                    # Download and process image
+                    if product_image_url.startswith('data:image/'):
+                        # Base64 data URL
+                        header, encoded = product_image_url.split(',', 1)
+                        image_bytes = base64.b64decode(encoded)
+                    else:
+                        # HTTP(S) URL
+                        response = requests.get(product_image_url, timeout=10)
+                        response.raise_for_status()
+                        image_bytes = response.content
+                    
+                    # Process image
+                    img = Image.open(io.BytesIO(image_bytes))
+                    if img.mode != 'RGB':
+                        img = img.convert('RGB')
+                    
+                    # Resize if too large
+                    max_size = 2048
+                    if img.width > max_size or img.height > max_size:
+                        img.thumbnail((max_size, max_size), Image.Resampling.LANCZOS)
+                    
+                    # Convert to bytes
+                    img_buffer = io.BytesIO()
+                    img.save(img_buffer, format='JPEG', quality=85)
+                    image_bytes = img_buffer.getvalue()
+                    
+                    # Use Gemini with vision
+                    model = genai.GenerativeModel(
+                        model_name=settings.GEMINI_MODEL,
+                        generation_config=types.GenerationConfig(
+                            temperature=0.7,
+                            top_p=0.9,
+                            top_k=40,
+                            max_output_tokens=2048,
+                        )
+                    )
+                    
+                    # Create content with image
+                    image_part = types.Part.from_bytes(
+                        data=image_bytes,
+                        mime_type="image/jpeg"
+                    )
+                    text_part = types.Part.from_text(text=analysis_prompt)
+                    
+                    response = model.generate_content([image_part, text_part])
+                    result_text = response.text
+                except Exception as img_error:
+                    logger.warning("failed_to_process_image_for_suggestions", error=str(img_error))
+                    # Fallback to text-only
+                    model = genai.GenerativeModel(model_name=settings.GEMINI_MODEL)
+                    response = model.generate_content(analysis_prompt)
+                    result_text = response.text
+            else:
+                # Text-only analysis
+                model = genai.GenerativeModel(model_name=settings.GEMINI_MODEL)
+                response = model.generate_content(analysis_prompt)
+                result_text = response.text
+            
+            # Parse JSON response
+            # Try to extract JSON from response
+            json_match = re.search(r'\{.*\}', result_text, re.DOTALL)
+            if json_match:
+                parsed = json.loads(json_match.group())
+                suggestions.update({
+                    "image_based_suggestions": parsed.get("image_based_suggestions", []),
+                    "result_based_suggestions": parsed.get("result_based_suggestions", []),
+                    "general_tips": parsed.get("general_tips", [])
+                })
+            else:
+                # Fallback: parse as text
+                suggestions = self._parse_text_suggestions(result_text, result_type)
+            
+            logger.info("prompt_suggestions_generated", 
+                       image_count=len(suggestions.get("image_based_suggestions", [])),
+                       result_count=len(suggestions.get("result_based_suggestions", [])),
+                       tips_count=len(suggestions.get("general_tips", [])))
+            
+        except Exception as e:
+            logger.error("failed_to_generate_suggestions", error=str(e))
+            suggestions = self._get_fallback_suggestions(result_type)
+        
+        return suggestions
+    
+    def _parse_text_suggestions(self, text: str, result_type: Optional[str]) -> Dict[str, List[str]]:
+        """Parse text response into structured suggestions."""
+        suggestions: Dict[str, List[str]] = {
+            "image_based_suggestions": [],
+            "result_based_suggestions": [],
+            "general_tips": []
+        }
+        
+        # Simple parsing - look for numbered lists or bullet points
+        lines = text.split('\n')
+        current_section = None
+        
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+            
+            # Detect section headers
+            if 'image' in line.lower() or 'visual' in line.lower():
+                current_section = "image_based_suggestions"
+            elif 'result' in line.lower() or 'goal' in line.lower() or 'outcome' in line.lower():
+                current_section = "result_based_suggestions"
+            elif 'tip' in line.lower() or 'general' in line.lower():
+                current_section = "general_tips"
+            
+            # Extract suggestions (numbered or bulleted)
+            if line.startswith(('1.', '2.', '3.', '4.', '5.', '-', '•', '*')):
+                suggestion = re.sub(r'^[\d\.\-\•\*]\s*', '', line)
+                if suggestion and current_section:
+                    suggestions[current_section].append(suggestion)
+                elif suggestion:
+                    suggestions["general_tips"].append(suggestion)
+        
+        return suggestions
+    
+    def _get_fallback_suggestions(self, result_type: Optional[str]) -> Dict[str, List[str]]:
+        """Return fallback suggestions when AI is unavailable."""
+        suggestions: Dict[str, List[str]] = {
+            "image_based_suggestions": [
+                "Highlight the product's main features with appropriate lighting",
+                "Use a clean background that doesn't distract from the product",
+                "Ensure the product is the focal point of the image"
+            ],
+            "result_based_suggestions": [],
+            "general_tips": [
+                "Use specific product features and benefits",
+                "Include emotional triggers relevant to your audience",
+                "Add visual elements that complement the product",
+                "Consider your target audience's preferences",
+                "Use action-oriented language"
+            ]
+        }
+        
+        if result_type:
+            result_suggestions = {
+                "attention": [
+                    "Use bold, contrasting colors to grab attention",
+                    "Add dynamic elements like motion blur or sparkles",
+                    "Create visual hierarchy with size and positioning"
+                ],
+                "conversion": [
+                    "Include clear call-to-action elements",
+                    "Show product benefits prominently",
+                    "Add trust indicators like badges or testimonials"
+                ],
+                "engagement": [
+                    "Use relatable scenarios or lifestyle imagery",
+                    "Include interactive elements or questions",
+                    "Create shareable, visually appealing content"
+                ],
+                "brand": [
+                    "Incorporate brand colors and style consistently",
+                    "Use brand typography and logo placement",
+                    "Maintain brand voice and aesthetic"
+                ],
+                "urgency": [
+                    "Add countdown timers or limited-time badges",
+                    "Use action-oriented language and visuals",
+                    "Create scarcity with 'limited stock' indicators"
+                ]
+            }
+            suggestions["result_based_suggestions"] = result_suggestions.get(result_type, [])
+        
+        return suggestions
 
 
 # Singleton instance

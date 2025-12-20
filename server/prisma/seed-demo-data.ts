@@ -441,7 +441,7 @@ async function seedDemoData(userId: string) {
         total,
         revenue: total,
         profit,
-        status: day === daysInCurrentMonth - 1 ? OrderStatus.TO_RECEIVE : OrderStatus.COMPLETED, // Some recent orders pending
+        status: OrderStatus.COMPLETED,
         customerName: customerNames[randomInt(0, customerNames.length - 1)] || null,
         customerEmail: customerEmails[randomInt(0, customerEmails.length - 1)] || null,
         createdAt: new Date(saleDate),

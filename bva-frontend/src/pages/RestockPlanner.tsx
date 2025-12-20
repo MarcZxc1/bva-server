@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { TrendingUp, Calendar, Package, Sparkles, Loader2, PackageOpen, Download, ShoppingCart, AlertCircle, Cloud, CloudRain, Sun, CloudLightning, RefreshCw } from "lucide-react";
+import { TrendingUp, Calendar, Package, Sparkles, Loader2, PackageOpen, Download, ShoppingCart, AlertCircle, Cloud, RefreshCw } from "lucide-react";
 import { ForecastCalendar } from "@/components/ForecastCalendar";
 import { TrendForecastModal } from "@/components/TrendForecastModal";
 import { type CalendarEvent } from "@/utils/forecastHelpers";
@@ -88,7 +88,6 @@ export default function RestockPlanner() {
   const [budget, setBudget] = useState("50000");
   const [goal, setGoal] = useState<"profit" | "volume" | "balanced">("balanced");
   const [restockDays, setRestockDays] = useState("14");
-  const [weatherCondition, setWeatherCondition] = useState<"sunny" | "rainy" | "storm" | null>(null);
   const [isPayday, setIsPayday] = useState(false);
   const [upcomingHoliday, setUpcomingHoliday] = useState<string | null>(null);
   const [nextSaleDate, setNextSaleDate] = useState<string | null>(getNextUpcomingSale());
@@ -117,9 +116,34 @@ export default function RestockPlanner() {
   // Sync all integrations mutation
   const syncAllIntegrationsMutation = useMutation({
     mutationFn: async (integrationIds: string[]) => {
+      console.log(`🔄 [Restock Planner] Starting sync for ${integrationIds.length} integration(s)`, {
+        integrationIds,
+        timestamp: new Date().toISOString()
+      });
+      
       const results = await Promise.allSettled(
-        integrationIds.map(id => integrationService.syncIntegration(id))
+        integrationIds.map(async (id) => {
+          console.log(`📦 [Restock Planner] Syncing integration: ${id}`);
+          try {
+            const result = await integrationService.syncIntegration(id);
+            console.log(`✅ [Restock Planner] Integration ${id} synced successfully:`, {
+              products: result?.data?.products ?? result?.products ?? 0,
+              sales: result?.data?.sales ?? result?.sales ?? 0
+            });
+            return result;
+          } catch (error: any) {
+            console.error(`❌ [Restock Planner] Integration ${id} sync failed:`, error);
+            throw error;
+          }
+        })
       );
+      
+      console.log(`📊 [Restock Planner] All sync operations completed`, {
+        total: results.length,
+        successful: results.filter(r => r.status === 'fulfilled').length,
+        failed: results.filter(r => r.status === 'rejected').length
+      });
+      
       return results;
     },
     onSuccess: (results) => {
@@ -129,15 +153,29 @@ export default function RestockPlanner() {
       // Calculate total products and sales synced
       let totalProducts = 0;
       let totalSales = 0;
-      results.forEach(result => {
+      results.forEach((result, index) => {
         if (result.status === 'fulfilled') {
           const data = result.value;
-          totalProducts += data?.data?.products ?? data?.products ?? 0;
-          totalSales += data?.data?.sales ?? data?.sales ?? 0;
+          const products = data?.data?.products ?? data?.products ?? 0;
+          const sales = data?.data?.sales ?? data?.sales ?? 0;
+          totalProducts += products;
+          totalSales += sales;
+          console.log(`✅ [Restock Planner] Integration ${index + 1} result:`, { products, sales });
+        } else {
+          console.error(`❌ [Restock Planner] Integration ${index + 1} failed:`, result.reason);
         }
       });
 
+      console.log(`📈 [Restock Planner] Sync summary:`, {
+        successful,
+        failed,
+        totalProducts,
+        totalSales,
+        timestamp: new Date().toISOString()
+      });
+
       // Invalidate queries to refresh data
+      console.log("🔄 [Restock Planner] Invalidating queries to refresh data");
       queryClient.invalidateQueries({ queryKey: ["products"] });
       queryClient.invalidateQueries({ queryKey: ["restock"] });
       queryClient.invalidateQueries({ queryKey: ["integrations"] });
@@ -145,25 +183,39 @@ export default function RestockPlanner() {
       queryClient.invalidateQueries({ queryKey: ["at-risk-inventory"] });
 
       if (successful > 0) {
+        console.log(`✅ [Restock Planner] Sync completed successfully: ${totalProducts} products, ${totalSales} sales`);
         toast.success(
           `Sync completed! ${successful} platform(s) synced. ${totalProducts} products, ${totalSales} sales synced.`
         );
       }
       if (failed > 0) {
+        console.warn(`⚠️ [Restock Planner] ${failed} platform(s) failed to sync`);
         toast.warning(`${failed} platform(s) failed to sync. Check your connections.`);
       }
     },
     onError: (error: any) => {
+      console.error("❌ [Restock Planner] Sync mutation error:", {
+        error: error.message || error,
+        stack: error.stack,
+        timestamp: new Date().toISOString()
+      });
       toast.error(error.message || "Failed to sync products");
     },
   });
 
   // Handle sync all products from all platforms
   const handleSyncAllProducts = async () => {
+    console.log("🔄 [Restock Planner] Sync Products button clicked");
+    
     if (!integrations || integrations.length === 0) {
+      console.warn("⚠️ [Restock Planner] No integrations found");
       toast.error("No integrations found. Please connect a platform first in Settings → Integrations.");
       return;
     }
+
+    console.log(`📊 [Restock Planner] Found ${integrations.length} total integration(s)`, {
+      integrations: integrations.map(i => ({ id: i.id, platform: i.platform, shopId: i.shopId }))
+    });
 
     // Get all active integrations (with terms accepted)
     const activeIntegrations = integrations.filter((integration) => {
@@ -172,12 +224,24 @@ export default function RestockPlanner() {
     });
 
     if (activeIntegrations.length === 0) {
+      console.warn("⚠️ [Restock Planner] No active integrations found (terms not accepted or inactive)");
       toast.error("No active integrations found. Please connect and accept terms for at least one platform.");
       return;
     }
 
     const integrationIds = activeIntegrations.map(i => i.id);
-    await syncAllIntegrationsMutation.mutateAsync(integrationIds);
+    console.log(`✅ [Restock Planner] Starting sync for ${activeIntegrations.length} active integration(s):`, {
+      integrationIds,
+      platforms: activeIntegrations.map(i => i.platform),
+      shopIds: activeIntegrations.map(i => i.shopId)
+    });
+
+    try {
+      await syncAllIntegrationsMutation.mutateAsync(integrationIds);
+      console.log("✅ [Restock Planner] Sync mutation completed");
+    } catch (error: any) {
+      console.error("❌ [Restock Planner] Sync mutation failed:", error);
+    }
   };
 
   // Enable real-time tracking for restock data
@@ -238,7 +302,6 @@ export default function RestockPlanner() {
       budget: budgetNum,
       goal,
       restockDays: restockDays ? parseInt(restockDays) : undefined,
-      weatherCondition: weatherCondition || null,
       isPayday: isPayday || false,
       upcomingHoliday: upcomingHoliday || null,
     });
@@ -450,43 +513,7 @@ export default function RestockPlanner() {
               <Label className="text-sm font-semibold text-foreground">Scenario Context</Label>
               <span className="text-xs text-muted-foreground">(Optional - Adjusts demand forecasts)</span>
             </div>
-            <div className="grid gap-4 md:grid-cols-3">
-              <div className="space-y-2">
-                <Label htmlFor="weather" className="text-sm">Weather Condition</Label>
-                <Select 
-                  value={weatherCondition || "none"} 
-                  onValueChange={(value) => setWeatherCondition(value === "none" ? null : value as "sunny" | "rainy" | "storm")}
-                >
-                  <SelectTrigger className="glass-card-sm border-card-glass-border">
-                    <SelectValue placeholder="Select weather" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">None (Standard)</SelectItem>
-                    <SelectItem value="sunny">
-                      <div className="flex items-center gap-2">
-                        <Sun className="h-4 w-4 text-yellow-500" />
-                        Sunny
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="rainy">
-                      <div className="flex items-center gap-2">
-                        <CloudRain className="h-4 w-4 text-blue-500" />
-                        Rainy
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="storm">
-                      <div className="flex items-center gap-2">
-                        <CloudLightning className="h-4 w-4 text-red-500" />
-                        Storm
-                      </div>
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground">
-                  Storm: +40% essentials, -30% luxury/fashion
-                </p>
-              </div>
-              
+            <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <Label className="text-sm">Special Events</Label>
                 <div className="space-y-3">
@@ -524,15 +551,10 @@ export default function RestockPlanner() {
               <div className="space-y-2">
                 <Label className="text-sm">Context Summary</Label>
                 <div className="p-3 glass-card-sm border border-card-glass-border rounded text-xs space-y-1">
-                  {!weatherCondition && !isPayday && !upcomingHoliday ? (
+                  {!isPayday && !upcomingHoliday ? (
                     <p className="text-muted-foreground">No context adjustments</p>
                   ) : (
                     <>
-                      {weatherCondition && (
-                        <p className="text-foreground">
-                          <span className="font-semibold">Weather:</span> {weatherCondition}
-                        </p>
-                      )}
                       {isPayday && (
                         <p className="text-success">
                           <span className="font-semibold">Payday:</span> Active

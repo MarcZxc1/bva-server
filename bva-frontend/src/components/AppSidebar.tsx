@@ -45,9 +45,8 @@ const bottomItems = [
 
 // Platform definitions
 const platformDefinitions = [
-  { name: "Shopee", platform: "SHOPEE", logo: "/shopee-logo.png" },
-  { name: "Lazada", platform: "LAZADA", logo: "/lazada-logo.png" },
-  { name: "TikTok", platform: "TIKTOK", logo: "/tiktok-logo.png" },
+  { name: "Shopee", platform: "SHOPEE", logo: "/shopee-logo.png", isShopee: true },
+  { name: "Lazada", platform: "LAZADA", logo: "/lazada-logo.png", isShopee: false },
 ];
 
 export function AppSidebar() {
@@ -147,44 +146,44 @@ export function AppSidebar() {
                 </div>
               )
             ) : isCollapsed ? (
-              <div className="flex flex-col gap-1.5">
+              <div className="flex flex-col gap-2">
                 {platformDefinitions.map((platformDef) => {
                   // Check if this specific platform is connected
-                  const isConnected = connectedPlatforms?.has(platformDef.platform as "SHOPEE" | "LAZADA" | "TIKTOK" | "OTHER") || false;
+                  const isConnected = connectedPlatforms?.has(platformDef.platform as "SHOPEE" | "LAZADA" | "OTHER") || false;
                   const statusColor = isConnected ? "bg-green-500" : "bg-orange-500";
                   return (
                     <div
                       key={platformDef.name}
-                      className="flex items-center justify-center p-1.5 rounded-md hover:bg-primary/10 transition-smooth relative"
+                      className="flex items-center justify-center p-2 rounded-md hover:bg-primary/10 transition-smooth relative"
                       title={`${platformDef.name}: ${isConnected ? "Connected" : "Not Connected"}`}
                     >
                       <img 
                         src={platformDef.logo} 
                         alt={platformDef.name}
-                        className="h-5 w-5 object-contain opacity-80"
+                        className={`object-contain opacity-90 ${platformDef.isShopee ? "h-9 w-9" : "h-6 w-6"}`}
                       />
-                      <div className={`absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-sidebar-background ${statusColor}`}></div>
+                      <div className={`absolute -top-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-sidebar-background ${statusColor}`}></div>
                     </div>
                   );
                 })}
               </div>
             ) : (
-              <div className="space-y-1">
+              <div className="space-y-1.5">
                 {platformDefinitions.map((platformDef) => {
                   // Check if this specific platform is connected
-                  const isConnected = connectedPlatforms?.has(platformDef.platform as "SHOPEE" | "LAZADA" | "TIKTOK" | "OTHER") || false;
+                  const isConnected = connectedPlatforms?.has(platformDef.platform as "SHOPEE" | "LAZADA" | "OTHER") || false;
                   const statusColor = isConnected ? "bg-green-500" : "bg-orange-500";
                   return (
                     <div
                       key={platformDef.name}
-                      className="flex items-center justify-between p-2 rounded-md hover:bg-primary/10 transition-smooth"
+                      className="flex items-center justify-between p-2.5 rounded-md hover:bg-primary/10 transition-smooth min-h-[3rem]"
                     >
-                      <div className="flex items-center gap-2 flex-1 min-w-0">
-                        <div className="relative h-6 w-6 flex items-center justify-center flex-shrink-0">
+                      <div className="flex items-center gap-3 flex-1 min-w-0">
+                        <div className="relative flex items-center justify-center flex-shrink-0 h-10 w-10">
                           <img 
                             src={platformDef.logo} 
                             alt={platformDef.name}
-                            className="h-full w-full object-contain"
+                            className={`object-contain opacity-90 ${platformDef.isShopee ? "h-9 w-9" : "h-7 w-7"}`}
                             onError={(e) => {
                               // Fallback if image fails to load
                               const target = e.target as HTMLImageElement;
@@ -196,23 +195,23 @@ export function AppSidebar() {
                             }}
                           />
                         </div>
-                        <span className="text-xs text-sidebar-foreground truncate">{platformDef.name}</span>
+                        <div className="flex items-center gap-2 flex-1 min-w-0">
+                          <span className="text-sm font-medium text-sidebar-foreground truncate">{platformDef.name}</span>
+                          <div 
+                            className={`h-2 w-2 rounded-full flex-shrink-0 ${statusColor}`}
+                            title={isConnected ? "Connected" : "Not Connected"}
+                          ></div>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-1.5">
-                        <div 
-                          className={`h-1.5 w-1.5 rounded-full flex-shrink-0 ${statusColor}`}
-                          title={isConnected ? "Connected" : "Not Connected"}
-                        ></div>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => navigate("/settings")}
-                          className="h-6 w-6 p-0 hover:bg-primary/20 text-sidebar-foreground"
-                          title="Manage platform settings"
-                        >
-                          <ExternalLink className="h-3 w-3" />
-                        </Button>
-                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => navigate("/settings")}
+                        className="h-7 w-7 p-0 hover:bg-primary/20 text-sidebar-foreground flex-shrink-0"
+                        title="Manage platform settings"
+                      >
+                        <ExternalLink className="h-3.5 w-3.5" />
+                      </Button>
                     </div>
                   );
                 })}

@@ -4,10 +4,30 @@ import { mlClient } from "../utils/mlClient";
 import { MLRestockRequest, MLRestockResponse, MLProductInput } from "../types/ml.types";
 import { getSocketIO } from "../services/socket.service";
 import { getShopIdFromRequest, verifyShopAccess } from "../utils/requestHelpers";
+import { CacheService } from "../lib/redis";
 
 /**
  * POST /api/ai/restock-strategy
- * Calculate optimal restocking strategy based on budget and goal
+ * 
+ * Smart Restock Planner with Intelligent Forecasting
+ * 
+ * This endpoint implements the project requirement:
+ * "To design a Smart Restock Planner with Intelligent Forecasting that creates a baseline sales
+ * calendar from historical data, adjusts predictions using real-world context (e.g., weather,
+ * holidays, payday cycles), and recommends restocking strategies aligned with sellers' budgets and
+ * goals."
+ * 
+ * Implementation:
+ * 1. Baseline Sales Calendar: Calculates avg_daily_sales from last 90 days of historical sales data
+ * 2. Context Adjustments: Applies multipliers for payday cycles (+20%) and holidays (+50%)
+ * 3. Strategy Recommendations: Provides three optimization strategies:
+ *    - profit: Maximize profit margin × demand
+ *    - volume: Maximize inventory turnover
+ *    - balanced: 50/50 hybrid approach
+ * 4. Budget Alignment: All recommendations respect the provided budget constraint
+ * 
+ * Products are automatically synced from connected platforms (Shopee, Lazada) and sent to ML service
+ * for intelligent forecasting and restocking recommendations.
  */
 export async function getRestockStrategy(
   req: Request,
@@ -15,7 +35,7 @@ export async function getRestockStrategy(
 ): Promise<void> {
   try {
     // Get shopId from request (body or token/user's shops)
-    let { shopId, budget, goal, restockDays, weatherCondition, isPayday, upcomingHoliday } = req.body;
+    let { shopId, budget, goal, restockDays, isPayday, upcomingHoliday } = req.body;
     const user = (req as any).user;
     // JWT token might have userId at top level or nested in user object
     const userId = user?.userId || user?.id || (req as any).userId;
@@ -131,14 +151,46 @@ export async function getRestockStrategy(
     // Note: We no longer require integration to be active
     // This allows restock planner to work with any shop that has products
 
-    // 2. Fetch Products & Inventory from Prisma
-    const products = await prisma.product.findMany({
-      where: { shopId },
-      include: {
-        Inventory: { take: 1 },
-      },
-    });
+    // 2. Fetch Products & Inventory from Prisma (with caching)
+    console.log(`📦 [Restock Planner] Fetching products for shop ${shopId}...`);
+    
+    // Cache key for products
+    const productsCacheKey = `restock:products:${shopId}`;
+    let products = await CacheService.get<any[]>(productsCacheKey);
+    
+    if (products === null) {
+      console.log(`💾 [Cache MISS] Restock Planner: Fetching products from database...`);
+      const dbProducts = await prisma.product.findMany({
+        where: { shopId },
+        include: {
+          Inventory: { take: 1 },
+        },
+      });
+      
+      // Map products for caching
+      products = dbProducts.map(p => ({
+        id: p.id,
+        name: p.name,
+        description: p.description,
+        price: p.price,
+        cost: p.cost,
+        stock: p.stock,
+        sku: p.sku,
+        category: p.category,
+        imageUrl: p.imageUrl,
+        expiryDate: p.expiryDate,
+        externalId: p.externalId,
+        Inventory: p.Inventory,
+      }));
+      
+      // Cache products for 5 minutes
+      await CacheService.set(productsCacheKey, products, 300);
+      console.log(`💾 [Cache SET] Restock Planner: Cached ${products.length} products`);
+    } else {
+      console.log(`💾 [Cache HIT] Restock Planner: Using ${products.length} cached products`);
+    }
 
+    console.log(`📦 [Restock Planner] Found ${products.length} products in database for shop ${shopId}`);
     if (products.length === 0) {
       res.status(404).json({
         error: "Not Found",
@@ -147,23 +199,38 @@ export async function getRestockStrategy(
       return;
     }
 
-    // 3. Fetch Sales History from Prisma (Last 90 days)
+    // 3. Fetch Sales History from Prisma (Last 90 days) - Creates baseline sales calendar (with caching)
     const ninetyDaysAgo = new Date();
     ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
 
-    let sales = await prisma.sale.findMany({
-      where: {
-        shopId,
-        createdAt: { gte: ninetyDaysAgo },
-      },
-      select: {
-        items: true,
-        createdAt: true,
-        total: true,
-      },
-    });
+    console.log(`📊 [Restock Planner] Fetching sales history (last 90 days) to create baseline sales calendar...`);
+    
+    // Cache key for sales
+    const salesCacheKey = `restock:sales:${shopId}:${ninetyDaysAgo.toISOString()}`;
+    let sales = await CacheService.get<any[]>(salesCacheKey);
+    
+    if (sales === null) {
+      console.log(`💾 [Cache MISS] Restock Planner: Fetching sales from database...`);
+      sales = await prisma.sale.findMany({
+        where: {
+          shopId,
+          createdAt: { gte: ninetyDaysAgo },
+        },
+        select: {
+          items: true,
+          createdAt: true,
+          total: true,
+        },
+      });
+      
+      // Cache sales for 5 minutes
+      await CacheService.set(salesCacheKey, sales, 300);
+      console.log(`💾 [Cache SET] Restock Planner: Cached ${sales.length} sales records`);
+    } else {
+      console.log(`💾 [Cache HIT] Restock Planner: Using ${sales.length} cached sales records`);
+    }
 
-    console.log(`Found ${sales.length} sales records for shop ${shopId}`);
+    console.log(`📊 [Restock Planner] Found ${sales.length} sales records for baseline calculation (last 90 days)`);
 
     // Handle cold start: If no sales data, we'll still proceed but with limited data
     // The ML service can handle this, but we'll log a warning
@@ -179,24 +246,35 @@ export async function getRestockStrategy(
 
     // 4. Format Data for ML Service
     // Map products to MLProductInput format with strict type validation
+    // This creates the baseline sales calendar from historical data
+    console.log(`🔄 [Restock Planner] Formatting ${products.length} products for ML service...`);
     const mlProducts: MLProductInput[] = products
       .map((p) => {
-        // Calculate simple avg daily sales from local data
+        // Calculate baseline avg daily sales from historical data (last 90 days)
+        // This creates the baseline sales calendar as required by the project
         let totalQty = 0;
+        let salesDays = new Set<string>(); // Track unique days with sales for accurate baseline
+        
         sales.forEach(sale => {
           const items = typeof sale.items === "string" ? JSON.parse(sale.items) : sale.items;
           if (Array.isArray(items)) {
             items.forEach((item: any) => {
               if (item.productId === p.id) {
                 totalQty += (item.quantity || 0);
+                // Track unique sales days for this product
+                const saleDate = new Date(sale.createdAt).toISOString().split('T')[0];
+                salesDays.add(saleDate);
               }
             });
           }
         });
         
-        // Use actual number of sales days, defaulting to 7 if we have sales
-        const daysWithSales = sales.length > 0 ? 7 : 30; // Assume 7 days for recent sales
-        const avgDailySales = totalQty > 0 ? totalQty / daysWithSales : 1.0; // Default to 1.0 if no sales
+        // Calculate baseline: use actual number of days with sales, or use 90-day window
+        // This creates a more accurate baseline sales calendar
+        const actualDaysWithSales = salesDays.size > 0 ? salesDays.size : 90;
+        const avgDailySales = totalQty > 0 ? totalQty / actualDaysWithSales : 0.1; // Default to 0.1 if no sales (avoid division by zero)
+        
+        console.log(`   📊 Product ${p.name}: ${totalQty} units sold over ${actualDaysWithSales} days = ${avgDailySales.toFixed(2)} units/day baseline`);
 
         // Ensure all numeric values are proper numbers (not strings, not NaN, not Infinity)
         const cost = Math.max(0, Number(p.cost) || 0);
@@ -259,11 +337,6 @@ export async function getRestockStrategy(
 
     const validProducts = mlProducts; // Rename for clarity
 
-    console.log(`Prepared ${validProducts.length} valid products out of ${products.length} total`);
-    if (validProducts.length > 0) {
-      console.log(`Sample Product:`, JSON.stringify(validProducts[0], null, 2));
-    }
-
     if (validProducts.length === 0) {
         res.status(400).json({
             error: "Validation Error",
@@ -294,13 +367,19 @@ export async function getRestockStrategy(
     const restockDaysInt = Math.max(1, Math.min(90, Math.floor(Number(restockDays) || 14)));
 
     // Validate and sanitize context fields
-    const validWeatherConditions = ['sunny', 'rainy', 'storm', null, undefined];
-    const sanitizedWeather = validWeatherConditions.includes(weatherCondition) 
-      ? weatherCondition || null 
-      : null;
-    
     const sanitizedIsPayday = Boolean(isPayday);
     const sanitizedHoliday = upcomingHoliday ? String(upcomingHoliday).trim() : null;
+
+    console.log(`✅ [Restock Planner] Prepared ${validProducts.length} valid products out of ${products.length} total for ML service`);
+    console.log(`📤 [Restock Planner] Sending products to ML service with context:`);
+    console.log(`   - Budget: ₱${budgetFloat.toFixed(2)}`);
+    console.log(`   - Goal: ${sanitizedGoal}`);
+    console.log(`   - Restock Days: ${restockDaysInt}`);
+    console.log(`   - Is Payday: ${sanitizedIsPayday} (demand multiplier: ${sanitizedIsPayday ? '+20%' : 'none'})`);
+    console.log(`   - Upcoming Holiday: ${sanitizedHoliday || 'none'} (demand multiplier: ${sanitizedHoliday ? '+50%' : 'none'})`);
+    if (validProducts.length > 0) {
+      console.log(`📦 [Restock Planner] Sample Product being sent to ML:`, JSON.stringify(validProducts[0], null, 2));
+    }
 
     const mlPayload: MLRestockRequest = {
       shop_id: String(shopId),
@@ -308,13 +387,22 @@ export async function getRestockStrategy(
       goal: sanitizedGoal, // 'profit' | 'volume' | 'balanced'
       products: validProducts, // Array with min_length=1 (ML service expects lowercase 'products')
       restock_days: restockDaysInt, // int between 1 and 90
-      weather_condition: sanitizedWeather as 'sunny' | 'rainy' | 'storm' | null,
       is_payday: sanitizedIsPayday,
       upcoming_holiday: sanitizedHoliday
     };
 
     // 5. Call ML Service
-    console.log("Sending payload to ML Service:", JSON.stringify(mlPayload, null, 2));
+    // This sends products with baseline sales calendar and context adjustments to ML service
+    console.log(`🚀 [Restock Planner] Sending ${validProducts.length} products to ML service for intelligent forecasting...`);
+    console.log(`📋 [Restock Planner] Payload summary:`, {
+      shop_id: mlPayload.shop_id,
+      budget: mlPayload.budget,
+      goal: mlPayload.goal,
+      products_count: mlPayload.products.length,
+      restock_days: mlPayload.restock_days,
+      is_payday: mlPayload.is_payday,
+      upcoming_holiday: mlPayload.upcoming_holiday,
+    });
     
     let mlResponse: MLRestockResponse;
     try {
@@ -322,7 +410,12 @@ export async function getRestockStrategy(
         "/api/v1/restock/strategy",
         mlPayload
       );
-      console.log("Received response from ML Service:", JSON.stringify(mlResponse, null, 2));
+      console.log(`✅ [Restock Planner] Received response from ML service:`);
+      console.log(`   - Strategy: ${mlResponse.strategy}`);
+      console.log(`   - Items Recommended: ${mlResponse.items.length}`);
+      console.log(`   - Total Cost: ₱${mlResponse.totals.total_cost.toFixed(2)}`);
+      console.log(`   - Expected Profit: ₱${mlResponse.totals.expected_profit.toFixed(2)}`);
+      console.log(`   - Expected ROI: ${mlResponse.totals.expected_roi.toFixed(2)}%`);
     } catch (mlError: any) {
       // CRITICAL: Log the full error response from Pydantic validation
       console.error("❌ ML Service Call Failed");

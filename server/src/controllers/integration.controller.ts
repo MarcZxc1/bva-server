@@ -305,7 +305,10 @@ export class IntegrationController {
   async syncIntegration(req: Request, res: Response) {
     try {
       const { id } = req.params;
+      console.log(`🔄 [Integration Controller] Sync request received for integration: ${id}`);
+      
       if (!id) {
+        console.error(`❌ [Integration Controller] Integration ID missing`);
         return res.status(400).json({
           success: false,
           error: "Integration ID is required",
@@ -317,11 +320,23 @@ export class IntegrationController {
       const authHeader = req.headers.authorization;
       const token = authHeader?.replace("Bearer ", "") || undefined;
       
+      console.log(`🔑 [Integration Controller] Token from header: ${token ? token.substring(0, 20) + '...' : 'NO TOKEN'}`);
+      
       const result = await integrationService.syncIntegration(id, token);
+      
+      console.log(`✅ [Integration Controller] Sync completed successfully:`, {
+        integrationId: id,
+        products: result?.data?.products ?? 0,
+        sales: result?.data?.sales ?? 0
+      });
 
       return res.json(result);
     } catch (error: any) {
-      console.error("Error syncing integration:", error);
+      console.error(`❌ [Integration Controller] Error syncing integration:`, {
+        integrationId: req.params.id,
+        error: error.message,
+        stack: error.stack
+      });
       return res.status(500).json({
         success: false,
         error: error.message || "Internal server error",

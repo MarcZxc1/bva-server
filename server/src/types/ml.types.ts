@@ -25,7 +25,6 @@ export interface MLRestockRequest {
   goal: 'profit' | 'volume' | 'balanced'; // Must match RestockGoal enum exactly
   products: MLProductInput[]; // Array with min_length=1 (ML service expects lowercase 'products')
   restock_days: number; // int, must be >= 1 and <= 90, default: 14
-  weather_condition?: 'sunny' | 'rainy' | 'storm' | null; // Optional weather condition
   is_payday?: boolean; // Whether it's a payday period (default: false)
   upcoming_holiday?: string | null; // Optional holiday or sale event (e.g., 'christmas', '11.11')
 }

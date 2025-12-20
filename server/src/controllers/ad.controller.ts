@@ -265,4 +265,43 @@ export class AdController {
       });
     }
   }
+
+  /**
+   * POST /api/v1/ads/prompt-suggestions
+   * Get AI-powered prompt suggestions based on product image or desired result type
+   */
+  public async getPromptSuggestions(req: Request, res: Response): Promise<void> {
+    try {
+      const { product_name, product_image_url, playbook, current_prompt, result_type } = req.body;
+      
+      if (!product_name) {
+        res.status(400).json({ 
+          success: false,
+          error: "Missing required field: product_name" 
+        });
+        return;
+      }
+
+      // Forward to ML service for prompt suggestions
+      const result = await adService.getPromptSuggestions({
+        product_name,
+        product_image_url,
+        playbook,
+        current_prompt,
+        result_type,
+      });
+      
+      res.status(200).json({
+        success: true,
+        data: result,
+      });
+    } catch (error) {
+      console.error("Error in AdController.getPromptSuggestions:", error);
+      
+      res.status(500).json({ 
+        success: false,
+        error: (error as Error).message || "Failed to get prompt suggestions" 
+      });
+    }
+  }
 }

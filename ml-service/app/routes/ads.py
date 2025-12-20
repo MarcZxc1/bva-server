@@ -16,7 +16,9 @@ from app.schemas.ad_schema import (
     AdCopyRequest,
     AdCopyResponse,
     AdImageRequest,
-    AdImageResponse
+    AdImageResponse,
+    PromptSuggestionRequest,
+    PromptSuggestionResponse
 )
 from app.schemas.social_media_schema import (
     SocialMediaPostRequest,
@@ -227,6 +229,49 @@ async def generate_ad_image_only(request: AdImageRequest) -> AdImageResponse:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to generate ad image: {str(e)}"
+        )
+
+
+@router.post("/prompt-suggestions", response_model=PromptSuggestionResponse)
+async def get_prompt_suggestions(request: PromptSuggestionRequest) -> PromptSuggestionResponse:
+    """
+    Get AI-powered prompt suggestions based on product image or desired result type.
+    
+    Provides suggestions to help users create better prompts for ad generation.
+    Can analyze product images or provide suggestions based on desired outcomes.
+    """
+    try:
+        logger.info(
+            "prompt_suggestion_request",
+            product=request.product_name,
+            has_image=bool(request.product_image_url),
+            playbook=request.playbook,
+            result_type=request.result_type
+        )
+        
+        # Get prompt suggestions from service
+        result = ad_service.get_prompt_suggestions(
+            product_name=request.product_name,
+            product_image_url=request.product_image_url,
+            playbook=request.playbook,
+            current_prompt=request.current_prompt,
+            result_type=request.result_type.value if request.result_type else None
+        )
+        
+        response = PromptSuggestionResponse(
+            image_based_suggestions=result.get("image_based_suggestions"),
+            result_based_suggestions=result.get("result_based_suggestions"),
+            general_tips=result.get("general_tips")
+        )
+        
+        logger.info("prompt_suggestions_generated")
+        return response
+    
+    except Exception as e:
+        logger.error("prompt_suggestion_error", error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get prompt suggestions: {str(e)}"
         )
 
 

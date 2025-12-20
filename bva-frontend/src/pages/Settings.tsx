@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Link2, RefreshCw, User, Lock, Palette, Save, Loader2, Trash2, TestTube } from "lucide-react";
+import { Link2, RefreshCw, User, Lock, Palette, Save, Loader2, Trash2, TestTube, CheckCircle2, Moon, Sun, Monitor } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { userApi } from "@/lib/api";
@@ -16,10 +16,12 @@ import { ShopeeCloneIntegrationModal } from "@/components/ShopeeCloneIntegration
 import { LazadaIntegrationModal } from "@/components/LazadaIntegrationModal";
 import { Skeleton } from "@/components/ui/skeleton";
 import { shopAccessApi } from "@/lib/api";
+import { useTheme } from "@/contexts/ThemeContext";
 
 export default function Settings() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const { theme, setTheme } = useTheme();
   
   // Profile Form State - Initialize from user data
   const [firstName, setFirstName] = useState("");
@@ -507,8 +509,14 @@ export default function Settings() {
   };
 
   const getPlatformLogo = (platform: string) => {
-    // Return placeholder or actual logo path
-    return "/shopee-logo.png";
+    switch (platform) {
+      case "SHOPEE":
+        return "/shopee-logo.png";
+      case "LAZADA":
+        return "/lazada-logo.png";
+      default:
+        return "/shopee-logo.png";
+    }
   };
 
   return (
@@ -521,14 +529,14 @@ export default function Settings() {
       </div>
 
       <Tabs defaultValue="profile" className="w-full">
-        <TabsList className="grid w-full grid-cols-3 glass-card-sm p-1 mb-6">
+        <TabsList className="grid w-full grid-cols-4 glass-card-sm p-1 mb-6">
           <TabsTrigger value="profile" className="gap-2">
             <User className="h-4 w-4" />
             Profile
           </TabsTrigger>
           <TabsTrigger value="account" className="gap-2">
             <Lock className="h-4 w-4" />
-            Account & Security
+            Security
           </TabsTrigger>
           <TabsTrigger value="integrations" className="gap-2">
             <Link2 className="h-4 w-4" />
@@ -678,9 +686,9 @@ export default function Settings() {
               ) : integrations && integrations.length > 0 ? (
                 <>
                   {integrations.map((integration) => (
-                    <div key={integration.id} className="flex items-center justify-between p-4 glass-card-sm hover:shadow-glow transition-smooth">
-                      <div className="flex items-center gap-3">
-                        <div className="h-10 w-10 glass-card-sm flex items-center justify-center p-1.5 overflow-hidden">
+                    <div key={integration.id} className="flex items-center justify-between p-5 glass-card-sm hover:shadow-glow transition-smooth rounded-lg border border-border/50">
+                      <div className="flex items-center gap-4 flex-1">
+                        <div className="h-12 w-12 glass-card-sm flex items-center justify-center p-2 overflow-hidden rounded-lg border border-border/30">
                           <img 
                             src={getPlatformLogo(integration.platform)} 
                             alt={getPlatformName(integration.platform)}
@@ -690,15 +698,19 @@ export default function Settings() {
                             }}
                           />
                         </div>
-                        <div>
-                          <div className="flex items-center gap-2">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
                             <h3 className="font-semibold text-foreground">{getPlatformName(integration.platform)}</h3>
-                            <Badge variant="default" className="bg-success text-success-foreground">
+                            <Badge variant="default" className="bg-success text-success-foreground text-xs">
                               Connected
                             </Badge>
                           </div>
                           <p className="text-xs text-muted-foreground">
-                            Connected on {new Date(integration.createdAt).toLocaleDateString()}
+                            Connected on {new Date(integration.createdAt).toLocaleDateString('en-US', { 
+                              year: 'numeric', 
+                              month: 'long', 
+                              day: 'numeric' 
+                            })}
                           </p>
                         </div>
                       </div>
@@ -709,8 +721,9 @@ export default function Settings() {
                           className="gap-2 glass-card-sm"
                           onClick={() => testConnectionMutation.mutate(integration.id)}
                           disabled={testConnectionMutation.isPending}
+                          title="Test connection"
                         >
-                          <TestTube className="h-3 w-3" />
+                          <TestTube className="h-3.5 w-3.5" />
                           Test
                         </Button>
                         <Button 
@@ -719,11 +732,12 @@ export default function Settings() {
                           className="gap-2 glass-card-sm"
                           onClick={() => syncIntegrationMutation.mutate(integration.id)}
                           disabled={syncIntegrationMutation.isPending}
+                          title="Sync data"
                         >
                           {syncIntegrationMutation.isPending ? (
-                            <Loader2 className="h-3 w-3 animate-spin" />
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
                           ) : (
-                            <RefreshCw className="h-3 w-3" />
+                            <RefreshCw className="h-3.5 w-3.5" />
                           )}
                           Sync
                         </Button>
@@ -737,8 +751,9 @@ export default function Settings() {
                             }
                           }}
                           disabled={deleteIntegrationMutation.isPending}
+                          title="Disconnect integration"
                         >
-                          <Trash2 className="h-3 w-3" />
+                          <Trash2 className="h-3.5 w-3.5" />
                         </Button>
                       </div>
                     </div>
@@ -753,20 +768,38 @@ export default function Settings() {
 
               {/* Available Platforms */}
               <div className="mt-6 pt-6 border-t border-border">
-                <h4 className="font-semibold text-sm mb-4">Available Platforms</h4>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  {(["SHOPEE", "LAZADA", "TIKTOK"] as const).map((platform) => {
+                <h4 className="font-semibold text-sm mb-4 text-foreground">Available Platforms</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {(["SHOPEE", "LAZADA"] as const).map((platform) => {
                     const isConnected = integrations?.some(i => i.platform === platform);
                     return (
                       <Button
                         key={platform}
                         variant={isConnected ? "outline" : "default"}
-                        className="justify-start gap-2"
+                        className="justify-start gap-3 h-auto p-4 glass-card-sm hover:shadow-glow transition-smooth"
                         onClick={() => handleConnectIntegration(platform)}
                       >
-                        <Link2 className="h-4 w-4" />
-                        {getPlatformName(platform)}
-                        {isConnected && " (Connected)"}
+                        <div className="h-8 w-8 flex items-center justify-center flex-shrink-0">
+                          <img 
+                            src={getPlatformLogo(platform)} 
+                            alt={getPlatformName(platform)}
+                            className="h-full w-full object-contain"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).style.display = 'none';
+                            }}
+                          />
+                        </div>
+                        <div className="flex flex-col items-start flex-1">
+                          <span className="font-medium">{getPlatformName(platform)}</span>
+                          {isConnected && (
+                            <span className="text-xs text-muted-foreground">Already connected</span>
+                          )}
+                        </div>
+                        {isConnected ? (
+                          <CheckCircle2 className="h-4 w-4 text-success flex-shrink-0" />
+                        ) : (
+                          <Link2 className="h-4 w-4 flex-shrink-0" />
+                        )}
                       </Button>
                     );
                   })}
@@ -785,16 +818,42 @@ export default function Settings() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                <div className="flex items-center justify-between p-3 glass-card-sm hover:shadow-glow transition-smooth">
-                  <div>
-                    <div className="font-medium text-foreground">Theme Preference</div>
-                    <div className="text-sm text-muted-foreground">Select your preferred theme (Light/Dark)</div>
+                <div className="flex items-center justify-between p-4 glass-card-sm hover:shadow-glow transition-smooth rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                      <Palette className="h-5 w-5 text-primary" />
+                    </div>
+                    <div>
+                      <div className="font-semibold text-foreground">Theme Preference</div>
+                      <div className="text-sm text-muted-foreground">Select your preferred theme</div>
+                    </div>
                   </div>
                   <div className="flex gap-2">
-                    <Button variant="outline" className="glass-card-sm">Light</Button>
-                    <Button variant="outline" className="glass-card-sm">Dark</Button>
-                    <Button variant="default" className="glass-card-sm">System</Button>
+                    <Button 
+                      variant={theme === "light" ? "default" : "outline"} 
+                      className="glass-card-sm gap-2"
+                      onClick={() => setTheme("light")}
+                    >
+                      <Sun className="h-4 w-4" />
+                      Light
+                    </Button>
+                    <Button 
+                      variant={theme === "dark" ? "default" : "outline"} 
+                      className="glass-card-sm gap-2"
+                      onClick={() => setTheme("dark")}
+                    >
+                      <Moon className="h-4 w-4" />
+                      Dark
+                    </Button>
                   </div>
+                </div>
+                <div className="p-4 glass-card-sm rounded-lg border border-border/50">
+                  <p className="text-sm text-muted-foreground">
+                    <strong className="text-foreground">Current theme:</strong> {theme === "light" ? "Light Mode" : "Dark Mode"}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Your theme preference is saved automatically and will persist across sessions.
+                  </p>
                 </div>
               </div>
             </CardContent>

@@ -103,11 +103,28 @@ export class CacheService {
       this.del(`dashboard-analytics:${shopId}`), // Dashboard analytics cache
       this.del(`at-risk:${shopId}`), // At-risk inventory cache
       this.del(`Product:${shopId}`),
+      this.delPattern(`products:shop:${shopId}*`), // Product cache by shop
+      this.delPattern(`products:all*`), // All products cache
+      this.delPattern(`restock:products:${shopId}*`), // Restock planner products cache
+      this.delPattern(`restock:sales:${shopId}*`), // Restock planner sales cache
       this.delPattern(`sales:${shopId}:*`),
       this.delPattern(`reports:${shopId}:*`), // Reports cache
       this.delPattern(`profit:${shopId}:*`), // Profit analysis cache (used by Reports page)
     ]);
     console.log(`✅ Cache invalidated for Shop: ${shopId}`);
+  }
+
+  /**
+   * Invalidate product cache for a user
+   */
+  static async invalidateUserProducts(userId: string): Promise<void> {
+    console.log(`🔄 Invalidating product cache for User: ${userId}`);
+    await Promise.all([
+      this.delPattern(`products:user:${userId}*`),
+      this.delPattern(`dashboard-analytics:user:${userId}*`), // User dashboard cache
+      this.delPattern(`at-risk:user:${userId}*`), // User at-risk inventory cache
+    ]);
+    console.log(`✅ Product cache invalidated for User: ${userId}`);
   }
 
   /**

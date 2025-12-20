@@ -200,21 +200,26 @@ export function LazadaIntegrationModal({
           {/* Agreement Terms - Only show when authenticated */}
           {shopInfo && authStatus === 'authenticated' && (
             <div className="space-y-3">
-              <h4 className="font-semibold text-sm">Integration Agreement</h4>
-              <div className="space-y-2 text-sm text-muted-foreground bg-muted/50 p-4 rounded-lg max-h-48 overflow-y-auto">
-                <p>
+              <h4 className="font-semibold text-base text-foreground flex items-center gap-2">
+                <AlertCircle className="h-4 w-4 text-primary" />
+                Integration Agreement
+              </h4>
+              <div className="space-y-3 text-sm text-muted-foreground bg-muted/50 p-5 rounded-lg max-h-64 overflow-y-auto border border-border/50">
+                <p className="font-medium text-foreground">
                   By connecting Lazada-Clone, you agree to:
                 </p>
-                <ul className="list-disc list-inside space-y-1 ml-2">
-                  <li>Allow BVA to access your product catalog, sales data, and order information from <strong>{shopInfo.name}</strong></li>
+                <ul className="list-disc list-inside space-y-2 ml-2">
+                  <li>Allow BVA to access your product catalog, sales data, and order information from <strong className="text-foreground">{shopInfo.name}</strong></li>
                   <li>Enable automatic synchronization of data between Lazada-Clone and BVA</li>
                   <li>Grant BVA permission to use your data for analytics, forecasting, and AI-powered recommendations</li>
                   <li>Understand that data will be processed securely and in accordance with our privacy policy</li>
                   <li>Your connection will use your authenticated session - no additional API keys required</li>
                 </ul>
-                <p className="mt-3 text-xs">
-                  You can disconnect this integration at any time from the Settings page.
-                </p>
+                <div className="mt-4 pt-3 border-t border-border/50">
+                  <p className="text-xs text-muted-foreground">
+                    <strong className="text-foreground">Note:</strong> You can disconnect this integration at any time from the Settings page.
+                  </p>
+                </div>
               </div>
             </div>
           )}
@@ -233,16 +238,16 @@ export function LazadaIntegrationModal({
 
           {/* Agreement Checkbox - Only show when authenticated */}
           {shopInfo && authStatus === 'authenticated' && (
-            <div className="flex items-start gap-2">
+            <div className="flex items-start gap-3 p-3 glass-card-sm rounded-lg border border-border/50">
               <input
                 type="checkbox"
                 id="agree"
                 checked={agreed}
                 onChange={(e) => setAgreed(e.target.checked)}
                 disabled={isConnecting}
-                className="mt-1"
+                className="mt-1 h-4 w-4 rounded border-border text-primary focus:ring-primary"
               />
-              <label htmlFor="agree" className="text-sm text-muted-foreground cursor-pointer">
+              <label htmlFor="agree" className="text-sm text-foreground cursor-pointer flex-1">
                 I have read and agree to the integration agreement terms above
               </label>
             </div>
@@ -257,7 +262,7 @@ export function LazadaIntegrationModal({
           )}
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="gap-2">
             <Button
               variant="outline"
               onClick={() => {
@@ -269,6 +274,7 @@ export function LazadaIntegrationModal({
                 setShowLogin(false);
               }}
               disabled={isConnecting}
+              className="gap-2"
             >
               Cancel
             </Button>
@@ -276,15 +282,16 @@ export function LazadaIntegrationModal({
             <Button
               onClick={handleConnect}
               disabled={!agreed || isConnecting}
+              className="gap-2"
             >
               {isConnecting ? (
                 <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <Loader2 className="h-4 w-4 animate-spin" />
                   Connecting...
                 </>
               ) : (
                 <>
-                  <CheckCircle2 className="h-4 w-4 mr-2" />
+                  <CheckCircle2 className="h-4 w-4" />
                   Connect Integration
                 </>
               )}

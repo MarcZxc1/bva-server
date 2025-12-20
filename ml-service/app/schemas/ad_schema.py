@@ -228,3 +228,66 @@ class CompleteAdResponse(BaseModel):
             }
         }
 
+
+class ResultTypeEnum(str, Enum):
+    """Desired result types for prompt suggestions."""
+    ATTENTION = "attention"
+    CONVERSION = "conversion"
+    ENGAGEMENT = "engagement"
+    BRAND = "brand"
+    URGENCY = "urgency"
+
+
+class PromptSuggestionRequest(BaseModel):
+    """Request schema for prompt suggestions."""
+    product_name: str = Field(..., description="Product name")
+    product_image_url: Optional[str] = Field(None, description="Product image URL for analysis")
+    playbook: Optional[str] = Field(None, description="Marketing playbook")
+    current_prompt: Optional[str] = Field(None, description="Current prompt to improve")
+    result_type: Optional[ResultTypeEnum] = Field(None, description="Desired result type")
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "product_name": "Wireless Earbuds Pro",
+                "product_image_url": "https://example.com/product.jpg",
+                "playbook": "Flash Sale",
+                "current_prompt": "Add a blue background",
+                "result_type": "attention"
+            }
+        }
+
+
+class PromptSuggestionResponse(BaseModel):
+    """Response schema for prompt suggestions."""
+    image_based_suggestions: Optional[List[str]] = Field(
+        None,
+        description="Suggestions based on product image analysis"
+    )
+    result_based_suggestions: Optional[List[str]] = Field(
+        None,
+        description="Suggestions based on desired result type"
+    )
+    general_tips: Optional[List[str]] = Field(
+        None,
+        description="General prompt improvement tips"
+    )
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "image_based_suggestions": [
+                    "Highlight the sleek design with a minimalist background",
+                    "Add dynamic lighting to emphasize the product's premium feel"
+                ],
+                "result_based_suggestions": [
+                    "Use bold, contrasting colors to grab attention",
+                    "Add motion blur effects to create visual interest"
+                ],
+                "general_tips": [
+                    "Use specific product features and benefits",
+                    "Include emotional triggers relevant to your audience"
+                ]
+            }
+        }
+

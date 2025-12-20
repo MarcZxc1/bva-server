@@ -27,19 +27,66 @@ httpServer.listen(PORT, () => {
   console.log(`🔌 Socket.IO server ready for real-time connections`);
 });
 
-// Graceful shutdown
-process.on("SIGTERM", () => {
-  console.log("SIGTERM signal received: closing HTTP server");
+// Graceful shutdown handler
+async function gracefulShutdown(signal: string) {
+  console.log(`${signal} signal received: starting graceful shutdown...`);
+  
+  // Stop campaign scheduler
   campaignSchedulerService.stop();
-  httpServer.close(() => {
-    console.log("HTTP server closed");
-  });
-});
+  console.log("🛑 Campaign scheduler stopped");
 
-process.on("SIGINT", () => {
-  console.log("SIGINT signal received: closing HTTP server");
-  campaignSchedulerService.stop();
-  httpServer.close(() => {
-    console.log("HTTP server closed");
+  // Close Socket.IO server
+  try {
+    const { closeSocketIO } = require("./services/socket.service");
+    await closeSocketIO();
+    console.log("🔌 Socket.IO server closed");
+  } catch (error: any) {
+    // Socket.IO might not be initialized, ignore
+    console.log("⚠️ Socket.IO not initialized or already closed");
+  }
+
+  // Close HTTP server
+  httpServer.close(async () => {
+    console.log("🛑 HTTP server closed");
+    
+    // Close Prisma and database connections
+    try {
+      const prisma = require("./lib/prisma").default;
+      await prisma.$disconnect();
+      console.log("🔌 Prisma disconnected");
+      
+      // Close database pool
+      const { pool } = require("./lib/prisma");
+      if (pool) {
+        await pool.end();
+        console.log("🔌 Database pool closed");
+      }
+    } catch (error: any) {
+      console.error("❌ Error closing Prisma:", error.message);
+    }
+
+    // Close Redis connection
+    try {
+      const { redis } = require("./lib/redis");
+      if (redis) {
+        redis.quit();
+        console.log("🔌 Redis connection closed");
+      }
+    } catch (error: any) {
+      console.error("❌ Error closing Redis:", error.message);
+    }
+
+    console.log("✅ Graceful shutdown complete");
+    process.exit(0);
   });
-});
+
+  // Force exit after 10 seconds if graceful shutdown takes too long
+  setTimeout(() => {
+    console.error("⚠️ Forcing exit after timeout");
+    process.exit(1);
+  }, 10000);
+}
+
+// Handle shutdown signals
+process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
+process.on("SIGINT", () => gracefulShutdown("SIGINT"));

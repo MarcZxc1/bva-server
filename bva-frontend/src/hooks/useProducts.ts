@@ -15,8 +15,10 @@ export function useProducts(shopId: string) {
       return products;
     },
     enabled: !!shopId,
-    staleTime: 30 * 1000, // 30 seconds - products can be cached briefly
-    refetchOnWindowFocus: true, // Refetch when user returns to tab
+    staleTime: 5 * 60 * 1000, // 5 minutes - products can be cached longer for fast access
+    gcTime: 10 * 60 * 1000, // 10 minutes - keep in cache for 10 minutes (formerly cacheTime)
+    refetchOnWindowFocus: false, // Don't refetch on window focus to use cache
+    refetchOnMount: false, // Don't refetch on mount if data is fresh
   });
 }
 
@@ -33,7 +35,9 @@ export function useAllUserProducts() {
       console.log(`✅ useAllUserProducts: Fetched ${products.length} products`);
       return products;
     },
-    staleTime: 30 * 1000, // 30 seconds - products can be cached briefly
-    refetchOnWindowFocus: true, // Refetch when user returns to tab
+    staleTime: 5 * 60 * 1000, // 5 minutes - products can be cached longer for fast access
+    gcTime: 10 * 60 * 1000, // 10 minutes - keep in cache for 10 minutes (formerly cacheTime)
+    refetchOnWindowFocus: false, // Don't refetch on window focus to use cache
+    refetchOnMount: false, // Don't refetch on mount if data is fresh
   });
 }

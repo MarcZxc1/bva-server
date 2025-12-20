@@ -126,8 +126,155 @@ export function getEventForecast(date: Date): EventForecast | null {
     };
   }
 
+  // Philippines National Holidays
+  // January
+  if (month === 1 && day === 1) {
+    // Already handled as New Year above
+  }
+  
+  // February
+  if (month === 2 && day === 25) {
+    return {
+      eventName: "People Power Revolution Day",
+      trendingKeywords: ["Patriotic Items", "Books", "Educational Materials", "Flags"],
+      expectedTraffic: "Normal",
+      demandIncrease: 25,
+      description: "National holiday commemorating the People Power Revolution"
+    };
+  }
+
+  // April
+  if (month === 4 && day === 9) {
+    return {
+      eventName: "Araw ng Kagitingan (Day of Valor)",
+      trendingKeywords: ["Patriotic Items", "Books", "Historical Items", "Flags"],
+      expectedTraffic: "Normal",
+      demandIncrease: 30,
+      description: "National holiday honoring Filipino heroes and veterans"
+    };
+  }
+  
+  // Calculate Easter dates (Good Friday and Easter Sunday vary)
+  // Using 2024-2025 approximations
+  const year = date.getFullYear();
+  const easterDate = calculateEaster(year);
+  const goodFriday = new Date(easterDate);
+  goodFriday.setDate(goodFriday.getDate() - 2);
+  
+  if (month === goodFriday.getMonth() + 1 && day === goodFriday.getDate()) {
+    return {
+      eventName: "Good Friday",
+      trendingKeywords: ["Religious Items", "Food & Beverages", "Candles", "Prayer Books"],
+      expectedTraffic: "High",
+      demandIncrease: 40,
+      description: "Religious holiday - increased demand for religious items and food"
+    };
+  }
+  
+  if (month === easterDate.getMonth() + 1 && day === easterDate.getDate()) {
+    return {
+      eventName: "Easter Sunday",
+      trendingKeywords: ["Food & Beverages", "Gifts", "Easter Items", "Chocolates"],
+      expectedTraffic: "High",
+      demandIncrease: 45,
+      description: "Religious holiday - celebration items and food in high demand"
+    };
+  }
+
+  // May
+  if (month === 5 && day === 1) {
+    return {
+      eventName: "Labor Day",
+      trendingKeywords: ["Work Tools", "Uniforms", "Safety Equipment", "Electronics"],
+      expectedTraffic: "Normal",
+      demandIncrease: 20,
+      description: "National holiday celebrating workers"
+    };
+  }
+
+  // June
+  if (month === 6 && day === 12) {
+    return {
+      eventName: "Independence Day",
+      trendingKeywords: ["Patriotic Items", "Flags", "Food & Beverages", "Party Supplies"],
+      expectedTraffic: "High",
+      demandIncrease: 50,
+      description: "Philippines Independence Day - celebration items in high demand"
+    };
+  }
+
+  // August
+  if (month === 8 && day === 21) {
+    return {
+      eventName: "Ninoy Aquino Day",
+      trendingKeywords: ["Books", "Educational Materials", "Patriotic Items"],
+      expectedTraffic: "Normal",
+      demandIncrease: 20,
+      description: "National holiday commemorating Ninoy Aquino"
+    };
+  }
+  
+  if (month === 8 && day === 26) {
+    return {
+      eventName: "National Heroes Day",
+      trendingKeywords: ["Books", "Educational Materials", "Patriotic Items", "Flags"],
+      expectedTraffic: "Normal",
+      demandIncrease: 25,
+      description: "National holiday honoring all Filipino heroes"
+    };
+  }
+
+  // November
+  if (month === 11 && day === 1) {
+    return {
+      eventName: "All Saints' Day",
+      trendingKeywords: ["Candles", "Flowers", "Food & Beverages", "Religious Items"],
+      expectedTraffic: "High",
+      demandIncrease: 60,
+      description: "Filipino tradition of visiting cemeteries - high demand for offerings and food"
+    };
+  }
+  
+  if (month === 11 && day === 30) {
+    return {
+      eventName: "Bonifacio Day",
+      trendingKeywords: ["Patriotic Items", "Books", "Educational Materials", "Flags"],
+      expectedTraffic: "Normal",
+      demandIncrease: 25,
+      description: "National holiday honoring Andres Bonifacio"
+    };
+  }
+
+  // December
+  if (month === 12 && day === 30) {
+    return {
+      eventName: "Rizal Day",
+      trendingKeywords: ["Books", "Educational Materials", "Patriotic Items", "Flags"],
+      expectedTraffic: "Normal",
+      demandIncrease: 25,
+      description: "National holiday honoring Dr. Jose Rizal"
+    };
+  }
+
   // No special event
   return null;
+}
+
+/**
+ * Calculate Easter date for a given year (approximation)
+ * Uses simplified algorithm for 2024-2025
+ */
+function calculateEaster(year: number): Date {
+  // Simplified Easter calculation (works for 2024-2025)
+  // 2024: March 31, 2025: April 20
+  if (year === 2024) {
+    return new Date(2024, 2, 31); // March 31, 2024
+  } else if (year === 2025) {
+    return new Date(2025, 3, 20); // April 20, 2025
+  } else {
+    // Fallback: use March 31 for other years (approximation)
+    return new Date(year, 2, 31);
+  }
 }
 
 /**

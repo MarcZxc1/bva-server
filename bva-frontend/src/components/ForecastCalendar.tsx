@@ -149,7 +149,10 @@ export function ForecastCalendar({ onDateClick, currentDate = new Date() }: Fore
 
             const event = getEventForDate(day);
             const today = isToday(day);
-            const forecast = getEventForecast(new Date(year, month, day));
+            const date = new Date(year, month, day);
+            const forecast = getEventForecast(date);
+            const isUpcoming = date > new Date() && !today;
+            const isHoliday = event?.type === "holiday" || event?.type === "sale";
 
             return (
               <button
@@ -162,6 +165,8 @@ export function ForecastCalendar({ onDateClick, currentDate = new Date() }: Fore
                   border-2
                   ${today 
                     ? "border-primary bg-primary/10 text-primary font-bold" 
+                    : event && isUpcoming && isHoliday
+                      ? "border-orange-500 bg-orange-500/20 hover:bg-orange-500/30 border-dashed"
                     : event 
                       ? "border-card-glass-border bg-card-glass hover:bg-card-glass-hover" 
                       : "border-transparent bg-muted/30 hover:bg-muted/50"
@@ -184,10 +189,19 @@ export function ForecastCalendar({ onDateClick, currentDate = new Date() }: Fore
                     >
                       {event.eventName}
                     </Badge>
-                    {forecast && forecast.expectedTraffic === "High" && (
-                      <div className="text-[8px] text-muted-foreground">
-                        🔥 High Traffic
-                      </div>
+                    {forecast && (
+                      <>
+                        {forecast.expectedTraffic === "High" && (
+                          <div className="text-[8px] text-muted-foreground">
+                            🔥 High Traffic
+                          </div>
+                        )}
+                        {forecast.demandIncrease && (
+                          <div className="text-[8px] text-success font-semibold">
+                            +{forecast.demandIncrease}% demand
+                          </div>
+                        )}
+                      </>
                     )}
                   </div>
                 )}

@@ -3,6 +3,7 @@ import prisma from "../lib/prisma";
 import { Platform } from "../generated/prisma";
 import { shopeeIntegrationService } from "./shopeeIntegration.service";
 import { lazadaIntegrationService } from "./lazadaIntegration.service";
+import { CacheService } from "../lib/redis";
 
 interface CreateIntegrationInput {
   shopId: string;
@@ -352,45 +353,93 @@ class IntegrationService {
    * Only syncs if integration is active and terms are accepted
    */
   async syncIntegration(integrationId: string, token?: string) {
+    console.log(`🔄 [Integration Service] Starting sync for integration: ${integrationId}`);
+    
     const integration = await this.getIntegrationById(integrationId);
     
     if (!integration) {
+      console.error(`❌ [Integration Service] Integration not found: ${integrationId}`);
       throw new Error("Integration not found");
     }
+
+    console.log(`📊 [Integration Service] Integration details:`, {
+      id: integration.id,
+      platform: integration.platform,
+      shopId: integration.shopId,
+      hasSettings: !!integration.settings
+    });
 
     // Check if integration is active and terms are accepted
     const settings = integration.settings as any;
     const termsAccepted = settings?.termsAccepted === true;
     const isActive = settings?.isActive !== false;
 
+    console.log(`🔍 [Integration Service] Integration status:`, {
+      termsAccepted,
+      isActive,
+      hasShopeeToken: !!settings?.shopeeToken,
+      hasLazadaToken: !!settings?.lazadaToken,
+      hasProvidedToken: !!token
+    });
+
     if (!termsAccepted || !isActive) {
+      console.warn(`⚠️ [Integration Service] Integration not active or terms not accepted`);
       throw new Error("Integration is not active or terms have not been accepted. Please accept the terms and conditions first.");
     }
 
     // Use the integration's shopId (this can be a linked shop)
     const shopId = integration.shopId;
+    console.log(`🏪 [Integration Service] Using shopId: ${shopId}`);
+    console.log(`🔍 [Integration Service] NOTE: This is BVA's internal shopId. The clone platform may use a different shopId.`);
 
     // Get shop owner for notification
     const shop = await prisma.shop.findUnique({
       where: { id: shopId },
-      select: { ownerId: true },
+      select: { id: true, ownerId: true, name: true, platform: true },
     });
+
+    console.log(`👤 [Integration Service] Shop details:`, {
+      shopId: shop?.id,
+      shopName: shop?.name,
+      shopPlatform: shop?.platform,
+      ownerId: shop?.ownerId
+    });
+    
+    // Warn about potential shopId mismatch
+    console.warn(`⚠️ [Integration Service] Shop ${shopId} is BVA's internal shopId. The clone platform may use a different shopId.`);
+    console.warn(`   We'll try using BVA's shopId, but if the clone platform uses different IDs, this might fail.`);
 
     const userId = shop?.ownerId;
     if (!userId) {
+      console.error(`❌ [Integration Service] Shop owner not found for shop: ${shopId}`);
       throw new Error("Shop owner not found");
     }
 
     // Sync based on platform
     switch (integration.platform) {
       case Platform.SHOPEE:
+        console.log(`🛒 [Integration Service] Syncing Shopee integration`);
         // Use Shopee-Clone token from settings if available, otherwise fallback to provided token
         const shopeeToken = settings?.shopeeToken || token;
         if (!shopeeToken) {
+          console.error(`❌ [Integration Service] Shopee token not found`);
           throw new Error("Shopee-Clone authentication token is required. Please reconnect the integration.");
         }
+        console.log(`🔑 [Integration Service] Shopee token available: ${shopeeToken ? shopeeToken.substring(0, 20) + '...' : 'NO TOKEN'}`);
+        
         // Pass shopId instead of userId - syncAllData now accepts shopId directly
+        console.log(`🚀 [Integration Service] Calling shopeeIntegrationService.syncAllData(${shopId}, token)`);
         const shopeeResult = await shopeeIntegrationService.syncAllData(shopId, shopeeToken);
+        
+        console.log(`✅ [Integration Service] Shopee sync completed:`, {
+          products: shopeeResult.products,
+          sales: shopeeResult.sales
+        });
+        
+        // Invalidate product cache after sync
+        await CacheService.invalidateShop(shopId);
+        await CacheService.invalidateUserProducts(userId);
+        console.log(`🔄 [Integration Service] Invalidated product cache after Shopee sync`);
         
         // Create notification for successful sync (with deduplication)
         const { createNotificationWithDeduplication } = require("../utils/notificationHelper");
@@ -409,13 +458,28 @@ class IntegrationService {
           data: shopeeResult,
         };
       case Platform.LAZADA:
+        console.log(`🛒 [Integration Service] Syncing Lazada integration`);
         // Use Lazada-Clone token from settings if available, otherwise fallback to provided token
         const lazadaToken = settings?.lazadaToken || token;
         if (!lazadaToken) {
+          console.error(`❌ [Integration Service] Lazada token not found`);
           throw new Error("Lazada-Clone authentication token is required. Please reconnect the integration.");
         }
+        console.log(`🔑 [Integration Service] Lazada token available: ${lazadaToken ? lazadaToken.substring(0, 20) + '...' : 'NO TOKEN'}`);
+        
         // Pass shopId instead of userId - syncAllData now accepts shopId directly
+        console.log(`🚀 [Integration Service] Calling lazadaIntegrationService.syncAllData(${shopId}, token)`);
         const lazadaResult = await lazadaIntegrationService.syncAllData(shopId, lazadaToken);
+        
+        console.log(`✅ [Integration Service] Lazada sync completed:`, {
+          products: lazadaResult.products,
+          sales: lazadaResult.sales
+        });
+        
+        // Invalidate product cache after sync
+        await CacheService.invalidateShop(shopId);
+        await CacheService.invalidateUserProducts(userId);
+        console.log(`🔄 [Integration Service] Invalidated product cache after Lazada sync`);
         
         // Create notification for successful sync (with deduplication)
         const { createNotificationWithDeduplication: createLazadaNotification } = require("../utils/notificationHelper");
@@ -434,6 +498,7 @@ class IntegrationService {
           data: lazadaResult,
         };
       default:
+        console.error(`❌ [Integration Service] Unsupported platform: ${integration.platform}`);
         throw new Error(`Platform ${integration.platform} not supported`);
     }
   }

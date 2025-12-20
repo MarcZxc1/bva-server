@@ -13,12 +13,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Sparkles, Loader2, Image as ImageIcon, Copy, Check, Download, AlertCircle, Upload, X } from "lucide-react";
+import { Sparkles, Loader2, Image as ImageIcon, Copy, Check, Download, AlertCircle, Upload, X, Lightbulb } from "lucide-react";
 import { useGenerateAdCopy, useGenerateAdImage, useCreateCampaign, useUpdateCampaign } from "@/hooks/useMarketMate";
 import { useAllUserProducts } from "@/hooks/useProducts";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
+import { PromptSuggestionModal } from "@/components/PromptSuggestionModal";
 
 interface AdGeneratorDialogProps {
   trigger?: React.ReactNode;
@@ -66,6 +67,7 @@ export function AdGeneratorDialog({
   const [customImagePrompt, setCustomImagePrompt] = useState("");
   const [selectedTemplateContexts, setSelectedTemplateContexts] = useState<string[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [showSuggestionModal, setShowSuggestionModal] = useState(false);
 
   // Fetch all products for bundling
   const { data: allProducts } = useAllUserProducts();
@@ -769,7 +771,19 @@ export function AdGeneratorDialog({
               {/* Custom Prompt and Template Context for Image Editing */}
               <div className="grid gap-4 mt-4">
                 <div className="grid gap-2">
-                  <Label htmlFor="customImagePrompt">Edit Image with Custom Prompt (Optional)</Label>
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="customImagePrompt">Edit Image with Custom Prompt (Optional)</Label>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setShowSuggestionModal(true)}
+                      className="gap-2 text-primary hover:text-primary/80"
+                    >
+                      <Lightbulb className="h-3.5 w-3.5" />
+                      Get Suggestions
+                    </Button>
+                  </div>
                   <Textarea
                     id="customImagePrompt"
                     placeholder="e.g., Add a blue background, make the product larger, add sparkles around it..."
@@ -1044,6 +1058,19 @@ export function AdGeneratorDialog({
           )}
         </div>
       </DialogContent>
+
+      {/* Prompt Suggestion Modal */}
+      <PromptSuggestionModal
+        open={showSuggestionModal}
+        onOpenChange={setShowSuggestionModal}
+        productName={productName}
+        productImageUrl={uploadedImage || productImageUrl || initialProductImageUrl || undefined}
+        currentPrompt={customImagePrompt}
+        playbook={playbook}
+        onSuggestionSelected={(suggestion) => {
+          setCustomImagePrompt(suggestion);
+        }}
+      />
     </Dialog>
   );
 }

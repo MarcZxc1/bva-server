@@ -305,8 +305,15 @@ export async function getAtRiskInventory(
  * @param platform - Optional platform filter (SHOPEE, LAZADA, etc.)
  */
 export async function getUserAtRiskInventory(userId: string, platform?: string): Promise<AtRiskResponse> {
-  // Get all shops the user owns
-  const ownedShops = await prisma.shop.findMany({
+  // Generate cache key
+  const cacheKey = `at-risk:user:${userId}${platform ? `:${platform}` : ''}`;
+  
+  // Try cache first (5 min TTL for inventory data)
+  return CacheService.getOrSet(
+    cacheKey,
+    async () => {
+      // Get all shops the user owns
+      const ownedShops = await prisma.shop.findMany({
     where: { 
       ownerId: userId,
       ...(platform && { platform: platform as any }),
@@ -490,22 +497,25 @@ export async function getUserAtRiskInventory(userId: string, platform?: string):
         thresholds_used: thresholds,
       },
     };
-  } catch (error: any) {
-    console.error("❌ ML service error for aggregated at-risk detection:", error?.message || error);
-    
-    // Return empty response instead of throwing
-    console.error("⚠️ ML service unavailable, returning empty at-risk data");
-    return {
-      at_risk: [],
-      meta: {
-        shop_id: 'aggregated',
-        total_Product: products.length,
-        flagged_count: 0,
-        analysis_date: new Date().toISOString(),
-        thresholds_used: thresholds,
-      },
-    };
-  }
+    } catch (error: any) {
+      console.error("❌ ML service error for aggregated at-risk detection:", error?.message || error);
+      
+      // Return empty response instead of throwing
+      console.error("⚠️ ML service unavailable, returning empty at-risk data");
+      return {
+        at_risk: [],
+        meta: {
+          shop_id: 'aggregated',
+          total_Product: products.length,
+          flagged_count: 0,
+          analysis_date: new Date().toISOString(),
+          thresholds_used: thresholds,
+        },
+      };
+    }
+    },
+    300 // 5 minutes cache TTL
+  );
 }
 
 /**
@@ -514,8 +524,15 @@ export async function getUserAtRiskInventory(userId: string, platform?: string):
  * @param platform - Optional platform filter (SHOPEE, LAZADA, etc.)
  */
 export async function getUserDashboardAnalytics(userId: string, platform?: string) {
-  // Get all shops the user owns
-  const ownedShops = await prisma.shop.findMany({
+  // Generate cache key
+  const cacheKey = `dashboard-analytics:user:${userId}${platform ? `:${platform}` : ''}`;
+  
+  // Try cache first (10 min TTL for dashboard data)
+  return CacheService.getOrSet(
+    cacheKey,
+    async () => {
+      // Get all shops the user owns
+      const ownedShops = await prisma.shop.findMany({
     where: { 
       ownerId: userId,
       ...(platform && { platform: platform as any }),
@@ -658,6 +675,9 @@ export async function getUserDashboardAnalytics(userId: string, platform?: strin
       days: 60,
     },
   };
+    },
+    600 // 10 minutes cache TTL
+  );
 }
 
 /**

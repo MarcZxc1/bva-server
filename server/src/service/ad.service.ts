@@ -143,6 +143,47 @@ export class AdService {
     }
   }
 
+  /**
+   * Get AI-powered prompt suggestions for ad generation
+   */
+  public async getPromptSuggestions(request: {
+    product_name: string;
+    product_image_url?: string;
+    playbook?: string;
+    current_prompt?: string;
+    result_type?: "attention" | "conversion" | "engagement" | "brand" | "urgency";
+  }): Promise<{
+    image_based_suggestions?: string[];
+    result_based_suggestions?: string[];
+    general_tips?: string[];
+  }> {
+    try {
+      // Call ML Service for prompt suggestions
+      const result = await mlClient.getPromptSuggestions({
+        product_name: request.product_name,
+        product_image_url: request.product_image_url,
+        playbook: request.playbook,
+        current_prompt: request.current_prompt,
+        result_type: request.result_type,
+      });
+
+      return result;
+    } catch (error: any) {
+      console.error("Error getting prompt suggestions via ML service:", error);
+      
+      // Return fallback general tips if ML service fails
+      return {
+        general_tips: [
+          "Use specific product features and benefits",
+          "Include emotional triggers relevant to your audience",
+          "Add visual elements that complement the product",
+          "Consider your target audience's preferences",
+          "Use action-oriented language"
+        ]
+      };
+    }
+  }
+
   public async getPromotions(shopId: string): Promise<PromotionResponse> {
     // 1. Fetch near expiry items (e.g. expiring in next 60 days)
     const now = new Date();

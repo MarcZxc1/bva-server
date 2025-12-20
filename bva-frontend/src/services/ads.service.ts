@@ -94,4 +94,22 @@ export const adsService = {
   deleteCampaign: async (id: string): Promise<void> => {
     return apiClient.delete<void>(`/api/campaigns/${id}`);
   },
+
+  getPromptSuggestions: async (data: {
+    product_name: string;
+    product_image_url?: string;
+    playbook?: string;
+    current_prompt?: string;
+    result_type?: "attention" | "conversion" | "engagement" | "brand" | "urgency";
+  }): Promise<{
+    image_based_suggestions?: string[];
+    result_based_suggestions?: string[];
+    general_tips?: string[];
+  }> => {
+    return apiClient.post<{
+      image_based_suggestions?: string[];
+      result_based_suggestions?: string[];
+      general_tips?: string[];
+    }>("/api/v1/ads/prompt-suggestions", data);
+  },
 };

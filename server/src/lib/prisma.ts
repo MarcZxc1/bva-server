@@ -32,6 +32,9 @@ const prisma = new PrismaClient({
       : ["error"],
 });
 
+// Export pool for graceful shutdown
+export { pool };
+
 // Handle graceful shutdown
 process.on("beforeExit", async () => {
   await prisma.$disconnect();

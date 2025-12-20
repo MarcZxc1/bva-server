@@ -29,13 +29,6 @@ class RestockGoal(str, Enum):
     BALANCED = "balanced"
 
 
-class WeatherCondition(str, Enum):
-    """Weather conditions for context-aware demand adjustment."""
-    SUNNY = "sunny"
-    RAINY = "rainy"
-    STORM = "storm"
-
-
 class ProductInput(BaseModel):
     """
     Single product with inventory and sales data for restocking analysis.
@@ -90,10 +83,6 @@ class RestockRequest(BaseModel):
     restock_days: int = Field(default=14, ge=1, le=90, description="Days of stock to maintain")
     
     # Context-aware fields for demand adjustment
-    weather_condition: Optional[WeatherCondition] = Field(
-        default=None,
-        description="Current or forecasted weather condition (affects demand patterns)"
-    )
     is_payday: bool = Field(
         default=False,
         description="Whether it's a payday period (typically increases demand by 20%)"

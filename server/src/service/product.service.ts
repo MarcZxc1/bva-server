@@ -2,6 +2,21 @@ import prisma from "../lib/prisma";
 import { hasActiveIntegration } from "../utils/integrationCheck";
 
 export async function getAllProducts(platform?: string) {
+  // Import CacheService
+  const { CacheService } = await import("../lib/redis");
+  
+  // Generate cache key
+  const cacheKey = `products:all${platform ? `:${platform}` : ''}`;
+  
+  // Try to get from cache first (5 minute TTL for product lists)
+  const cached = await CacheService.get<any[]>(cacheKey);
+  if (cached !== null) {
+    console.log(`💾 [Cache HIT] getAllProducts: Returning ${cached.length} cached products${platform ? ` for platform ${platform}` : ''}`);
+    return cached;
+  }
+  
+  console.log(`💾 [Cache MISS] getAllProducts: Fetching products from database${platform ? ` for platform ${platform}` : ''}...`);
+  
   // Build where clause with optional platform filter
   const whereClause: any = {};
   
@@ -33,7 +48,7 @@ export async function getAllProducts(platform?: string) {
     },
   });
 
-  return products.map((product) => ({
+  const mappedProducts = products.map((product) => ({
     id: product.id,
     sku: product.sku,
     name: product.name,
@@ -50,9 +65,30 @@ export async function getAllProducts(platform?: string) {
     createdAt: product.createdAt.toISOString(),
     updatedAt: product.updatedAt.toISOString(),
   }));
+  
+  // Cache the results for 5 minutes (300 seconds)
+  await CacheService.set(cacheKey, mappedProducts, 300);
+  console.log(`💾 [Cache SET] getAllProducts: Cached ${mappedProducts.length} products${platform ? ` for platform ${platform}` : ''}`);
+  
+  return mappedProducts;
 }
 
 export async function getProductsByShop(shopId: string, platform?: string) {
+  // Import CacheService
+  const { CacheService } = await import("../lib/redis");
+  
+  // Generate cache key
+  const cacheKey = `products:shop:${shopId}${platform ? `:${platform}` : ''}`;
+  
+  // Try to get from cache first (5 minute TTL for product lists)
+  const cached = await CacheService.get<any[]>(cacheKey);
+  if (cached !== null) {
+    console.log(`💾 [Cache HIT] getProductsByShop: Returning ${cached.length} cached products for shop ${shopId}`);
+    return cached;
+  }
+  
+  console.log(`💾 [Cache MISS] getProductsByShop: Fetching products for shop ${shopId} from database...`);
+  
   // Get the shop to verify its platform
   const shop = await prisma.shop.findUnique({
     where: { id: shopId },
@@ -118,7 +154,7 @@ export async function getProductsByShop(shopId: string, platform?: string) {
   // Use the shop's platform as default
   const defaultPlatform = shop.platform;
 
-  return products.map((product) => {
+  const mappedProducts = products.map((product) => {
     // Determine platform: from sales data, externalId pattern, or shop platform
     let productPlatform: string | null = productPlatformMap.get(product.id) || null;
     
@@ -155,9 +191,30 @@ export async function getProductsByShop(shopId: string, platform?: string) {
       updatedAt: product.updatedAt.toISOString(),
     };
   });
+  
+  // Cache the results for 5 minutes (300 seconds)
+  await CacheService.set(cacheKey, mappedProducts, 300);
+  console.log(`💾 [Cache SET] getProductsByShop: Cached ${mappedProducts.length} products for shop ${shopId}`);
+  
+  return mappedProducts;
 }
 
 export async function getProductById(productId: string) {
+  // Import CacheService
+  const { CacheService } = await import("../lib/redis");
+  
+  // Generate cache key
+  const cacheKey = `product:${productId}`;
+  
+  // Try to get from cache first (5 minute TTL for individual products)
+  const cached = await CacheService.get<any>(cacheKey);
+  if (cached !== null) {
+    console.log(`💾 [Cache HIT] getProductById: Returning cached product ${productId}`);
+    return cached;
+  }
+  
+  console.log(`💾 [Cache MISS] getProductById: Fetching product ${productId} from database...`);
+  
   // First, try to find product by internal ID
   let product = await prisma.product.findUnique({
     where: { id: productId },
@@ -202,7 +259,7 @@ export async function getProductById(productId: string) {
     throw new Error("Product not found");
   }
 
-  return {
+  const mappedProduct = {
     id: product.id,
     sku: product.sku,
     name: product.name,
@@ -219,12 +276,33 @@ export async function getProductById(productId: string) {
     createdAt: product.createdAt.toISOString(),
     updatedAt: product.updatedAt.toISOString(),
   };
+  
+  // Cache the result for 5 minutes (300 seconds)
+  await CacheService.set(cacheKey, mappedProduct, 300);
+  console.log(`💾 [Cache SET] getProductById: Cached product ${productId}`);
+  
+  return mappedProduct;
 }
 
 /**
  * Get products from all shops accessible to a user (owned + linked)
  */
 export async function getProductsForUser(userId: string, platform?: string) {
+  // Import CacheService
+  const { CacheService } = await import("../lib/redis");
+  
+  // Generate cache key
+  const cacheKey = `products:user:${userId}${platform ? `:${platform}` : ''}`;
+  
+  // Try to get from cache first (5 minute TTL for product lists)
+  const cached = await CacheService.get<any[]>(cacheKey);
+  if (cached !== null) {
+    console.log(`💾 [Cache HIT] getProductsForUser: Returning ${cached.length} cached products for user ${userId}`);
+    return cached;
+  }
+  
+  console.log(`💾 [Cache MISS] getProductsForUser: Fetching products for user ${userId} from database...`);
+  
   // Get all shops the user owns
   const ownedShops = await prisma.shop.findMany({
     where: { ownerId: userId },
@@ -282,7 +360,7 @@ export async function getProductsForUser(userId: string, platform?: string) {
   console.log(`📦 getProductsForUser: Found ${products.length} products across ${allShopIds.length} shops for user ${userId}`);
 
   // Map products with inferred platform
-  return products.map((product) => {
+  const mappedProducts = products.map((product) => {
     // Get shop's platform as default
     const defaultPlatform = product.Shop.platform;
 
@@ -321,6 +399,12 @@ export async function getProductsForUser(userId: string, platform?: string) {
       updatedAt: product.updatedAt.toISOString(),
     };
   });
+  
+  // Cache the results for 5 minutes (300 seconds)
+  await CacheService.set(cacheKey, mappedProducts, 300);
+  console.log(`💾 [Cache SET] getProductsForUser: Cached ${mappedProducts.length} products for user ${userId}`);
+  
+  return mappedProducts;
 }
 
 import { notifyNewProduct } from "../services/socket.service";
@@ -381,6 +465,19 @@ export async function createProduct(data: {
     updatedAt: product.updatedAt.toISOString(),
   };
 
+  // Invalidate product cache after creating a product
+  const { CacheService } = await import("../lib/redis");
+  await CacheService.invalidateShop(data.shopId);
+  // Get shop owner to invalidate user cache
+  const shop = await prisma.shop.findUnique({
+    where: { id: data.shopId },
+    select: { ownerId: true },
+  });
+  if (shop) {
+    await CacheService.invalidateUserProducts(shop.ownerId);
+  }
+  console.log(`🔄 [Product Service] Invalidated product cache after creating product`);
+
   notifyNewProduct(createdProduct);
 
   return createdProduct;
@@ -436,6 +533,20 @@ export async function updateProduct(
       }
     }
   }
+
+  // Invalidate product cache after updating a product
+  const { CacheService } = await import("../lib/redis");
+  await CacheService.invalidateShop(product.shopId);
+  await CacheService.del(`product:${product.id}`); // Invalidate individual product cache
+  // Get shop owner to invalidate user cache
+  const shop = await prisma.shop.findUnique({
+    where: { id: product.shopId },
+    select: { ownerId: true },
+  });
+  if (shop) {
+    await CacheService.invalidateUserProducts(shop.ownerId);
+  }
+  console.log(`🔄 [Product Service] Invalidated product cache after updating product`);
 
   // Return product with serialized dates and proper format
   return {
@@ -535,6 +646,16 @@ export async function restockProduct(
 }
 
 export async function deleteProduct(productId: string) {
+  // Get product info before deletion for cache invalidation
+  const product = await prisma.product.findUnique({
+    where: { id: productId },
+    select: { shopId: true },
+  });
+
+  if (!product) {
+    throw new Error("Product not found");
+  }
+
   // Delete inventory logs first
   const Inventory = await prisma.inventory.findMany({
     where: { productId },
@@ -560,4 +681,18 @@ export async function deleteProduct(productId: string) {
   await prisma.product.delete({
     where: { id: productId },
   });
+
+  // Invalidate product cache after deleting a product
+  const { CacheService } = await import("../lib/redis");
+  await CacheService.invalidateShop(product.shopId);
+  await CacheService.del(`product:${productId}`); // Invalidate individual product cache
+  // Get shop owner to invalidate user cache
+  const shop = await prisma.shop.findUnique({
+    where: { id: product.shopId },
+    select: { ownerId: true },
+  });
+  if (shop) {
+    await CacheService.invalidateUserProducts(shop.ownerId);
+  }
+  console.log(`🔄 [Product Service] Invalidated product cache after deleting product`);
 }
