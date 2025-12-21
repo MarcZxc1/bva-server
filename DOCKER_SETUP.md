@@ -123,6 +123,81 @@ docker-compose exec main-server npx prisma migrate dev
 docker-compose exec main-server npm run db:seed-demo
 ```
 
+### ML Service Setup
+
+The ML Service provides AI-powered features including:
+- **Demand Forecasting**: Predict future sales based on historical data
+- **Restock Planning**: Intelligent inventory restocking recommendations
+- **Ad Generation**: AI-generated marketing content using Google Gemini
+- **Smart Shelf Analytics**: At-risk inventory detection and insights
+
+#### Access ML Service API Documentation
+
+Once the service is running, access the interactive API docs:
+
+```bash
+# Swagger UI (Interactive)
+http://localhost:8001/docs
+
+# ReDoc (Alternative docs)
+http://localhost:8001/redoc
+
+# Health Check
+http://localhost:8001/health
+```
+
+#### Test ML Service
+
+```bash
+# Check if ML service is running
+docker-compose exec ml-service curl http://localhost:8001/health
+
+# View ML service logs
+docker-compose logs -f ml-service
+
+# Access ML service container
+docker-compose exec ml-service bash
+
+# Run ML service tests
+docker-compose exec ml-service pytest app/tests/ -v
+```
+
+#### ML Service Environment Variables
+
+The ML Service requires the following environment variables:
+
+| Variable | Description | Required | Default |
+|----------|-------------|----------|---------|
+| `GEMINI_API_KEY` | Google Gemini API key for AI features | **Yes** | - |
+| `REDIS_URL` | Redis connection URL | No | `redis://redis:6379/0` |
+| `CELERY_BROKER_URL` | Celery broker URL | No | `redis://redis:6379/0` |
+| `CELERY_RESULT_BACKEND` | Celery result backend | No | `redis://redis:6379/1` |
+| `PORT` | Service port | No | `8001` |
+| `MODEL_DIR` | Directory for ML models | No | `/app/models` |
+| `LOG_LEVEL` | Logging level | No | `INFO` |
+| `BACKEND_API_URL` | Main server URL for callbacks | No | - |
+
+**Getting a Gemini API Key:**
+1. Visit [Google AI Studio](https://makersuite.google.com/app/apikey)
+2. Sign in with your Google account
+3. Create a new API key
+4. Copy the key and add it to `ml-service/.env`
+
+#### Celery Workers (Background Tasks)
+
+The ML Service uses Celery for background task processing. Workers are automatically started with docker-compose:
+
+```bash
+# View Celery worker logs
+docker-compose logs -f celery-worker
+
+# View Celery beat (scheduler) logs
+docker-compose logs -f celery-beat
+
+# Restart Celery workers
+docker-compose restart celery-worker celery-beat
+```
+
 ## Environment Variables
 
 ### Setting Environment Variables
@@ -145,11 +220,36 @@ JWT_SECRET=your_jwt_secret_here
 
 **`ml-service/.env`**
 ```env
+# Redis Configuration
 REDIS_URL=redis://redis:6379/0
 CELERY_BROKER_URL=redis://redis:6379/0
 CELERY_RESULT_BACKEND=redis://redis:6379/1
+
+# Service Configuration
 PORT=8001
+HOST=0.0.0.0
+DEBUG=false
+LOG_LEVEL=INFO
+LOG_FORMAT=json
+
+# Model Configuration
+MODEL_DIR=/app/models
+MODEL_CACHE_DAYS=7
+DEFAULT_FORECAST_PERIODS=14
+DEFAULT_FORECAST_METHOD=auto
+
+# Google Gemini API (Required for AI features)
 GEMINI_API_KEY=your_gemini_api_key_here
+GEMINI_MODEL=gemini-2.0-flash-exp
+IMAGEN_MODEL=gemini-2.5-flash-image
+
+# Backend API (Optional - for callbacks)
+BACKEND_API_URL=http://main-server:3000
+BACKEND_API_KEY=optional_api_key
+
+# Social Media APIs (Optional)
+FACEBOOK_ACCESS_TOKEN=optional_facebook_token
+INSTAGRAM_ACCESS_TOKEN=optional_instagram_token
 ```
 
 **`bva-frontend/.env`**
@@ -197,6 +297,10 @@ docker-compose exec main-server npm install <package-name>
 # Edit requirements.txt, then rebuild
 docker-compose build ml-service
 docker-compose up -d ml-service
+
+# Or install a package temporarily inside container
+docker-compose exec ml-service pip install <package-name>
+# Then add it to requirements.txt and rebuild for persistence
 ```
 
 ## Troubleshooting
@@ -318,9 +422,16 @@ docker-compose -f docker-compose.prod.yml up -d
 ## Next Steps
 
 1. **Set up environment variables** (see Environment Variables section)
+   - **Important**: Add `GEMINI_API_KEY` to `ml-service/.env` for AI features
 2. **Run database migrations** (see Common Commands)
 3. **Seed sample data** (see Common Commands)
-4. **Access the applications** at their respective URLs
+4. **Access the applications** at their respective URLs:
+   - Main Dashboard: http://localhost:5173
+   - API Server: http://localhost:3000
+   - ML Service API Docs: http://localhost:8001/docs
+   - Lazada Clone: http://localhost:3001
+   - Shopee Clone: http://localhost:5174
+   - TikTok Seller: http://localhost:5175
 
 ## Support
 
