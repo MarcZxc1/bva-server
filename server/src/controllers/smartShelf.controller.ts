@@ -38,7 +38,7 @@ function detectAtRiskBasic(
   
   const productSalesMap = new Map<string, { totalQty: number; days: Set<string> }>();
   
-  sales.forEach((sale) => {
+  sales.forEach((sale: any) => {
     if (new Date(sale.createdAt) >= thirtyDaysAgo) {
       const items = typeof sale.items === "string" ? JSON.parse(sale.items) : sale.items;
       if (Array.isArray(items)) {
@@ -151,7 +151,7 @@ function detectAtRiskBasic(
   });
   
   // Sort by score (highest first)
-  return atRiskItems.sort((a, b) => b.score - a.score);
+  return atRiskItems.sort((a: any, b: any) => b.score - a.score);
 }
 
 /**
@@ -341,7 +341,7 @@ export const getAtRiskInventoryLegacy = async (req: Request, res: Response) => {
     });
 
     // 2. Prepare Data for ML Service
-    const inventoryItems: MLInventoryItem[] = products.map(p => {
+    const inventoryItems: MLInventoryItem[] = products.map((p: any) => {
       // Get quantity from inventory or product stock, ensure it's never negative
       let quantity = p.Inventory[0]?.quantity ?? p.stock ?? 0;
       // Clamp negative values to 0 (ML service requires quantity >= 0)
@@ -365,7 +365,7 @@ export const getAtRiskInventoryLegacy = async (req: Request, res: Response) => {
     });
 
     const salesRecords: MLSalesRecord[] = [];
-    sales.forEach(sale => {
+    sales.forEach((sale: any) => {
       const items = typeof sale.items === "string" ? JSON.parse(sale.items) : sale.items;
       if (Array.isArray(items)) {
         items.forEach((item: any) => {
@@ -410,7 +410,7 @@ export const getAtRiskInventoryLegacy = async (req: Request, res: Response) => {
 
         // Convert scores from 0-1 to 0-100 for frontend display
         // Also ensure reasons is always an array of strings
-        atRiskItems = (atRiskResult.at_risk || []).map(item => ({
+        atRiskItems = (atRiskResult.at_risk || []).map((item: any) => ({
         ...item,
           score: Math.round(item.score * 100), // Convert 0-1 to 0-100
           reasons: Array.isArray(item.reasons) 

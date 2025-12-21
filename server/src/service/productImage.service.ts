@@ -64,7 +64,7 @@ export async function getProductWithImage(productId: string) {
 
     // Get active integration for the product's platform
     const integration = product.Shop.Integration?.find(
-      (int) => int.platform === product.Shop.platform && (int.settings as any)?.isActive !== false
+      (int: any) => int.platform === product.Shop.platform && (int.settings as any)?.isActive !== false
     );
 
     if (!integration) {

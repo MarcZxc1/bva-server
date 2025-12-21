@@ -82,7 +82,7 @@ export class ReportsService {
 
     // Calculate profit from items if profit field is null
     const salesWithProfit = await Promise.all(
-      sales.map(async (sale) => {
+      sales.map(async (sale: any) => {
         let calculatedProfit = sale.profit;
 
         // If profit is not stored, calculate it from items
@@ -101,7 +101,7 @@ export class ReportsService {
     // Group sales by date interval
     const groupedSales = new Map<string, SalesOverTimeData>();
 
-    salesWithProfit.forEach((sale) => {
+    salesWithProfit.forEach((sale: any) => {
       const saleDate = new Date(sale.createdAt);
       let dateKey: string;
 
@@ -136,7 +136,7 @@ export class ReportsService {
     );
 
     // Sort by date
-    return filledData.sort((a, b) => a.date.localeCompare(b.date));
+    return filledData.sort((a: any, b: any) => a.date.localeCompare(b.date));
       },
       900 // 15 minutes cache TTL
     );
@@ -177,11 +177,11 @@ export class ReportsService {
       },
     });
 
-    const productCostMap = new Map(products.map((p) => [p.id, p.cost || 0]));
+    const productCostMap = new Map(products.map((p: any) => [p.id, p.cost || 0]));
 
     itemsArray.forEach((item: any) => {
       if (item.productId && item.price && item.quantity) {
-        const productCost = productCostMap.get(item.productId) || 0;
+        const productCost: number = (productCostMap.get(item.productId) as number) || 0;
         const itemProfit = (item.price - productCost) * item.quantity;
         totalProfit += itemProfit;
       }
@@ -282,7 +282,7 @@ export class ReportsService {
 
     // Fetch all products for cost calculation
     const productIds = new Set<string>();
-    sales.forEach((sale) => {
+    sales.forEach((sale: any) => {
       const items = Array.isArray(sale.items) ? sale.items : [sale.items];
       items.forEach((item: any) => {
         if (item.productId) {
@@ -302,10 +302,10 @@ export class ReportsService {
       },
     });
 
-    const productCostMap = new Map(products.map((p) => [p.id, p.cost || 0]));
+    const productCostMap = new Map(products.map((p: any) => [p.id, p.cost || 0]));
 
     // Calculate totals
-    sales.forEach((sale) => {
+    sales.forEach((sale: any) => {
       const revenue = sale.revenue || sale.total;
       totalRevenue += revenue;
 
@@ -319,7 +319,7 @@ export class ReportsService {
 
         items.forEach((item: any) => {
           if (item.productId && item.quantity && item.price) {
-            const productCost = productCostMap.get(item.productId) || 0;
+            const productCost: number = (productCostMap.get(item.productId) as number) || 0;
             saleCost += productCost * item.quantity;
             saleProfit += (item.price - productCost) * item.quantity;
           }
@@ -395,7 +395,7 @@ export class ReportsService {
 
     // Fetch products for profit calculation
     const productIds = new Set<string>();
-    sales.forEach((sale) => {
+    sales.forEach((sale: any) => {
       const items = Array.isArray(sale.items) ? sale.items : [sale.items];
       items.forEach((item: any) => {
         if (item.productId) {
@@ -415,12 +415,12 @@ export class ReportsService {
       },
     });
 
-    const productCostMap = new Map(products.map((p) => [p.id, p.cost || 0]));
+    const productCostMap = new Map(products.map((p: any) => [p.id, p.cost || 0]));
 
     // Group by platform
     const platformMap = new Map<string, PlatformComparisonData>();
 
-    sales.forEach((sale) => {
+    sales.forEach((sale: any) => {
       // Handle null/undefined platform - default to "OTHER" if not set
       const platform = sale.platform || "OTHER";
       const existing = platformMap.get(platform) || {
@@ -439,7 +439,7 @@ export class ReportsService {
         const items = Array.isArray(sale.items) ? sale.items : [sale.items];
         items.forEach((item: any) => {
           if (item.productId && item.quantity && item.price) {
-            const productCost = productCostMap.get(item.productId) || 0;
+            const productCost: number = (productCostMap.get(item.productId) as number) || 0;
             profit += (item.price - productCost) * item.quantity;
           }
         });
@@ -462,7 +462,7 @@ export class ReportsService {
     }));
 
         // Sort by revenue descending
-        return result.sort((a, b) => b.revenue - a.revenue);
+        return result.sort((a: any, b: any) => b.revenue - a.revenue);
       },
       900 // 15 minutes cache TTL
     );
@@ -506,7 +506,7 @@ export class ReportsService {
       },
     });
 
-    const currentInventoryValue = inventory.reduce((acc, inv) => {
+    const currentInventoryValue = inventory.reduce((acc: any, inv: any) => {
       return acc + ((inv.Product?.cost || 0) * inv.quantity);
     }, 0);
 
@@ -573,7 +573,7 @@ export class ReportsService {
     });
 
     // Calculate inventory value and turnover per product
-    const productReports = products.map((product) => {
+    const productReports = products.map((product: any) => {
       const quantity = product.Inventory[0]?.quantity || product.stock || 0;
       const cost = product.cost || 0;
       const inventoryValue = cost * quantity;
@@ -594,7 +594,7 @@ export class ReportsService {
     });
 
     const totalInventoryValue = productReports.reduce(
-      (sum, p) => sum + p.inventoryValue,
+      (sum: any, p: any) => sum + p.inventoryValue,
       0
     );
 
@@ -606,7 +606,7 @@ export class ReportsService {
       stockTurnover: Math.round(overallTurnover * 100) / 100,
       inventoryValue: totalInventoryValue,
       cogs: profitAnalysis.totalCost,
-      products: productReports.sort((a, b) => b.turnoverRate - a.turnoverRate),
+      products: productReports.sort((a: any, b: any) => b.turnoverRate - a.turnoverRate),
       period: {
         start: start.toISOString().split("T")[0]!,
         end: end.toISOString().split("T")[0]!,
@@ -649,7 +649,7 @@ export class ReportsService {
         },
         select: { id: true },
       });
-      shopIds = shops.map(s => s.id);
+      shopIds = shops.map((s: any) => s.id);
     }
 
     if (shopIds.length === 0) {
@@ -708,7 +708,7 @@ export class ReportsService {
         },
         select: { id: true },
       });
-      shopIds = shops.map(s => s.id);
+      shopIds = shops.map((s: any) => s.id);
     }
 
     if (shopIds.length === 0) {
@@ -743,7 +743,7 @@ export class ReportsService {
         orders: data.orders,
         profit: data.profit,
       }))
-      .sort((a, b) => a.date.localeCompare(b.date));
+      .sort((a: any, b: any) => a.date.localeCompare(b.date));
   }
 
   /**
@@ -780,7 +780,7 @@ export class ReportsService {
         },
         select: { id: true },
       });
-      shopIds = shops.map(s => s.id);
+      shopIds = shops.map((s: any) => s.id);
     }
 
     if (shopIds.length === 0) {
@@ -869,7 +869,7 @@ export class ReportsService {
         },
         select: { id: true },
       });
-      shopIds = shops.map(s => s.id);
+      shopIds = shops.map((s: any) => s.id);
     }
 
     if (shopIds.length === 0) {
@@ -908,7 +908,7 @@ export class ReportsService {
       stockTurnover: Math.round(avgStockTurnover * 100) / 100,
       inventoryValue: totalInventoryValue,
       cogs: totalCogs,
-      products: allProducts.sort((a, b) => b.turnoverRate - a.turnoverRate),
+      products: allProducts.sort((a: any, b: any) => b.turnoverRate - a.turnoverRate),
       period: {
         start: start.toISOString().split("T")[0]!,
         end: end.toISOString().split("T")[0]!,
@@ -968,7 +968,7 @@ export class ReportsService {
     }));
 
     // Sort by revenue descending
-    return result.sort((a, b) => b.revenue - a.revenue);
+    return result.sort((a: any, b: any) => b.revenue - a.revenue);
   }
 }
 

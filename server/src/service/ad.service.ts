@@ -203,7 +203,7 @@ export class AdService {
       },
     });
 
-    const items: NearExpiryItem[] = products.map((p) => ({
+    const items: NearExpiryItem[] = products.map((p: any) => ({
       product_id: p.id,
       name: p.name,
       expiry_date: p.expiryDate!.toISOString(),

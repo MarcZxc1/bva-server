@@ -339,7 +339,7 @@ router.get("/google/callback", (req, res, next) => {
           });
           
           // Check if base URL is in allowed list
-          const isAllowed = ALLOWED_FRONTENDS.includes(baseUrl) || ALLOWED_FRONTENDS.some(allowed => baseUrl.startsWith(allowed));
+          const isAllowed = ALLOWED_FRONTENDS.includes(baseUrl) || ALLOWED_FRONTENDS.some((allowed: any) => baseUrl.startsWith(allowed));
           console.log("🔵 [CALLBACK] URL validation:", {
             baseUrl,
             isAllowed,

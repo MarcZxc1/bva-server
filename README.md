@@ -4,14 +4,34 @@ A comprehensive business management platform with inventory management, AI-power
 
 ## 🚀 Quick Start
 
-### Prerequisites
+### Option 1: Docker Setup (Recommended for Teams) 🐳
+
+**No manual installation needed!** All dependencies are installed automatically in Docker containers.
+
+```bash
+# Clone repository
+git clone <repository-url>
+cd bva-server
+
+# Start all services with Docker
+docker-compose up -d
+
+# Or use the helper script
+./docker-start.sh
+```
+
+**See [DOCKER_SETUP.md](./DOCKER_SETUP.md) for complete Docker guide.**
+
+### Option 2: Manual Installation
+
+#### Prerequisites
 
 - Node.js 18+
 - PostgreSQL 14+
 - Python 3.9+ (for ML service)
 - Git
 
-### Installation
+#### Installation
 
 ```bash
 # Clone repository
@@ -36,9 +56,10 @@ npm start
 
 ## 📖 Documentation
 
-For detailed setup guide, see:
+For detailed setup guides, see:
 
-**[📘 SETUP.md](./SETUP.md)** - Complete development setup guide for Windows and Linux
+- **[🐳 DOCKER_SETUP.md](./DOCKER_SETUP.md)** - Docker setup guide (Recommended for teams)
+- **[📘 SETUP.md](./SETUP.md)** - Manual installation guide for Windows and Linux
 
 ## 📁 Project Structure
 

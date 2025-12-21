@@ -151,7 +151,7 @@ class ShopeeIntegrationService {
 
       // Map database products to ShopeeProduct format
       // Use externalId if available, otherwise use BVA id as externalId
-      const products: ShopeeProduct[] = dbProducts.map((p) => {
+      const products: ShopeeProduct[] = dbProducts.map((p: any) => {
         const product: ShopeeProduct = {
           id: p.externalId || `BVA-${p.id}`, // Use externalId if available, otherwise use BVA id as externalId
           name: p.name,
@@ -335,7 +335,7 @@ class ShopeeIntegrationService {
 
       // Map database sales to ShopeeOrder format for consistency
       // Since sales are already in the database, we just need to ensure they're properly synced
-      const orders: ShopeeOrder[] = dbSales.map((sale) => {
+      const orders: ShopeeOrder[] = dbSales.map((sale: any) => {
         const items = typeof sale.items === "string" ? JSON.parse(sale.items) : sale.items;
         const order: ShopeeOrder = {
           id: sale.externalId || sale.platformOrderId || sale.id,
@@ -407,7 +407,7 @@ class ShopeeIntegrationService {
           let profit = 0;
           if (items.length > 0) {
             // Fetch product costs from database
-            const productIds = items.map(item => item.productId).filter(Boolean);
+            const productIds = items.map((item: any) => item.productId).filter(Boolean);
             if (productIds.length > 0) {
               const products = await prisma.product.findMany({
                 where: {
@@ -421,7 +421,7 @@ class ShopeeIntegrationService {
               });
 
               const productCostMap = new Map<string, number>();
-              products.forEach(p => {
+              products.forEach((p: any) => {
                 if (p.id) productCostMap.set(p.id, p.cost || 0);
                 if (p.externalId) productCostMap.set(p.externalId, p.cost || 0);
               });
@@ -693,7 +693,7 @@ class ShopeeIntegrationService {
           let profit = 0;
           if (items.length > 0) {
             // Fetch product costs from database
-            const productIds = items.map(item => item.productId).filter(Boolean);
+            const productIds = items.map((item: any) => item.productId).filter(Boolean);
             if (productIds.length > 0) {
               const products = await prisma.product.findMany({
                 where: {
@@ -707,7 +707,7 @@ class ShopeeIntegrationService {
               });
 
               const productCostMap = new Map<string, number>();
-              products.forEach(p => {
+              products.forEach((p: any) => {
                 if (p.id) productCostMap.set(p.id, p.cost || 0);
                 if (p.externalId) productCostMap.set(p.externalId, p.cost || 0);
               });

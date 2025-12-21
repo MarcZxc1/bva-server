@@ -168,7 +168,7 @@ export async function getRestockStrategy(
       });
       
       // Map products for caching
-      products = dbProducts.map(p => ({
+      products = dbProducts.map((p: any) => ({
         id: p.id,
         name: p.name,
         description: p.description,
@@ -185,9 +185,17 @@ export async function getRestockStrategy(
       
       // Cache products for 5 minutes
       await CacheService.set(productsCacheKey, products, 300);
-      console.log(`💾 [Cache SET] Restock Planner: Cached ${products.length} products`);
+      console.log(`💾 [Cache SET] Restock Planner: Cached ${products?.length || 0} products`);
     } else {
-      console.log(`💾 [Cache HIT] Restock Planner: Using ${products.length} cached products`);
+      console.log(`💾 [Cache HIT] Restock Planner: Using ${products?.length || 0} cached products`);
+    }
+
+    if (!products) {
+      res.status(404).json({
+        error: "Not Found",
+        message: "No products found for this shop",
+      });
+      return;
     }
 
     console.log(`📦 [Restock Planner] Found ${products.length} products in database for shop ${shopId}`);
@@ -225,9 +233,13 @@ export async function getRestockStrategy(
       
       // Cache sales for 5 minutes
       await CacheService.set(salesCacheKey, sales, 300);
-      console.log(`💾 [Cache SET] Restock Planner: Cached ${sales.length} sales records`);
+      console.log(`💾 [Cache SET] Restock Planner: Cached ${sales?.length || 0} sales records`);
     } else {
-      console.log(`💾 [Cache HIT] Restock Planner: Using ${sales.length} cached sales records`);
+      console.log(`💾 [Cache HIT] Restock Planner: Using ${sales?.length || 0} cached sales records`);
+    }
+
+    if (!sales) {
+      sales = [];
     }
 
     console.log(`📊 [Restock Planner] Found ${sales.length} sales records for baseline calculation (last 90 days)`);
@@ -249,13 +261,13 @@ export async function getRestockStrategy(
     // This creates the baseline sales calendar from historical data
     console.log(`🔄 [Restock Planner] Formatting ${products.length} products for ML service...`);
     const mlProducts: MLProductInput[] = products
-      .map((p) => {
+      .map((p: any) => {
         // Calculate baseline avg daily sales from historical data (last 90 days)
         // This creates the baseline sales calendar as required by the project
         let totalQty = 0;
         let salesDays = new Set<string>(); // Track unique days with sales for accurate baseline
         
-        sales.forEach(sale => {
+        sales.forEach((sale: any) => {
           const items = typeof sale.items === "string" ? JSON.parse(sale.items) : sale.items;
           if (Array.isArray(items)) {
             items.forEach((item: any) => {
@@ -315,7 +327,7 @@ export async function getRestockStrategy(
         } as MLProductInput;
       })
       // Filter out invalid products (cost or price must be > 0)
-      .filter((p) => {
+      .filter((p: any) => {
         const isValid = p.price > 0 && p.cost > 0 && 
                        !isNaN(p.price) && !isNaN(p.cost) &&
                        !isNaN(p.profit_margin) && 
@@ -375,7 +387,7 @@ export async function getRestockStrategy(
     const sanitizedIsPayday = Boolean(isPayday);
     const sanitizedHoliday = upcomingHoliday ? String(upcomingHoliday).trim() : null;
 
-    console.log(`✅ [Restock Planner] Prepared ${validProducts.length} valid products out of ${products.length} total for ML service`);
+    console.log(`✅ [Restock Planner] Prepared ${validProducts.length} valid products out of ${products?.length || 0} total for ML service`);
     console.log(`📤 [Restock Planner] Sending products to ML service with context:`);
     console.log(`   - Budget: ₱${budgetFloat.toFixed(2)}`);
     console.log(`   - Goal: ${sanitizedGoal}`);
@@ -523,9 +535,9 @@ export async function getRestockStrategy(
       reasons: string[];
     }>();
 
-    mlResponse.items.forEach(item => {
+    mlResponse.items.forEach((item: any) => {
       const productId = String(item.product_id);
-      const product = products.find(p => String(p.id) === productId);
+      const product = products?.find((p: any) => String(p.id) === productId);
       
       if (productRecommendationMap.has(productId)) {
         // Product already exists, accumulate quantities and costs
@@ -556,12 +568,12 @@ export async function getRestockStrategy(
 
     // Convert map to array and format reasons
     const recommendations = Array.from(productRecommendationMap.values())
-      .map(rec => ({
+      .map((rec: any) => ({
         ...rec,
         reason: rec.reasons.length > 0 ? rec.reasons.join('; ') : "No reasoning provided"
       }))
-      .filter(rec => rec.recommended_qty > 0) // Filter out zero quantity recommendations
-      .sort((a, b) => b.priority - a.priority); // Sort by priority descending
+      .filter((rec: any) => rec.recommended_qty > 0) // Filter out zero quantity recommendations
+      .sort((a: any, b: any) => b.priority - a.priority); // Sort by priority descending
 
     // Fix budget display in insights - replace ML service budget with actual request budget
     const insights = Array.isArray(mlResponse.reasoning) ? mlResponse.reasoning : [];
@@ -570,7 +582,7 @@ export async function getRestockStrategy(
     // Log budget values for debugging
     console.log(`💰 [Restock Planner] Budget values - Request: ${actualBudget}, ML Response: ${mlResponse.budget}`);
     
-    const correctedInsights = insights.map(insight => {
+    const correctedInsights = insights.map((insight: any) => {
       // Replace budget in insights with the actual budget from request
       // This ensures the displayed budget matches what the user entered
       if (typeof insight === 'string' && insight.includes('Budget: ₱')) {

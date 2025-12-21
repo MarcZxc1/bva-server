@@ -248,7 +248,7 @@ class WebhookService {
         });
 
         const productCostMap = new Map<string, number>();
-        products.forEach(p => {
+        products.forEach((p: any) => {
           if (p.id) productCostMap.set(p.id, p.cost || 0);
           if (p.externalId) productCostMap.set(p.externalId, p.cost || 0);
         });
@@ -380,7 +380,7 @@ class WebhookService {
       });
       
       // Check if any sale has this orderId in its items or metadata
-      sale = allSales.find(s => {
+      sale = allSales.find((s: any) => {
         const items = typeof s.items === 'string' ? JSON.parse(s.items) : s.items;
         if (Array.isArray(items)) {
           return items.some((item: any) => item.orderId === orderId || item.id === orderId);

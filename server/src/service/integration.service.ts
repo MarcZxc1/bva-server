@@ -204,8 +204,8 @@ class IntegrationService {
 
     // Combine all shop IDs
     const allShopIds = [
-      ...ownedShops.map(s => s.id),
-      ...linkedShops.map(sa => sa.Shop.id),
+      ...ownedShops.map((s: any) => s.id),
+      ...linkedShops.map((sa: any) => sa.Shop.id),
     ];
 
     if (allShopIds.length === 0) {

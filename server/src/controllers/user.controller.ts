@@ -68,7 +68,7 @@ export class UserController {
       }
 
       // Use transaction to ensure shop creation happens with user
-      const result = await prisma.$transaction(async (tx) => {
+      const result = await prisma.$transaction(async (tx: any) => {
         // Double-check email doesn't exist for this platform (race condition protection)
         const existingUserInTx = await tx.user.findUnique({
           where: { 
@@ -232,7 +232,7 @@ export class UserController {
     try {
       const users = await userService.list();
       // Remove passwords from list
-      const safeUsers = users.map((u) => {
+      const safeUsers = users.map((u: any) => {
         const { password, ...rest } = u;
         return rest;
       });

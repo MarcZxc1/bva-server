@@ -53,7 +53,7 @@ async function fetchProductsForRestock(
 
   // Calculate average daily sales for each product from Sale records
   const productsWithSales = await Promise.all(
-    productsData.map(async (product) => {
+    productsData.map(async (product: any) => {
       // Get sales for this product in the last 60 days
       const sixtyDaysAgo = new Date();
       sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
@@ -63,7 +63,7 @@ async function fetchProductsForRestock(
         where: { shopId },
         select: { platform: true },
       });
-      const integrationPlatforms = integrations.map(i => i.platform);
+      const integrationPlatforms = integrations.map((i: any) => i.platform);
 
       const sales = await prisma.sale.findMany({
         where: {
@@ -83,7 +83,7 @@ async function fetchProductsForRestock(
       let totalQuantitySold = 0;
       const salesDates = new Set<string>();
 
-      sales.forEach((sale) => {
+      sales.forEach((sale: any) => {
         const items =
           typeof sale.items === "string" ? JSON.parse(sale.items) : sale.items;
 
@@ -145,7 +145,7 @@ export async function calculateRestockStrategy(
   let products = await fetchProductsForRestock(shopId);
 
   // Filter out invalid products (cost or price <= 0) as ML service requires positive values
-  products = products.filter((p) => p.price > 0 && p.cost > 0);
+  products = products.filter((p: any) => p.price > 0 && p.cost > 0);
 
   if (products.length === 0) {
     throw new Error(
@@ -174,7 +174,7 @@ export async function calculateRestockStrategy(
       productId: item.product_id,
       productName: item.name,
       currentStock:
-        products.find((p) => String(p.product_id) === String(item.product_id))
+        products.find((p: any) => String(p.product_id) === String(item.product_id))
           ?.stock || 0,
       recommendedQty: item.qty,
       unitCost: item.unit_cost,

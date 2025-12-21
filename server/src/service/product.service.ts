@@ -48,7 +48,7 @@ export async function getAllProducts(platform?: string) {
     },
   });
 
-  const mappedProducts = products.map((product) => ({
+  const mappedProducts = products.map((product: any) => ({
     id: product.id,
     sku: product.sku,
     name: product.name,
@@ -138,7 +138,7 @@ export async function getProductsByShop(shopId: string, platform?: string) {
 
   // Create a map of product IDs to platforms based on sales
   const productPlatformMap = new Map<string, string>();
-  allSales.forEach((sale) => {
+  allSales.forEach((sale: any) => {
     if (sale.items && typeof sale.items === 'object') {
       const items = sale.items as any;
       if (Array.isArray(items)) {
@@ -154,7 +154,7 @@ export async function getProductsByShop(shopId: string, platform?: string) {
   // Use the shop's platform as default
   const defaultPlatform = shop.platform;
 
-  const mappedProducts = products.map((product) => {
+  const mappedProducts = products.map((product: any) => {
     // Determine platform: from sales data, externalId pattern, or shop platform
     let productPlatform: string | null = productPlatformMap.get(product.id) || null;
     
@@ -321,8 +321,8 @@ export async function getProductsForUser(userId: string, platform?: string) {
 
   // Combine all shop IDs
   const allShopIds = [
-    ...ownedShops.map(s => s.id),
-    ...linkedShops.map(sa => sa.Shop.id),
+    ...ownedShops.map((s: any) => s.id),
+    ...linkedShops.map((sa: any) => sa.Shop.id),
   ];
 
   if (allShopIds.length === 0) {
@@ -360,7 +360,7 @@ export async function getProductsForUser(userId: string, platform?: string) {
   console.log(`📦 getProductsForUser: Found ${products.length} products across ${allShopIds.length} shops for user ${userId}`);
 
   // Map products with inferred platform
-  const mappedProducts = products.map((product) => {
+  const mappedProducts = products.map((product: any) => {
     // Get shop's platform as default
     const defaultPlatform = product.Shop.platform;
 

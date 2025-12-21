@@ -99,8 +99,8 @@ class ShopAccessService {
 
     // Combine and deduplicate
     const allShopIds = [
-      ...ownedShops.map((s) => s.id),
-      ...linkedShops.map((a) => a.shopId),
+      ...ownedShops.map((s: any) => s.id),
+      ...linkedShops.map((a: any) => a.shopId),
     ];
 
     return [...new Set(allShopIds)];
@@ -149,7 +149,7 @@ class ShopAccessService {
       },
     });
 
-    return linkedAccesses.map((access) => ({
+    return linkedAccesses.map((access: any) => ({
       id: access.Shop.id,
       name: access.Shop.name,
       platform: access.Shop.platform,

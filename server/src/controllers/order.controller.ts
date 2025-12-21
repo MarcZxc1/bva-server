@@ -24,7 +24,7 @@ export const createOrder = async (req: Request, res: Response) => {
     // createOrder might return an array or a single object depending on implementation
     // If it's an array, notify for each
     if (Array.isArray(orders)) {
-      orders.forEach(order => socketService.notifyNewOrder(order));
+      orders.forEach((order: any) => socketService.notifyNewOrder(order));
     } else {
       socketService.notifyNewOrder(orders);
     }
@@ -198,7 +198,7 @@ export const updateOrderStatus = async (req: Request, res: Response) => {
     }
 
     // Check if user owns the shop for this order
-    const userShopIds = user.Shop.map(shop => shop.id);
+    const userShopIds = user.Shop.map((shop: any) => shop.id);
     console.log(`🔍 [updateOrderStatus] User ${userId} owns shops: ${userShopIds.join(', ')}, Order shop: ${existingOrder.shopId}`);
     
     if (!userShopIds.includes(existingOrder.shopId)) {

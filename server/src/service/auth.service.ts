@@ -63,7 +63,7 @@ class AuthService {
     const role = data.role || "BUYER";
 
     // Create user with transaction to ensure shop creation for sellers
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx: any) => {
       // Double-check email doesn't exist for this platform (race condition protection)
       const existingUserInTx = await tx.user.findUnique({
         where: { 
@@ -361,11 +361,11 @@ class AuthService {
 
     console.log(`📊 getUserShops: Found ${shops.length} shop(s) for user ${userId}`);
     if (shops.length > 0) {
-      console.log(`   Shop IDs: ${shops.map(s => `${s.id} (${s.name}) [${s.platform}]`).join(', ')}`);
+      console.log(`   Shop IDs: ${shops.map((s: any) => `${s.id} (${s.name}) [${s.platform}]`).join(', ')}`);
     }
 
     // Check if user has a shop for their primary platform
-    const hasPrimaryPlatformShop = shops.some(s => s.platform === shopPlatform);
+    const hasPrimaryPlatformShop = shops.some((s: any) => s.platform === shopPlatform);
     
     // If SELLER has no shop for their primary platform, create one
     if (user.role === "SELLER" && !hasPrimaryPlatformShop) {
@@ -388,13 +388,13 @@ class AuthService {
         throw new Error(`Failed to create ${shopPlatform} shop for seller account: ${shopError.message || 'Unknown error'}`);
       }
     } else if (user.role === "SELLER" && shops.length > 0) {
-      console.log(`✅ SELLER ${userId} has ${shops.length} shop(s):`, shops.map(s => `${s.id} (${s.name}) [${s.platform}]`).join(', '));
+      console.log(`✅ SELLER ${userId} has ${shops.length} shop(s):`, shops.map((s: any) => `${s.id} (${s.name}) [${s.platform}]`).join(', '));
     } else if (user.role !== "SELLER") {
       console.log(`ℹ️ User ${userId} is not a SELLER (role: ${user.role}), no shop needed`);
     }
 
     // Final validation: ensure shops array is properly formatted with platform info
-    const finalShops = Array.isArray(shops) ? shops.map(s => ({ id: s.id, name: s.name, platform: s.platform })) : [];
+    const finalShops = Array.isArray(shops) ? shops.map((s: any) => ({ id: s.id, name: s.name, platform: s.platform })) : [];
     console.log(`📤 getUserShops returning ${finalShops.length} shop(s) for user ${userId}`);
     if (finalShops.length > 0) {
       console.log(`   Final shops: ${JSON.stringify(finalShops)}`);
@@ -434,7 +434,7 @@ class AuthService {
       isNewUser = true;
       const userRole = role || "SELLER";
 
-      user = await prisma.$transaction(async (tx) => {
+      user = await prisma.$transaction(async (tx: any) => {
         // Create user
         const newUser = await tx.user.create({
           data: {
@@ -463,6 +463,10 @@ class AuthService {
     // Note: Data sync from Shopee-Clone should be triggered manually via webhooks
     // or through the integration settings page, not automatically on login
     // Removed automatic sync to prevent unwanted data creation
+
+    if (!user) {
+      throw new Error("User not found after creation");
+    }
 
     // Fetch user's shop if they're a seller
     const userShops = await prisma.shop.findMany({

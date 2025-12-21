@@ -43,7 +43,7 @@ export class IntegrationController {
 
       // Check if integration already exists before creating
       const existing = await integrationService.getShopIntegrations(shopId);
-      const existingIntegration = existing.find(i => i.platform === platform);
+      const existingIntegration = existing.find((i: any) => i.platform === platform);
 
       if (existingIntegration) {
         // Update existing integration instead of creating new one
@@ -100,7 +100,7 @@ export class IntegrationController {
           const { platform } = req.body;
           if (shopId && platform) {
             const integrations = await integrationService.getShopIntegrations(shopId);
-            const existing = integrations.find(i => i.platform === platform);
+            const existing = integrations.find((i: any) => i.platform === platform);
             if (existing) {
               return res.status(200).json({
                 success: true,

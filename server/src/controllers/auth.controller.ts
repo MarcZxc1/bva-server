@@ -48,7 +48,7 @@ export class AuthController {
       console.log(`📤 Register response for user ${result.user?.id}:`, {
         role: result.user?.role,
         shopsCount: responseData.shops.length,
-        shopIds: responseData.shops.map(s => s.id),
+        shopIds: responseData.shops.map((s: any) => s.id),
       });
 
       return res.status(201).json({
@@ -101,7 +101,7 @@ export class AuthController {
       console.log(`📤 Login response for user ${result.user?.id}:`, {
         role: result.user?.role,
         shopsCount: responseData.shops.length,
-        shopIds: responseData.shops.map(s => s.id),
+        shopIds: responseData.shops.map((s: any) => s.id),
       });
 
       return res.status(200).json({
@@ -181,8 +181,8 @@ export class AuthController {
       try {
         const linkedShops = await shopAccessService.getLinkedShops(userId);
         const shopMap = new Map<string, { id: string; name: string; platform: string }>();
-        shops.forEach(shop => shopMap.set(shop.id, shop));
-        linkedShops.forEach(shop => shopMap.set(shop.id, { id: shop.id, name: shop.name, platform: shop.platform }));
+        shops.forEach((shop: any) => shopMap.set(shop.id, shop));
+        linkedShops.forEach((shop: any) => shopMap.set(shop.id, { id: shop.id, name: shop.name, platform: shop.platform }));
         shops = Array.from(shopMap.values());
       } catch (linkError: any) {
         console.error(`❌ getProfile: Error fetching linked shops:`, linkError);
@@ -273,8 +273,8 @@ export class AuthController {
         
         // Merge owned and linked shops, avoiding duplicates
         const shopMap = new Map<string, { id: string; name: string; platform: string }>();
-        shops.forEach(shop => shopMap.set(shop.id, shop));
-        linkedShops.forEach(shop => shopMap.set(shop.id, { id: shop.id, name: shop.name, platform: shop.platform }));
+        shops.forEach((shop: any) => shopMap.set(shop.id, shop));
+        linkedShops.forEach((shop: any) => shopMap.set(shop.id, { id: shop.id, name: shop.name, platform: shop.platform }));
         shops = Array.from(shopMap.values());
         
         console.log(`🔍 getMe: Total shops (owned + linked): ${shops.length}`);
@@ -285,8 +285,8 @@ export class AuthController {
 
       console.log(`📋 GET /api/auth/me for user ${userId} (role: ${user.role}), shops count: ${shops.length}`);
       if (shops.length > 0) {
-        console.log(`   Shop IDs: ${shops.map(s => s.id).join(', ')}`);
-        console.log(`   Shop names: ${shops.map(s => s.name).join(', ')}`);
+        console.log(`   Shop IDs: ${shops.map((s: any) => s.id).join(', ')}`);
+        console.log(`   Shop names: ${shops.map((s: any) => s.name).join(', ')}`);
       } else if (user.role === "SELLER") {
         console.warn(`⚠️ WARNING: SELLER user ${userId} has no shops after getUserShops call!`);
         // Double-check by querying database directly with platform filter

@@ -33,7 +33,7 @@ export async function createOrder(data: {
 
   // Get shop IDs from products
   // Product IDs from shopee-clone might be external IDs, so we need to search by both id and externalId
-  const productIds = data.items.map(item => item.productId);
+  const productIds = data.items.map((item: any) => item.productId);
   
   // First, try to find products by internal ID
   let products = await prisma.product.findMany({
@@ -50,8 +50,8 @@ export async function createOrder(data: {
   });
 
   // Find which product IDs weren't found by internal ID
-  const foundIds = new Set(products.map(p => p.id));
-  const missingIds = productIds.filter(id => !foundIds.has(id));
+  const foundIds = new Set(products.map((p: any) => p.id));
+  const missingIds = productIds.filter((id: any) => !foundIds.has(id));
 
   // If some products weren't found, try to find them by externalId
   if (missingIds.length > 0) {
@@ -82,7 +82,7 @@ export async function createOrder(data: {
   }
 
   // Verify all products were found
-  const notFoundIds = productIds.filter(id => !productMap.has(id));
+  const notFoundIds = productIds.filter((id: any) => !productMap.has(id));
   if (notFoundIds.length > 0) {
     console.error('Products not found:', notFoundIds);
     throw new Error(`Some products not found: ${notFoundIds.join(', ')}`);
@@ -120,16 +120,16 @@ export async function createOrder(data: {
 
   for (const [shopId, items] of ordersByShop.entries()) {
     const shopTotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
-    const product = products.find(p => p.shopId === shopId);
+    const product = products.find((p: any) => p.shopId === shopId);
 
     // Calculate profit
-    const productDetails = products.filter(p => 
-      items.some(i => i.productId === p.id)
+    const productDetails = products.filter((p: any) => 
+      items.some((i: any) => i.productId === p.id)
     );
 
     let profit = 0;
     for (const item of items) {
-      const prod = productDetails.find(p => p.id === item.productId);
+      const prod = productDetails.find((p: any) => p.id === item.productId);
       if (prod?.cost) {
         profit += (item.price - prod.cost) * item.quantity;
       }
@@ -152,7 +152,7 @@ export async function createOrder(data: {
     }
 
     // Use transaction to ensure atomicity
-    const order = await prisma.$transaction(async (tx) => {
+    const order = await prisma.$transaction(async (tx: any) => {
       // Create sale record
       const sale = await tx.sale.create({
         data: {
@@ -178,7 +178,7 @@ export async function createOrder(data: {
       }> = [];
 
       for (const item of items) {
-        const product = productDetails.find(p => p.id === item.productId);
+        const product = productDetails.find((p: any) => p.id === item.productId);
         if (!product) {
           throw new Error(`Product not found: ${item.productId}`);
         }
@@ -281,8 +281,8 @@ export async function createOrder(data: {
     //   total: order.total,
     //   revenue: order.revenue || order.total,
     //   profit: order.profit || 0,
-    //   items: items.map(item => {
-    //     const product = productDetails.find(p => p.id === item.productId);
+    //   items: items.map((item: any) => {
+    //     const product = productDetails.find((p: any) => p.id === item.productId);
     //     return {
     //       productId: item.productId,
     //       productName: product?.name || "Unknown Product",
@@ -311,7 +311,7 @@ export async function createOrder(data: {
 
     createdOrders.push({
       ...order,
-      shopName: product?.Shop.name,
+      shopName: product?.Shop?.name || 'Unknown Shop',
     });
   }
 
@@ -331,32 +331,38 @@ export async function getMyOrders(userId: string, platform?: string) {
 
   // Helper function to enrich items with product images
   const enrichItemsWithImages = async (items: any[]) => {
-    if (!Array.isArray(items) || items.length === 0) return items;
+    try {
+      if (!Array.isArray(items) || items.length === 0) return items;
 
-    // Extract all product IDs
-    const productIds = items
-      .map(item => item.productId)
-      .filter(Boolean);
+      // Extract all product IDs
+      const productIds = items
+        .map((item: any) => item.productId)
+        .filter(Boolean);
 
-    if (productIds.length === 0) return items;
+      if (productIds.length === 0) return items;
 
-    // Fetch products with images
-    const products = await prisma.product.findMany({
-      where: { id: { in: productIds } },
-      select: { id: true, imageUrl: true },
-    });
+      // Fetch products with images
+      const products = await prisma.product.findMany({
+        where: { id: { in: productIds } },
+        select: { id: true, imageUrl: true },
+      });
 
-    // Create a map of productId -> imageUrl
-    const productImageMap = new Map<string, string | null>();
-    products.forEach(p => {
-      if (p.id) productImageMap.set(p.id, p.imageUrl);
-    });
+      // Create a map of productId -> imageUrl
+      const productImageMap = new Map<string, string | null>();
+      products.forEach((p: any) => {
+        if (p.id) productImageMap.set(p.id, p.imageUrl);
+      });
 
-    // Enrich items with imageUrl
-    return items.map(item => ({
-      ...item,
-      imageUrl: item.productId ? productImageMap.get(item.productId) || null : null,
-    }));
+      // Enrich items with imageUrl
+      return items.map((item: any) => ({
+        ...item,
+        imageUrl: item.productId ? productImageMap.get(item.productId) || null : null,
+      }));
+    } catch (error) {
+      console.error("Error enriching items with images:", error);
+      // Return items without enrichment if there's an error
+      return items;
+    }
   };
 
   // If user is a buyer, get orders where customerEmail matches
@@ -389,7 +395,7 @@ export async function getMyOrders(userId: string, platform?: string) {
 
     // Enrich all orders with product images
     const enrichedOrders = await Promise.all(
-      orders.map(async order => {
+      orders.map(async (order: any) => {
         let items: any[] = [];
         const rawItems = order.items;
         if (Array.isArray(rawItems)) {
@@ -410,9 +416,9 @@ export async function getMyOrders(userId: string, platform?: string) {
         return {
           id: order.id,
           shopId: order.shopId,
-          shopName: order.Shop.name,
+          shopName: order.Shop?.name || 'Unknown Shop',
           items: enrichedItems,
-          total: order.total,
+          total: order.total || 0,
           status: order.status,
           createdAt: order.createdAt,
         };
@@ -422,7 +428,7 @@ export async function getMyOrders(userId: string, platform?: string) {
     return enrichedOrders;
   } else {
     // Seller: get orders from their shops
-    const shopIds = user.Shop.map(shop => shop.id);
+    const shopIds = user.Shop.map((shop: any) => shop.id);
     
     // Build where clause with platform filter if provided
     const whereClause: any = {
@@ -451,7 +457,7 @@ export async function getMyOrders(userId: string, platform?: string) {
 
     // Enrich all orders with product images
     const enrichedOrders = await Promise.all(
-      orders.map(async order => {
+      orders.map(async (order: any) => {
         // Ensure items is always an array
         let items: any[] = [];
         const rawItems = order.items;
@@ -474,11 +480,11 @@ export async function getMyOrders(userId: string, platform?: string) {
         return {
           id: order.id,
           shopId: order.shopId,
-          shopName: order.Shop.name,
+          shopName: order.Shop?.name || 'Unknown Shop',
           items: enrichedItems,
-          total: order.total,
-          revenue: order.revenue,
-          profit: order.profit,
+          total: order.total || 0,
+          revenue: order.revenue || order.total || 0,
+          profit: order.profit || 0,
           status: order.status,
           customerName: order.customerName,
           customerEmail: order.customerEmail,
@@ -554,7 +560,7 @@ export async function getSellerOrders(
 
     // Extract all product IDs
     const productIds = items
-      .map(item => item.productId)
+      .map((item: any) => item.productId)
       .filter(Boolean);
 
     if (productIds.length === 0) return items;
@@ -567,12 +573,12 @@ export async function getSellerOrders(
 
     // Create a map of productId -> imageUrl
     const productImageMap = new Map<string, string | null>();
-    products.forEach(p => {
+    products.forEach((p: any) => {
       if (p.id) productImageMap.set(p.id, p.imageUrl);
     });
 
     // Enrich items with imageUrl
-    return items.map(item => ({
+    return items.map((item: any) => ({
       ...item,
       imageUrl: item.productId ? productImageMap.get(item.productId) || null : null,
     }));
@@ -580,7 +586,7 @@ export async function getSellerOrders(
 
   // Enrich all orders with product images
   const enrichedOrders = await Promise.all(
-    orders.map(async order => {
+    orders.map(async (order: any) => {
       // Ensure items is always an array
       let items: any[] = [];
       const rawItems = order.items;
@@ -602,7 +608,7 @@ export async function getSellerOrders(
       return {
         id: order.id,
         shopId: order.shopId,
-        shopName: order.Shop.name,
+        shopName: order.Shop?.name || 'Unknown Shop',
         items: enrichedItems,
         total: order.total,
         revenue: order.revenue,
@@ -673,7 +679,7 @@ export async function updateOrderStatus(orderId: string, status: OrderStatus) {
     }
 
     // Restore stock for each item
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx: any) => {
       for (const item of items) {
         if (item.productId && item.quantity) {
           // Restore product stock
@@ -780,7 +786,7 @@ export async function getOrderById(orderId: string) {
   return {
     id: order.id,
     shopId: order.shopId,
-    shopName: order.Shop.name,
+    shopName: order.Shop?.name || 'Unknown Shop',
     items: order.items,
     total: order.total,
     revenue: order.revenue,

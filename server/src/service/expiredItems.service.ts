@@ -64,7 +64,7 @@ export async function checkAndNotifyExpiredItems() {
     let notificationsCreated = 0;
     for (const [userId, products] of userExpiredProducts.entries()) {
       const productCount = products.length;
-      const productNames = products.slice(0, 3).map(p => p.name).join(", ");
+      const productNames = products.slice(0, 3).map((p: any) => p.name).join(", ");
       const moreText = productCount > 3 ? ` and ${productCount - 3} more` : "";
 
       // Check if notification already exists for this user today
@@ -137,8 +137,8 @@ export async function getUserExpiredItems(userId: string) {
     }
 
     const shopIds = [
-      ...user.Shop.map(s => s.id),
-      ...user.ShopAccess.map(sa => sa.shopId),
+      ...user.Shop.map((s: any) => s.id),
+      ...user.ShopAccess.map((sa: any) => sa.shopId),
     ];
 
     const today = new Date();

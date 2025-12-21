@@ -41,7 +41,7 @@ services:
   ml-service:
     build:
       context: ./ml-service
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.dev
     container_name: vba-ml-service
     ports:
       - "8001:8001"
@@ -65,7 +65,7 @@ services:
   main-server:
     build:
       context: ./server
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.dev
     container_name: vba-main-server
     ports:
       - "3000:3000"
@@ -77,12 +77,12 @@ services:
       - REDIS_URL=redis://redis:6379
     volumes:
       - ./server/src:/app/src # Hot reload in development
+      - ./server/prisma:/app/prisma # Prisma schema
     depends_on:
       postgres:
         condition: service_healthy
       ml-service:
         condition: service_started
-    command: npm run dev
 
   # Celery Worker for ML-service background tasks (optional)
   celery-worker:
@@ -123,6 +123,70 @@ services:
       redis:
         condition: service_healthy
     command: celery -A app.tasks.celery_app beat --loglevel=info
+
+  # BVA Frontend (Vite/React)
+  bva-frontend:
+    build:
+      context: ./bva-frontend
+      dockerfile: Dockerfile.dev
+    container_name: vba-frontend
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_API_URL=http://localhost:3000
+    volumes:
+      - ./bva-frontend/src:/app/src # Hot reload in development
+      - ./bva-frontend/public:/app/public
+    depends_on:
+      - main-server
+
+  # Lazada Clone (Next.js)
+  lazada-clone:
+    build:
+      context: ./lazada-clone
+      dockerfile: Dockerfile.dev
+    container_name: vba-lazada-clone
+    ports:
+      - "3001:3001"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:3000
+    volumes:
+      - ./lazada-clone/src:/app/src # Hot reload in development
+      - ./lazada-clone/public:/app/public
+    depends_on:
+      - main-server
+
+  # Shopee Clone (Vite/React)
+  shopee-clone:
+    build:
+      context: ./shopee-clone
+      dockerfile: Dockerfile.dev
+    container_name: vba-shopee-clone
+    ports:
+      - "5174:5173"
+    environment:
+      - VITE_API_URL=http://localhost:3000
+    volumes:
+      - ./shopee-clone/src:/app/src # Hot reload in development
+      - ./shopee-clone/public:/app/public
+    depends_on:
+      - main-server
+
+  # TikTok Seller Clone (Vite/React)
+  tiktokseller-clone:
+    build:
+      context: ./tiktokseller-clone
+      dockerfile: Dockerfile.dev
+    container_name: vba-tiktokseller-clone
+    ports:
+      - "5175:5173"
+    environment:
+      - VITE_API_URL=http://localhost:3000
+    volumes:
+      - ./tiktokseller-clone/src:/app/src # Hot reload in development
+      - ./tiktokseller-clone/public:/app/public
+    depends_on:
+      - main-server
 
 volumes:
   postgres-data:

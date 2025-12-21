@@ -7,4 +7,5 @@ dist
 .vscode
 .idea
 coverage
-*.tsbuildinfo
+.DS_Store
+

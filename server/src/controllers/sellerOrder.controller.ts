@@ -42,7 +42,7 @@ export const getSellerOrders = async (req: Request, res: Response) => {
       });
     }
 
-    const userShopIds = user.Shop.map(shop => shop.id);
+    const userShopIds = user.Shop.map((shop: any) => shop.id);
     const hasAccess = userShopIds.includes(shopId) || await shopAccessService.hasAccess(userId, shopId);
 
     if (!hasAccess) {
@@ -146,7 +146,7 @@ export const updateOrderStatus = async (req: Request, res: Response) => {
       });
     }
 
-    const userShopIds = user.Shop.map(shop => shop.id);
+    const userShopIds = user.Shop.map((shop: any) => shop.id);
     console.log(`🔍 [Seller updateOrderStatus] User ${userId} owns shops: ${userShopIds.join(', ')}, Order shop: ${existingOrder.shopId}`);
     
     const hasAccess = userShopIds.includes(existingOrder.shopId) || await shopAccessService.hasAccess(userId, existingOrder.shopId);
@@ -253,7 +253,7 @@ export const getSellerOrderById = async (req: Request, res: Response) => {
       });
     }
 
-    const userShopIds = user.Shop.map(shop => shop.id);
+    const userShopIds = user.Shop.map((shop: any) => shop.id);
     const hasAccess = userShopIds.includes(order.shopId) || await shopAccessService.hasAccess(userId, order.shopId);
 
     if (!hasAccess) {

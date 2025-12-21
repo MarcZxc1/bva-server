@@ -27,7 +27,7 @@ export const createOrder = async (req: Request, res: Response) => {
 
     // Notify sellers via WebSocket
     if (Array.isArray(orders)) {
-      orders.forEach(order => {
+      orders.forEach((order: any) => {
         socketService.notifyNewOrder(order);
         console.log(`📢 Notified shop ${order.shopId} about new order ${order.id}`);
       });

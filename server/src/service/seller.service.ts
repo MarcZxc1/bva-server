@@ -50,11 +50,11 @@ export async function getSellerDashboard(shopId: string) {
   });
 
   // Calculate metrics
-  const totalRevenue = allSales.reduce((sum, sale) => sum + (sale.revenue || sale.total), 0);
-  const monthlyRevenue = monthlySales.reduce((sum, sale) => sum + (sale.revenue || sale.total), 0);
-  const weeklyRevenue = recentSales.reduce((sum, sale) => sum + (sale.revenue || sale.total), 0);
-  const totalProfit = allSales.reduce((sum, sale) => sum + (sale.profit || 0), 0);
-  const monthlyProfit = monthlySales.reduce((sum, sale) => sum + (sale.profit || 0), 0);
+  const totalRevenue = allSales.reduce((sum: any, sale: any) => sum + (sale.revenue || sale.total), 0);
+  const monthlyRevenue = monthlySales.reduce((sum: any, sale: any) => sum + (sale.revenue || sale.total), 0);
+  const weeklyRevenue = recentSales.reduce((sum: any, sale: any) => sum + (sale.revenue || sale.total), 0);
+  const totalProfit = allSales.reduce((sum: any, sale: any) => sum + (sale.profit || 0), 0);
+  const monthlyProfit = monthlySales.reduce((sum: any, sale: any) => sum + (sale.profit || 0), 0);
 
   console.log(`💰 Calculated metrics:`, {
     totalOrders: allSales.length,
@@ -108,14 +108,14 @@ export async function getSellerDashboard(shopId: string) {
       monthlyProfit,
       profitMargin: totalRevenue > 0 ? (totalProfit / totalRevenue) * 100 : 0,
     },
-    recentOrders: pendingOrders.map(order => ({
+    recentOrders: pendingOrders.map((order: any) => ({
       id: order.id,
       total: order.total,
       status: order.status,
       createdAt: order.createdAt,
       items: order.items,
     })),
-    lowStockProducts: lowStockProducts.map(product => ({
+    lowStockProducts: lowStockProducts.map((product: any) => ({
       id: product.id,
       name: product.name,
       stock: product.stock,
@@ -183,15 +183,15 @@ export async function getSellerIncome(
   // Calculate totals from ALL sales (not just filtered ones)
   // This ensures the income overview shows the complete picture
   const pendingTotal = allSales
-    .filter(sale => sale.status !== "COMPLETED" && sale.status !== "TO_RECEIVE")
-    .reduce((sum, sale) => {
+    .filter((sale: any) => sale.status !== "COMPLETED" && sale.status !== "TO_RECEIVE")
+    .reduce((sum: any, sale: any) => {
       const amount = sale.revenue || sale.total || 0;
       return sum + amount;
     }, 0);
 
   const releasedTotal = allSales
-    .filter(sale => sale.status === "COMPLETED" || sale.status === "TO_RECEIVE")
-    .reduce((sum, sale) => {
+    .filter((sale: any) => sale.status === "COMPLETED" || sale.status === "TO_RECEIVE")
+    .reduce((sum: any, sale: any) => {
       const amount = sale.revenue || sale.total || 0;
       return sum + amount;
     }, 0);
@@ -205,21 +205,21 @@ export async function getSellerIncome(
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
   const thisWeekSales = allSales.filter(
-    sale => (sale.status === "COMPLETED" || sale.status === "TO_RECEIVE") && new Date(sale.createdAt) >= weekStart
+    (sale: any) => (sale.status === "COMPLETED" || sale.status === "TO_RECEIVE") && new Date(sale.createdAt) >= weekStart
   );
   const thisMonthSales = allSales.filter(
-    sale => (sale.status === "COMPLETED" || sale.status === "TO_RECEIVE") && new Date(sale.createdAt) >= monthStart
+    (sale: any) => (sale.status === "COMPLETED" || sale.status === "TO_RECEIVE") && new Date(sale.createdAt) >= monthStart
   );
 
   const thisWeekTotal = thisWeekSales.reduce(
-    (sum, sale) => {
+    (sum: any, sale: any) => {
       const amount = sale.revenue || sale.total || 0;
       return sum + amount;
     },
     0
   );
   const thisMonthTotal = thisMonthSales.reduce(
-    (sum, sale) => {
+    (sum: any, sale: any) => {
       const amount = sale.revenue || sale.total || 0;
       return sum + amount;
     },
@@ -229,15 +229,15 @@ export async function getSellerIncome(
   return {
     pending: {
       total: pendingTotal,
-      orders: allSales.filter(sale => sale.status !== "COMPLETED" && sale.status !== "TO_RECEIVE").length,
+      orders: allSales.filter((sale: any) => sale.status !== "COMPLETED" && sale.status !== "TO_RECEIVE").length,
     },
     released: {
       total: releasedTotal,
       thisWeek: thisWeekTotal,
       thisMonth: thisMonthTotal,
-      orders: allSales.filter(sale => sale.status === "COMPLETED" || sale.status === "TO_RECEIVE").length,
+      orders: allSales.filter((sale: any) => sale.status === "COMPLETED" || sale.status === "TO_RECEIVE").length,
     },
-    orders: sales.map(sale => {
+    orders: sales.map((sale: any) => {
       const isReleased = sale.status === "COMPLETED" || sale.status === "TO_RECEIVE";
       return {
         id: sale.id,

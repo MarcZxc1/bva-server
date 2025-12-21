@@ -43,7 +43,7 @@ export class CampaignController {
       });
 
       // Transform campaigns to match frontend format
-      const transformedCampaigns = await Promise.all(campaigns.map(async (campaign) => {
+      const transformedCampaigns = await Promise.all(campaigns.map(async (campaign: any) => {
         const content = typeof campaign.content === "string" 
           ? JSON.parse(campaign.content) 
           : campaign.content;

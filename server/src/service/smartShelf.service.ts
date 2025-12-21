@@ -117,7 +117,7 @@ export async function getAtRiskInventory(
   }
 
   // Map to InventoryItem
-  const inventoryItems: InventoryItem[] = products.map((p) => ({
+  const inventoryItems: InventoryItem[] = products.map((p: any) => ({
     product_id: p.id,
     sku: p.sku,
     name: p.name,
@@ -150,7 +150,7 @@ export async function getAtRiskInventory(
 
   // Map to SalesRecord
   const salesRecords: SalesRecord[] = [];
-  sales.forEach((sale) => {
+  sales.forEach((sale: any) => {
     const items =
       typeof sale.items === "string" ? JSON.parse(sale.items) : sale.items;
 
@@ -223,7 +223,7 @@ export async function getAtRiskInventory(
     // Also group by product_id to avoid duplicates
     const atRiskMap = new Map<string, any>();
     
-    response.at_risk.forEach(item => {
+    response.at_risk.forEach((item: any) => {
       const productId = String(item.product_id);
       const score = Math.round((item.score || 0) * 100); // Convert 0-1 to 0-100
       const reasons = Array.isArray(item.reasons) 
@@ -242,7 +242,7 @@ export async function getAtRiskInventory(
         const existing = atRiskMap.get(productId)!;
         existing.score = Math.max(existing.score, score);
         // Merge unique reasons
-        reasons.forEach(r => {
+        reasons.forEach((r: any) => {
           if (!existing.reasons.includes(r)) {
             existing.reasons.push(r);
           }
@@ -258,9 +258,9 @@ export async function getAtRiskInventory(
     });
 
     const processedAtRisk = Array.from(atRiskMap.values())
-      .sort((a, b) => b.score - a.score); // Sort by score descending
+      .sort((a: any, b: any) => b.score - a.score); // Sort by score descending
 
-    console.log(`✅ ML service returned ${processedAtRisk.length} unique at-risk items (${processedAtRisk.filter(i => i.score >= 80).length} critical)`);
+    console.log(`✅ ML service returned ${processedAtRisk.length} unique at-risk items (${processedAtRisk.filter((i: any) => i.score >= 80).length} critical)`);
 
     return {
       at_risk: processedAtRisk,
@@ -333,13 +333,13 @@ export async function getUserAtRiskInventory(userId: string, platform?: string):
 
   // Filter linked shops by platform if specified
   const filteredLinkedShops = platform
-    ? linkedShops.filter(ls => ls.Shop.platform === platform)
+    ? linkedShops.filter((ls: any) => ls.Shop.platform === platform)
     : linkedShops;
 
   // Combine all shop IDs
   const allShopIds = [
-    ...ownedShops.map(s => s.id),
-    ...filteredLinkedShops.map(sa => sa.Shop.id),
+    ...ownedShops.map((s: any) => s.id),
+    ...filteredLinkedShops.map((sa: any) => sa.Shop.id),
   ];
 
   if (allShopIds.length === 0) {
@@ -385,7 +385,7 @@ export async function getUserAtRiskInventory(userId: string, platform?: string):
   });
 
   // Map to inventory items
-  const inventoryItems: InventoryItem[] = products.map((p) => ({
+  const inventoryItems: InventoryItem[] = products.map((p: any) => ({
     product_id: p.id,
     sku: p.sku,
     name: p.name,
@@ -397,7 +397,7 @@ export async function getUserAtRiskInventory(userId: string, platform?: string):
 
   // Map to sales records
   const salesRecords: SalesRecord[] = [];
-  sales.forEach((sale) => {
+  sales.forEach((sale: any) => {
     if (!sale.createdAt) return;
     const dateStr = sale.createdAt.toISOString().split("T")[0] as string;
     const items = typeof sale.items === "string" ? JSON.parse(sale.items) : sale.items;
@@ -452,7 +452,7 @@ export async function getUserAtRiskInventory(userId: string, platform?: string):
     // Process and normalize scores
     const atRiskMap = new Map<string, any>();
     
-    response.at_risk.forEach(item => {
+    response.at_risk.forEach((item: any) => {
       const productId = String(item.product_id);
       const score = Math.round((item.score || 0) * 100);
       const reasons = Array.isArray(item.reasons) 
@@ -468,7 +468,7 @@ export async function getUserAtRiskInventory(userId: string, platform?: string):
       if (atRiskMap.has(productId)) {
         const existing = atRiskMap.get(productId)!;
         existing.score = Math.max(existing.score, score);
-        reasons.forEach(r => {
+        reasons.forEach((r: any) => {
           if (!existing.reasons.includes(r)) {
             existing.reasons.push(r);
           }
@@ -483,7 +483,7 @@ export async function getUserAtRiskInventory(userId: string, platform?: string):
     });
 
     const processedAtRisk = Array.from(atRiskMap.values())
-      .sort((a, b) => b.score - a.score);
+      .sort((a: any, b: any) => b.score - a.score);
 
     console.log(`✅ Aggregated at-risk: ${processedAtRisk.length} unique items across all platforms`);
 
@@ -552,13 +552,13 @@ export async function getUserDashboardAnalytics(userId: string, platform?: strin
 
   // Filter linked shops by platform if specified
   const filteredLinkedShops = platform
-    ? linkedShops.filter(ls => ls.Shop.platform === platform)
+    ? linkedShops.filter((ls: any) => ls.Shop.platform === platform)
     : linkedShops;
 
   // Combine all shop IDs
   const allShopIds = [
-    ...ownedShops.map(s => s.id),
-    ...filteredLinkedShops.map(sa => sa.Shop.id),
+    ...ownedShops.map((s: any) => s.id),
+    ...filteredLinkedShops.map((sa: any) => sa.Shop.id),
   ];
 
   if (allShopIds.length === 0) {
@@ -619,7 +619,7 @@ export async function getUserDashboardAnalytics(userId: string, platform?: strin
   const sixtyDaysAgo = new Date();
   sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
 
-  sales.forEach((sale) => {
+  sales.forEach((sale: any) => {
     const saleRevenue = sale.revenue || sale.total || 0;
     totalRevenue += saleRevenue;
 
@@ -741,7 +741,7 @@ export async function getDashboardAnalytics(shopId: string) {
       });
 
       console.log(`📊 Dashboard Analytics: Found ${products.length} total products for shop ${shopId}`);
-      const syncedProducts = products.filter(p => p.externalId !== null);
+      const syncedProducts = products.filter((p: any) => p.externalId !== null);
       console.log(`   ${syncedProducts.length} synced from Shopee-Clone, ${products.length - syncedProducts.length} locally created`);
 
       // 2. Get ALL COMPLETED sales for lifetime metrics (total revenue, total orders)
@@ -767,7 +767,7 @@ export async function getDashboardAnalytics(shopId: string) {
 
       // Debug logging
       console.log(`📊 Dashboard Analytics for shop ${shopId}: Found ${allSales.length} total sales`);
-      const shopeeSales = allSales.filter(s => s.platform === 'SHOPEE');
+      const shopeeSales = allSales.filter((s: any) => s.platform === 'SHOPEE');
       console.log(`   ${shopeeSales.length} from SHOPEE platform, ${allSales.length - shopeeSales.length} from other platforms`);
 
       // 3. Get sales data for the last 60 days (for forecast/trends)
@@ -776,7 +776,7 @@ export async function getDashboardAnalytics(shopId: string) {
       sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
 
       const recentSales = allSales.filter(
-        (sale) => sale.createdAt >= sixtyDaysAgo
+        (sale: any) => sale.createdAt >= sixtyDaysAgo
       );
 
       // 4. Calculate lifetime totals from ALL sales
@@ -786,7 +786,7 @@ export async function getDashboardAnalytics(shopId: string) {
       let totalOrders = 0;
       const salesRecords: any[] = [];
 
-      allSales.forEach((sale) => {
+      allSales.forEach((sale: any) => {
         // Count only completed orders (already filtered by status='completed')
         totalOrders++;
         
@@ -799,7 +799,7 @@ export async function getDashboardAnalytics(shopId: string) {
 
         if (Array.isArray(items)) {
           items.forEach((item: any) => {
-            const product = products.find((p) => p.id === item.productId);
+            const product = products.find((p: any) => p.id === item.productId);
             if (product) {
               // Use actual cost from product if available
               totalCost += (product.cost || 0) * (item.quantity || 0);
@@ -824,7 +824,7 @@ export async function getDashboardAnalytics(shopId: string) {
 
       // Calculate profit (use stored profit if available, otherwise calculate)
       let totalProfit = 0;
-      allSales.forEach((sale) => {
+      allSales.forEach((sale: any) => {
         if (sale.profit !== null && sale.profit !== undefined) {
           totalProfit += sale.profit;
         } else {
@@ -834,7 +834,7 @@ export async function getDashboardAnalytics(shopId: string) {
             typeof sale.items === "string" ? JSON.parse(sale.items) : sale.items;
           if (Array.isArray(items)) {
             items.forEach((item: any) => {
-              const product = products.find((p) => p.id === item.productId);
+              const product = products.find((p: any) => p.id === item.productId);
               if (product) {
                 totalProfit += (item.price || 0) * (item.quantity || 0) - (product.cost || 0) * (item.quantity || 0);
               }
@@ -872,7 +872,7 @@ export async function getDashboardAnalytics(shopId: string) {
           
           // Only call ML service if we have at least 14 days of data
           if (uniqueDates.size >= 14) {
-            const productIds = products.slice(0, 10).map((p) => p.id); // Top 10 products
+            const productIds = products.slice(0, 10).map((p: any) => p.id); // Top 10 products
             
             console.log(`📊 Requesting forecast for shop ${shopId}: ${productIds.length} products, ${salesRecords.length} sales records, ${uniqueDates.size} unique days`);
             console.log(`📊 Sample sales data:`, salesRecords.slice(0, 3));

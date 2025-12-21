@@ -37,7 +37,7 @@ export async function getFacebookTokenFromSupabase(userId: string): Promise<{
       return null;
     }
 
-    const user = users.find(u => u.id === userId);
+    const user = users.find((u: any) => u.id === userId);
     if (!user) {
       return null;
     }

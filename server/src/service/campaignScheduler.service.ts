@@ -73,7 +73,7 @@ export class CampaignSchedulerService {
       });
       
       // Debug: Log shop and owner info
-      scheduledCampaigns.forEach((campaign) => {
+      scheduledCampaigns.forEach((campaign: any) => {
         console.log(`🔍 Campaign ${campaign.id} - Shop ID: ${campaign.shopId}, Owner ID: ${campaign.Shop?.ownerId}`);
       });
 
@@ -84,7 +84,7 @@ export class CampaignSchedulerService {
       console.log(`📅 Found ${scheduledCampaigns.length} campaign(s) ready to publish at ${now.toISOString()}`);
       
       // Log each campaign's scheduled time for debugging
-      scheduledCampaigns.forEach((campaign) => {
+      scheduledCampaigns.forEach((campaign: any) => {
         const scheduledTime = campaign.scheduledAt ? new Date(campaign.scheduledAt).toISOString() : 'N/A';
         const timeDiff = campaign.scheduledAt ? Math.round((now.getTime() - new Date(campaign.scheduledAt).getTime()) / 1000) : 0;
         console.log(`  - Campaign "${campaign.name}" (${campaign.id}): scheduled for ${scheduledTime} (${timeDiff}s ago)`);
