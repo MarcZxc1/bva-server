@@ -6,8 +6,8 @@ WORKDIR /app
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies
-RUN npm ci
+# Install dependencies (using npm install since bva-frontend uses bun.lockb)
+RUN npm install
 
 # Copy source code
 COPY . .

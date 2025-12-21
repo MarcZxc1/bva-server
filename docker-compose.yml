@@ -1,8 +1,6 @@
 # docker-compose.yml
 # Full stack: Main Server + ML Service + PostgreSQL + Redis
 
-version: "3.8"
-
 services:
   # PostgreSQL Database
   postgres:
