@@ -2,6 +2,29 @@
 
 This guide will help you set up the entire BVA Server project using Docker, eliminating the need for manual installation of dependencies.
 
+## 🚀 Quick Start (3 Steps)
+
+### Step 1: Navigate to Project
+```bash
+cd /home/marc/project/bva-server
+# or wherever you cloned the repository
+```
+
+### Step 2: Start All Services
+```bash
+docker compose up -d
+```
+
+### Step 3: Access Your Services
+- **Main Dashboard**: http://localhost:5173
+- **Backend API**: http://localhost:3000
+- **ML Service**: http://localhost:8001
+- **ML Service Docs**: http://localhost:8001/docs
+
+**That's it!** All services are now running.
+
+---
+
 ## Prerequisites
 
 - **Docker Desktop** (or Docker Engine + Docker Compose)
@@ -9,21 +32,6 @@ This guide will help you set up the entire BVA Server project using Docker, elim
   - Ensure Docker is running before proceeding
 
 - **Git** (to clone the repository)
-
-## Quick Start
-
-### 1. Clone the Repository
-
-```bash
-git clone <repository-url>
-cd bva-server
-```
-
-### 2. Start All Services
-
-```bash
-docker-compose up -d
-```
 
 This command will:
 - Build Docker images for all services
