@@ -13,12 +13,12 @@ RUN npm install
 # Copy source code
 COPY . .
 
-# Generate Prisma client
-RUN npx prisma generate
+# Generate Prisma client (will be regenerated on startup via dev script)
+RUN npx prisma generate || true
 
 # Expose port
 EXPOSE 3000
 
-# Start development server with hot reload
+# Start development server with hot reload (dev script runs prisma generate first)
 CMD ["npm", "run", "dev"]
 
