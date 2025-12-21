@@ -263,7 +263,9 @@ export async function getRestockStrategy(
                 totalQty += (item.quantity || 0);
                 // Track unique sales days for this product
                 const saleDate = new Date(sale.createdAt).toISOString().split('T')[0];
-                salesDays.add(saleDate);
+                if (saleDate) {
+                  salesDays.add(saleDate);
+                }
               }
             });
           }
@@ -362,6 +364,9 @@ export async function getRestockStrategy(
       });
       return;
     }
+    
+    // Log budget for debugging
+    console.log(`💰 [Restock Planner] Budget received: ${budget} (type: ${typeof budget}), parsed: ${budgetFloat}`);
 
     // Ensure restock_days is an integer between 1 and 90
     const restockDaysInt = Math.max(1, Math.min(90, Math.floor(Number(restockDays) || 14)));
@@ -416,6 +421,12 @@ export async function getRestockStrategy(
       console.log(`   - Total Cost: ₱${mlResponse.totals.total_cost.toFixed(2)}`);
       console.log(`   - Expected Profit: ₱${mlResponse.totals.expected_profit.toFixed(2)}`);
       console.log(`   - Expected ROI: ${mlResponse.totals.expected_roi.toFixed(2)}%`);
+      console.log(`   - Budget sent to ML: ₱${budgetFloat.toFixed(2)}, Budget in ML response: ₱${mlResponse.budget?.toFixed(2) || 'N/A'}`);
+      
+      // Warn if budget mismatch
+      if (mlResponse.budget && Math.abs(mlResponse.budget - budgetFloat) > 0.01) {
+        console.warn(`⚠️ [Restock Planner] Budget mismatch detected! Sent: ₱${budgetFloat.toFixed(2)}, Received: ₱${mlResponse.budget.toFixed(2)}`);
+      }
     } catch (mlError: any) {
       // CRITICAL: Log the full error response from Pydantic validation
       console.error("❌ ML Service Call Failed");
@@ -552,12 +563,30 @@ export async function getRestockStrategy(
       .filter(rec => rec.recommended_qty > 0) // Filter out zero quantity recommendations
       .sort((a, b) => b.priority - a.priority); // Sort by priority descending
 
+    // Fix budget display in insights - replace ML service budget with actual request budget
+    const insights = Array.isArray(mlResponse.reasoning) ? mlResponse.reasoning : [];
+    const actualBudget = budgetFloat;
+    
+    // Log budget values for debugging
+    console.log(`💰 [Restock Planner] Budget values - Request: ${actualBudget}, ML Response: ${mlResponse.budget}`);
+    
+    const correctedInsights = insights.map(insight => {
+      // Replace budget in insights with the actual budget from request
+      // This ensures the displayed budget matches what the user entered
+      if (typeof insight === 'string' && insight.includes('Budget: ₱')) {
+        const corrected = insight.replace(/Budget: ₱[\d,]+\.\d{2}/, `Budget: ₱${actualBudget.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
+        console.log(`💰 [Restock Planner] Budget insight corrected: "${insight}" → "${corrected}"`);
+        return corrected;
+      }
+      return insight;
+    });
+
     const responseData = {
       success: true,
       data: {
         strategy: mlResponse.strategy || goal,
         shopId: shopId,
-        budget: Number(budget),
+        budget: actualBudget,
         recommendations: recommendations,
         summary: {
             total_cost: mlResponse.totals?.total_cost || 0,
@@ -565,7 +594,7 @@ export async function getRestockStrategy(
             projected_revenue: mlResponse.totals?.expected_revenue || 0,
             roi: mlResponse.totals?.expected_roi || 0,
         },
-        insights: Array.isArray(mlResponse.reasoning) ? mlResponse.reasoning : [],
+        insights: correctedInsights,
         warnings: Array.isArray(mlResponse.warnings) ? mlResponse.warnings : []
       },
     };

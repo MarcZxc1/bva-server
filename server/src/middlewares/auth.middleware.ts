@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import { verifyToken } from "../utils/jwt";
+import { TokenExpiredError } from "jsonwebtoken";
 
 export const authMiddleware = (
   req: Request,
@@ -29,6 +30,14 @@ export const authMiddleware = (
     (req as any).userId = decoded.userId || decoded.user?.userId;
     next();
   } catch (error) {
+    if (error instanceof TokenExpiredError) {
+      console.error("Auth middleware error: Token expired at", error.expiredAt);
+      res.status(401).json({ 
+        error: "Token expired",
+        expiredAt: error.expiredAt 
+      });
+      return;
+    }
     console.error("Auth middleware error:", error);
     res.status(401).json({ error: "Invalid token" });
   }

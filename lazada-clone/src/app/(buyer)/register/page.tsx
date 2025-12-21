@@ -35,7 +35,7 @@ function RegisterForm() {
       authAPI.getProfile()
         .then((response) => {
           console.log('👤 User profile fetched:', response.data);
-          const userData = response.data;
+          const userData = response.data as any;
           const shops = userData.shops || [];
           setUser(userData, token, shops);
           console.log('✅ User state updated in register');
@@ -92,7 +92,8 @@ function RegisterForm() {
         role: 'BUYER',
         platform: 'LAZADA_CLONE' 
       });
-      const { token, user, shops } = response.data.data;
+      const responseData = response.data as any;
+      const { token, user, shops } = responseData.data;
       setUser(user, token, shops);
       localStorage.setItem('token', token);
       localStorage.setItem('shops', JSON.stringify(shops));

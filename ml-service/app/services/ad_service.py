@@ -748,8 +748,11 @@ class AdService:
                 prompt += f"\n\nTemplate Context: {template_context}. Apply these customizations to the ad design while maintaining product accuracy. "
             
             # Add custom prompt if provided (for image editing/regeneration)
+            # Remove redundant information that's already in the base prompt
             if custom_prompt:
-                prompt += f"\n\nCUSTOM EDITING INSTRUCTIONS: {custom_prompt}. Apply these modifications to the generated ad image while keeping the product appearance accurate. "
+                # Clean the custom prompt to remove redundant product name, playbook info
+                cleaned_prompt = self._clean_custom_prompt(custom_prompt, product_name, playbook_config.name)
+                prompt += f"\n\nCUSTOM EDITING INSTRUCTIONS: {cleaned_prompt}. Apply these modifications to the generated ad image while keeping the product appearance accurate. "
             
             if not self.gemini_configured or not self.client:
                 logger.warning("gemini_not_available", mode="placeholder_fallback")
@@ -1110,20 +1113,27 @@ class AdService:
                 prompt_parts.append(f"Goal: {result_descriptions.get(result_type, result_type)}")
             
             analysis_prompt = f"""
-You are an expert marketing prompt engineer. Provide suggestions to improve ad generation prompts.
+You are an expert marketing prompt engineer specializing in product advertising. Provide actionable suggestions to improve ad generation prompts.
 
-{'Analyze the product image provided and suggest specific improvements based on visual elements.' if product_image_url else ''}
+{'Analyze the product image provided and suggest specific improvements based on visual elements, product features, and how to make the ad more compelling.' if product_image_url else ''}
 
 Context:
 {chr(10).join(prompt_parts)}
 
+IMPORTANT REQUIREMENTS:
+- All suggestions must be exactly 3 sentences long
+- Each suggestion should be product-specific and actionable
+- Focus on how to improve the ad based on the product's unique features and benefits
+- Avoid generic advice - make it specific to this product
+- When editing existing images, suggest only NEW modifications (don't repeat what's already in the current prompt)
+
 Provide:
-1. {'3-5 specific image-based suggestions' if product_image_url else '3-5 general visual suggestions'} for improving the ad prompt
-2. {'3-5 result-based suggestions' if result_type else '3-5 general improvement suggestions'} tailored to the goal
-3. 5 general tips for creating effective ad prompts
+1. {'3-5 image-based suggestions' if product_image_url else '3-5 general visual suggestions'} - Each must be exactly 3 sentences focusing on product-specific visual improvements
+2. {'3-5 result-based suggestions' if result_type else '3-5 general improvement suggestions'} - Each must be exactly 3 sentences tailored to the goal and product
+3. 5 general tips - Each must be exactly 3 sentences for creating effective ad prompts for this product type
 
 Format your response as JSON with keys: image_based_suggestions, result_based_suggestions, general_tips
-Each should be an array of strings.
+Each should be an array of strings, where each string is exactly 3 sentences.
 """
             
             # If image URL provided, include it in the request
@@ -1247,50 +1257,109 @@ Each should be an array of strings.
         
         return suggestions
     
+    def _clean_custom_prompt(self, custom_prompt: str, product_name: str, playbook_name: str) -> str:
+        """
+        Remove redundant information from custom prompt when editing generated images.
+        
+        Removes:
+        - Product name (already in base prompt)
+        - Playbook name (already in base prompt)
+        - Generic instructions that are already handled
+        - Duplicate information about product accuracy
+        """
+        cleaned = custom_prompt.strip()
+        
+        # Remove redundant product name mentions (case-insensitive)
+        # Only remove if it's a standalone mention, not part of a feature description
+        product_name_lower = product_name.lower()
+        # Pattern: "product name" or "the product name" at start or after punctuation
+        patterns_to_remove = [
+            rf'\b{re.escape(product_name)}\b',
+            rf'\bthe\s+{re.escape(product_name)}\b',
+            rf'\b{re.escape(product_name)}\s+product\b',
+        ]
+        
+        for pattern in patterns_to_remove:
+            # Only remove if it's not part of a meaningful description
+            # Check if it's followed by meaningful content (not just "should be" or similar)
+            cleaned = re.sub(
+                rf'(?i)(?:^|[\.,;:]\s*){pattern}(?:\s+should\s+be|\s+must\s+be|\s+needs?\s+to|\s+is\s+required)[\.,;:]?\s*',
+                '',
+                cleaned,
+                flags=re.IGNORECASE
+            )
+        
+        # Remove redundant playbook mentions
+        cleaned = re.sub(
+            rf'(?i)\b{re.escape(playbook_name)}\s+(?:playbook|style|theme|type)[\.,;:]?\s*',
+            '',
+            cleaned
+        )
+        
+        # Remove redundant accuracy/product appearance instructions
+        redundant_phrases = [
+            r'keep\s+the\s+product\s+accurate',
+            r'maintain\s+product\s+accuracy',
+            r'product\s+appearance\s+must\s+be\s+accurate',
+            r'do\s+not\s+alter\s+the\s+product',
+            r'product\s+should\s+remain\s+the\s+same',
+        ]
+        
+        for phrase in redundant_phrases:
+            cleaned = re.sub(rf'(?i){phrase}[\.,;:]?\s*', '', cleaned)
+        
+        # Remove extra whitespace and normalize
+        cleaned = re.sub(r'\s+', ' ', cleaned).strip()
+        
+        # Remove leading/trailing punctuation that might be left
+        cleaned = re.sub(r'^[\.,;:\s]+|[\.,;:\s]+$', '', cleaned)
+        
+        return cleaned if cleaned else custom_prompt  # Return original if cleaning removed everything
+    
     def _get_fallback_suggestions(self, result_type: Optional[str]) -> Dict[str, List[str]]:
-        """Return fallback suggestions when AI is unavailable."""
+        """Return fallback suggestions when AI is unavailable. All suggestions are 3 sentences."""
         suggestions: Dict[str, List[str]] = {
             "image_based_suggestions": [
-                "Highlight the product's main features with appropriate lighting",
-                "Use a clean background that doesn't distract from the product",
-                "Ensure the product is the focal point of the image"
+                "Analyze the product's key visual features and highlight them with strategic lighting that emphasizes texture and form. Use a clean, uncluttered background that complements the product's color scheme without competing for attention. Ensure the product occupies at least 60% of the frame and is positioned as the clear focal point with appropriate depth of field.",
+                "Consider the product's unique selling points and create visual hierarchy that guides the eye to these features first. Apply color theory principles to choose background colors that make the product pop while maintaining brand consistency. Use professional product photography techniques like three-point lighting to showcase the product's quality and details.",
+                "Identify the product's most compelling angle and composition that best represents its value proposition. Incorporate subtle design elements like shadows, reflections, or complementary props that enhance rather than distract from the product. Maintain visual balance and ensure all marketing elements (badges, text overlays) integrate seamlessly without obscuring product details."
             ],
             "result_based_suggestions": [],
             "general_tips": [
-                "Use specific product features and benefits",
-                "Include emotional triggers relevant to your audience",
-                "Add visual elements that complement the product",
-                "Consider your target audience's preferences",
-                "Use action-oriented language"
+                "Focus on the product's unique features and translate them into visual benefits that resonate with your target audience. Use specific product attributes like materials, functionality, or design elements to create compelling visual narratives. Ensure every design choice reinforces the product's value proposition and differentiates it from competitors.",
+                "Understand your target audience's preferences and create visual content that speaks directly to their needs and aspirations. Incorporate emotional triggers through color psychology, imagery, and composition that align with your audience's lifestyle and values. Test different visual approaches to find what resonates best with your specific customer segment.",
+                "Use action-oriented visual language that encourages engagement and conversion through clear visual hierarchy and compelling imagery. Include visual call-to-action elements that guide the viewer's eye naturally toward the product and key messaging. Balance aesthetic appeal with functional clarity to ensure the ad communicates both beauty and utility effectively.",
+                "Consider the context where your ad will be displayed and optimize visual elements accordingly for maximum impact. Adapt color schemes, text sizes, and composition to work well across different platforms and screen sizes. Ensure the ad stands out in crowded feeds while maintaining brand consistency and professional appearance.",
+                "Leverage the product's story and brand narrative to create authentic visual connections with potential customers. Use visual metaphors, lifestyle imagery, or before/after scenarios that demonstrate the product's value in real-world contexts. Build trust through high-quality imagery that accurately represents the product and sets realistic expectations."
             ]
         }
         
         if result_type:
             result_suggestions = {
                 "attention": [
-                    "Use bold, contrasting colors to grab attention",
-                    "Add dynamic elements like motion blur or sparkles",
-                    "Create visual hierarchy with size and positioning"
+                    "Use bold, high-contrast color combinations that make the product stand out immediately in crowded social media feeds. Incorporate dynamic visual elements like motion blur effects, sparkles, or animated-style graphics that catch the eye and create visual interest. Create strong visual hierarchy through strategic size differences, positioning, and focal points that guide attention directly to the product and key messaging.",
+                    "Apply the rule of thirds and use negative space strategically to make the product the undeniable center of attention. Use vibrant, saturated colors that contrast with typical feed backgrounds to ensure your ad breaks through the visual noise. Add subtle animation cues or directional elements like arrows, light rays, or motion lines that naturally draw the eye toward the product.",
+                    "Leverage psychological principles like the Von Restorff effect by making your product visually distinct from surrounding content through unique color schemes or unusual compositions. Use bright, attention-grabbing accents or highlights that create visual pop without overwhelming the product itself. Ensure the product is positioned in the most visually prominent area with supporting elements that enhance rather than compete for attention."
                 ],
                 "conversion": [
-                    "Include clear call-to-action elements",
-                    "Show product benefits prominently",
-                    "Add trust indicators like badges or testimonials"
+                    "Include clear, prominent call-to-action elements like buttons, arrows, or text overlays that guide viewers toward making a purchase decision. Showcase the product's key benefits and value propositions prominently through visual storytelling that demonstrates real-world use or outcomes. Add trust-building indicators like quality badges, customer testimonials, or security symbols that reduce purchase hesitation and increase conversion confidence.",
+                    "Create a sense of value and urgency through visual elements like discount badges, price comparisons, or limited-time offers that encourage immediate action. Use before-and-after imagery or lifestyle scenarios that help potential customers visualize themselves using the product successfully. Incorporate social proof elements like 'bestseller' labels, review stars, or customer count indicators that validate the product's popularity and quality.",
+                    "Design the ad with a clear visual flow that leads from attention-grabbing elements to product details to call-to-action in a natural progression. Use color psychology strategically with conversion-focused colors like orange or red for CTAs while maintaining overall brand consistency. Ensure all visual elements work together to create a compelling narrative that addresses customer pain points and positions the product as the ideal solution."
                 ],
                 "engagement": [
-                    "Use relatable scenarios or lifestyle imagery",
-                    "Include interactive elements or questions",
-                    "Create shareable, visually appealing content"
+                    "Use relatable lifestyle scenarios or aspirational imagery that viewers can connect with emotionally and see themselves in the context of using your product. Include interactive visual elements like questions, polls, or 'swipe to see more' cues that encourage active participation rather than passive viewing. Create visually shareable content with aesthetically pleasing compositions, trending design styles, or meme-worthy elements that people want to share with their networks.",
+                    "Incorporate storytelling elements through sequential imagery, visual narratives, or behind-the-scenes content that builds emotional connection and engagement. Use user-generated content styles or authentic-looking imagery that feels genuine and relatable rather than overly polished or corporate. Add visual hooks like intriguing compositions, unexpected elements, or visual questions that spark curiosity and encourage comments and shares.",
+                    "Leverage current design trends, color palettes, or visual styles that resonate with your target audience's aesthetic preferences and cultural context. Create visually cohesive content that fits naturally into social media feeds while still standing out through unique product presentation. Include visual elements that invite interaction like 'tag a friend' cues, comparison visuals, or visual challenges that encourage engagement beyond just viewing."
                 ],
                 "brand": [
-                    "Incorporate brand colors and style consistently",
-                    "Use brand typography and logo placement",
-                    "Maintain brand voice and aesthetic"
+                    "Incorporate brand colors, typography, and visual style consistently throughout the ad to reinforce brand identity and recognition. Use brand-specific design elements like logo placement, signature patterns, or distinctive visual motifs that create immediate brand association. Maintain brand voice and aesthetic standards while adapting to the product's unique features and the playbook's marketing objectives.",
+                    "Create visual consistency with your brand's existing content library through shared color palettes, design language, and compositional styles. Use brand-specific imagery, photography styles, or illustration techniques that align with your brand's personality and values. Ensure the ad feels authentically part of your brand family while still being optimized for the specific product and marketing goal.",
+                    "Leverage brand assets like mascots, signature graphics, or brand-specific visual elements that strengthen brand recall and connection. Apply your brand's visual guidelines consistently including spacing, typography choices, and color usage that maintain brand integrity. Build brand equity through visual storytelling that reinforces your brand's unique value proposition and differentiates you from competitors."
                 ],
                 "urgency": [
-                    "Add countdown timers or limited-time badges",
-                    "Use action-oriented language and visuals",
-                    "Create scarcity with 'limited stock' indicators"
+                    "Add prominent countdown timers, limited-time badges, or time-sensitive visual indicators that create immediate urgency and prompt quick action. Use action-oriented visual language through dynamic compositions, motion cues, or energetic color schemes that convey speed and immediacy. Create visual scarcity indicators like 'limited stock' badges, 'only X left' counters, or 'selling fast' warnings that motivate immediate purchase decisions.",
+                    "Incorporate visual urgency signals like flashing elements, bold expiration dates, or prominent deadline displays that make time sensitivity impossible to ignore. Use high-energy color combinations like red and orange that psychologically trigger urgency and action responses. Design the ad with a sense of momentum and forward motion through directional elements, dynamic layouts, or action-oriented imagery that suggests immediate action is needed.",
+                    "Create visual FOMO (fear of missing out) through imagery that shows others benefiting from the product or limited availability indicators. Use contrasting visual elements that highlight the urgency message while maintaining product visibility and brand consistency. Ensure urgency elements are prominent but don't overwhelm the product itself, maintaining a balance between creating urgency and showcasing value."
                 ]
             }
             suggestions["result_based_suggestions"] = result_suggestions.get(result_type, [])

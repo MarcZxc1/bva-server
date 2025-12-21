@@ -257,13 +257,19 @@ def profit_maximization(
         )
         current_days_of_stock = p.stock / daily_demand if daily_demand > 0 else 999
         
-        # Urgency multiplier: higher when stock is low
-        if current_days_of_stock < 3:
-            urgency = 3.0  # Critical
-        elif current_days_of_stock < 7:
-            urgency = 2.0  # High
+        # Enhanced urgency multiplier: stronger stockout prevention
+        if current_days_of_stock < 0.5:  # Already out of stock
+            urgency = 10.0  # Critical - must restock
+        elif current_days_of_stock < 1.0:  # Less than 1 day
+            urgency = 8.0  # Very critical
+        elif current_days_of_stock < 2.0:  # Less than 2 days
+            urgency = 5.0  # Critical
+        elif current_days_of_stock < 3.0:  # Less than 3 days
+            urgency = 3.0  # High priority
+        elif current_days_of_stock < 7.0:  # Less than 7 days
+            urgency = 2.0  # Moderate priority
         elif current_days_of_stock < restock_days:
-            urgency = 1.5  # Moderate
+            urgency = 1.5  # Low priority
         else:
             urgency = 1.0  # Normal
         
@@ -291,37 +297,143 @@ def profit_maximization(
                 'unit_profit': unit_profit
             })
     
-    # Sort by profit score (descending)
-    scored_products.sort(key=lambda x: x['score'], reverse=True)
+    # Two-phase selection: First cover critical stockouts, then optimize profit
+    # Phase 1: Separate critical items (< 1 day stock) from others
+    critical_items = []
+    non_critical_items = []
+    
+    for item in scored_products:
+        p = item['product']
+        base_demand = p.avg_daily_sales
+        daily_demand = apply_context_multipliers(
+            base_demand=base_demand,
+            product=p,
+            is_payday=is_payday,
+            upcoming_holiday=upcoming_holiday
+        )
+        current_days = p.stock / daily_demand if daily_demand > 0 else 999
+        
+        if current_days < 1.0:
+            # For critical items, calculate emergency quantity (2-5 days) instead of full restock
+            # This allows covering more critical items with limited budget
+            # Use smaller emergency quantity for high-velocity products to save budget
+            # Prioritize covering more items over larger quantities per item
+            if daily_demand > 40:  # Very high velocity products
+                emergency_days = 2  # Minimal emergency quantity for very fast movers
+            elif daily_demand > 20:  # High velocity products
+                emergency_days = 3  # Smaller emergency quantity for fast movers
+            else:
+                emergency_days = 5  # Standard emergency quantity
+            emergency_qty = max(0, int((daily_demand * emergency_days) - p.stock))
+            # Ensure emergency quantity is at least min_order_qty (critical items must be restocked)
+            if emergency_qty > 0:
+                emergency_qty = max(emergency_qty, p.min_order_qty)
+            else:
+                # If calculated emergency_qty is 0 or negative, use min_order_qty as fallback
+                # This ensures critical items always get restocked
+                emergency_qty = p.min_order_qty
+            
+            if p.max_order_qty:
+                emergency_qty = min(emergency_qty, p.max_order_qty)
+            
+            # Store both emergency and full quantities (always set for critical items)
+            item['emergency_qty'] = emergency_qty
+            item['emergency_cost'] = p.cost * emergency_qty
+            # Calculate efficiency based on emergency quantity (cheaper = can buy more items)
+            efficiency = item['score'] / item['emergency_cost'] if item['emergency_cost'] > 0 else 0
+            item['efficiency'] = efficiency
+            critical_items.append(item)
+        else:
+            non_critical_items.append(item)
+    
+    # Sort critical items by efficiency (score per peso for emergency quantity)
+    critical_items.sort(key=lambda x: x['efficiency'], reverse=True)
+    non_critical_items.sort(key=lambda x: x['score'], reverse=True)
+    
+    # Combine: critical items first (with emergency quantities), then non-critical
+    sorted_products = critical_items + non_critical_items
     
     # Greedily select products within budget
     selected_items: List[RestockItem] = []
     remaining_budget = budget
     
-    for item in scored_products:
+    for item in sorted_products:
         p = item['product']
-        qty = item['qty']
         
-        # Calculate cost for this quantity
-        total_cost = p.cost * qty
-        
-        # If we can't afford the full quantity, buy what we can
-        if total_cost > remaining_budget:
-            # Buy maximum we can afford
-            affordable_qty = int(remaining_budget / p.cost)
+        # For critical items, ALWAYS use emergency quantity (never buy more, even if budget allows)
+        # This ensures we can cover more critical items instead of one expensive one
+        if 'emergency_qty' in item and item['emergency_qty'] > 0:
+            # Always use emergency quantity for critical items (don't buy full quantity)
+            # This maximizes the number of critical items we can cover
+            qty = item['emergency_qty']
+            total_cost = item['emergency_cost']
             
-            # Respect minimum order quantity
-            if affordable_qty < p.min_order_qty:
-                continue  # Can't afford minimum order
-            
-            qty = affordable_qty
+            # If we can't afford emergency quantity, try minimum viable
+            # But NEVER buy more than emergency_qty for critical items (cap it)
+            if total_cost > remaining_budget:
+                affordable_qty = int(remaining_budget / p.cost)
+                if affordable_qty < p.min_order_qty:
+                    continue  # Can't afford minimum order
+                # Cap at emergency_qty to ensure we don't overspend on one item
+                # This saves budget for other critical items
+                qty = min(affordable_qty, item['emergency_qty'])
+                total_cost = p.cost * qty
+        else:
+            # For non-critical items, use full quantity
+            qty = item['qty']
             total_cost = p.cost * qty
+            
+            # If we can't afford the full quantity, buy what we can
+            if total_cost > remaining_budget:
+                affordable_qty = int(remaining_budget / p.cost)
+                if affordable_qty < p.min_order_qty:
+                    continue  # Can't afford minimum order
+                qty = affordable_qty
+                total_cost = p.cost * qty
         
         if qty > 0 and total_cost <= remaining_budget:
             expected_revenue = qty * p.price
             # Ensure expected_profit is never negative (clamp to 0)
             expected_profit = max(0.0, qty * item['unit_profit'])
             days_of_stock = qty / p.avg_daily_sales if p.avg_daily_sales > 0 else 999
+            
+            # Add stockout urgency info to reasoning for critical items
+            urgency_note = ""
+            # Check if this is a critical item that should use emergency quantity
+            has_emergency_qty = 'emergency_qty' in item and item['emergency_qty'] > 0
+            is_emergency_qty = has_emergency_qty and qty == item.get('emergency_qty', 0)
+            current_days = p.stock / (apply_context_multipliers(
+                p.avg_daily_sales, p, is_payday, upcoming_holiday) or 1) if p.avg_daily_sales > 0 else 999
+            
+            if current_days < 1.0:
+                # For critical items, show emergency restock note if we have emergency_qty set
+                # Even if we couldn't afford the full emergency quantity, it's still an emergency restock
+                if has_emergency_qty:
+                    # Determine emergency days used (based on the emergency_qty calculation, not actual qty)
+                    base_demand = p.avg_daily_sales
+                    daily_demand = apply_context_multipliers(
+                        base_demand=base_demand,
+                        product=p,
+                        is_payday=is_payday,
+                        upcoming_holiday=upcoming_holiday
+                    )
+                    if daily_demand > 40:
+                        emergency_days_used = 2
+                    elif daily_demand > 20:
+                        emergency_days_used = 3
+                    else:
+                        emergency_days_used = 5
+                    
+                    if is_emergency_qty:
+                        urgency_note = f", CRITICAL: {current_days:.1f} days stock (emergency {emergency_days_used}-day restock)"
+                    else:
+                        # Couldn't afford full emergency quantity, but still critical
+                        urgency_note = f", CRITICAL: {current_days:.1f} days stock (partial emergency restock)"
+                else:
+                    # Critical item but no emergency_qty set (shouldn't happen, but handle gracefully)
+                    urgency_note = f", CRITICAL: {current_days:.1f} days stock"
+            elif current_days < 3.0:
+                urgency_note = f", urgent: {current_days:.1f} days stock"
             
             selected_items.append(RestockItem(
                 product_id=p.product_id,
@@ -335,7 +447,7 @@ def profit_maximization(
                 priority_score=item['score'],
                 reasoning=f"High profit margin ({p.profit_margin:.1%}), "
                          f"{p.avg_daily_sales:.1f} units/day, "
-                         f"urgency: {item['urgency']:.1f}x"
+                         f"urgency: {item['urgency']:.1f}x{urgency_note}"
             ))
             
             remaining_budget -= total_cost
@@ -343,7 +455,18 @@ def profit_maximization(
             if remaining_budget < 1:  # Less than ₱1 remaining
                 break
     
-    reasoning.append(f"Selected {len(selected_items)} products with highest profit potential")
+    # Count critical items selected
+    critical_selected = sum(1 for item in selected_items 
+                           for p in sorted_products 
+                           if p['product'].product_id == item.product_id and 
+                           (p['product'].stock / (apply_context_multipliers(
+                               p['product'].avg_daily_sales, p['product'], 
+                               is_payday, upcoming_holiday) or 1)) < 1.0)
+    
+    if critical_selected > 0:
+        reasoning.append(f"Selected {len(selected_items)} products ({critical_selected} critical stockout items prioritized)")
+    else:
+        reasoning.append(f"Selected {len(selected_items)} products with highest profit potential")
     reasoning.append(f"Prioritized items with profit margin > 20% and strong sales velocity")
     
     return selected_items, reasoning
@@ -390,7 +513,7 @@ def volume_maximization(
     if upcoming_holiday:
         reasoning.append(f"Context: Upcoming holiday ({upcoming_holiday}) - demand increased by 50%")
     
-    # Calculate volume scores
+    # Calculate volume scores with stockout prevention
     scored_products = []
     for p in products:
         # Apply context multipliers to base demand
@@ -402,12 +525,28 @@ def volume_maximization(
             upcoming_holiday=upcoming_holiday
         )
         
-        # Volume score = adjusted sales velocity / cost (units per peso)
-        volume_score = adjusted_demand / p.cost if p.cost > 0 else 0
-        
         # Calculate needed quantity using adjusted demand
         daily_demand = adjusted_demand
         current_days_of_stock = p.stock / daily_demand if daily_demand > 0 else 999
+        
+        # Enhanced urgency multiplier for stockout prevention
+        if current_days_of_stock < 0.5:  # Already out of stock
+            urgency = 10.0  # Critical - must restock
+        elif current_days_of_stock < 1.0:  # Less than 1 day
+            urgency = 8.0  # Very critical
+        elif current_days_of_stock < 2.0:  # Less than 2 days
+            urgency = 5.0  # Critical
+        elif current_days_of_stock < 3.0:  # Less than 3 days
+            urgency = 3.0  # High priority
+        elif current_days_of_stock < 7.0:  # Less than 7 days
+            urgency = 2.0  # Moderate priority
+        elif current_days_of_stock < restock_days:
+            urgency = 1.5  # Low priority
+        else:
+            urgency = 1.0  # Normal
+        
+        # Volume score = adjusted sales velocity / cost × urgency (units per peso with urgency)
+        volume_score = (adjusted_demand / p.cost if p.cost > 0 else 0) * urgency
         
         needed_qty = max(0, int((daily_demand * restock_days) - p.stock))
         
@@ -421,34 +560,142 @@ def volume_maximization(
             scored_products.append({
                 'product': p,
                 'score': volume_score,
-                'qty': needed_qty
+                'qty': needed_qty,
+                'current_days_of_stock': current_days_of_stock,
+                'urgency': urgency
             })
     
-    # Sort by volume score (descending)
-    scored_products.sort(key=lambda x: x['score'], reverse=True)
+    # Two-phase selection: First cover critical stockouts, then optimize volume
+    # Phase 1: Separate critical items (< 1 day stock) from others
+    critical_items = []
+    non_critical_items = []
+    
+    for item in scored_products:
+        if item['current_days_of_stock'] < 1.0:
+            p = item['product']
+            base_demand = p.avg_daily_sales
+            daily_demand = apply_context_multipliers(
+                base_demand=base_demand,
+                product=p,
+                is_payday=is_payday,
+                upcoming_holiday=upcoming_holiday
+            )
+            # For critical items, calculate emergency quantity (2-5 days) instead of full restock
+            # Use smaller emergency quantity for high-velocity products to save budget
+            if daily_demand > 40:  # Very high velocity products
+                emergency_days = 2  # Minimal emergency quantity for very fast movers
+            elif daily_demand > 20:  # High velocity products
+                emergency_days = 3  # Smaller emergency quantity for fast movers
+            else:
+                emergency_days = 5  # Standard emergency quantity
+            
+            emergency_qty = max(0, int((daily_demand * emergency_days) - p.stock))
+            # Ensure emergency quantity is at least min_order_qty (critical items must be restocked)
+            if emergency_qty > 0:
+                emergency_qty = max(emergency_qty, p.min_order_qty)
+            else:
+                # If calculated emergency_qty is 0 or negative, use min_order_qty as fallback
+                # This ensures critical items always get restocked
+                emergency_qty = p.min_order_qty
+            
+            if p.max_order_qty:
+                emergency_qty = min(emergency_qty, p.max_order_qty)
+            
+            # Store both emergency and full quantities (always set for critical items)
+            item['emergency_qty'] = emergency_qty
+            item['emergency_cost'] = p.cost * emergency_qty
+            # Calculate efficiency based on emergency quantity (cheaper = can buy more items)
+            efficiency = item['score'] / item['emergency_cost'] if item['emergency_cost'] > 0 else 0
+            item['efficiency'] = efficiency
+            critical_items.append(item)
+        else:
+            non_critical_items.append(item)
+    
+    # Sort critical items by efficiency (volume score per peso for emergency quantity)
+    critical_items.sort(key=lambda x: x['efficiency'], reverse=True)
+    non_critical_items.sort(key=lambda x: x['score'], reverse=True)
+    
+    # Combine: critical items first (with emergency quantities), then non-critical
+    sorted_products = critical_items + non_critical_items
     
     # Greedily select products
     selected_items: List[RestockItem] = []
     remaining_budget = budget
     
-    for item in scored_products:
+    for item in sorted_products:
         p = item['product']
-        qty = item['qty']
         
-        total_cost = p.cost * qty
-        
-        if total_cost > remaining_budget:
-            affordable_qty = int(remaining_budget / p.cost)
-            if affordable_qty < p.min_order_qty:
-                continue
-            qty = affordable_qty
+        # For critical items, ALWAYS use emergency quantity (never buy more, even if budget allows)
+        # This ensures we can cover more critical items instead of one expensive one
+        if 'emergency_qty' in item and item['emergency_qty'] > 0:
+            # Always use emergency quantity for critical items (don't buy full quantity)
+            # This maximizes the number of critical items we can cover
+            qty = item['emergency_qty']
+            total_cost = item['emergency_cost']
+            
+            # If we can't afford emergency quantity, try minimum viable
+            # But NEVER buy more than emergency_qty for critical items (cap it)
+            if total_cost > remaining_budget:
+                affordable_qty = int(remaining_budget / p.cost)
+                if affordable_qty < p.min_order_qty:
+                    continue  # Can't afford minimum order
+                # Cap at emergency_qty to ensure we don't overspend on one item
+                # This saves budget for other critical items
+                qty = min(affordable_qty, item['emergency_qty'])
+                total_cost = p.cost * qty
+        else:
+            # For non-critical items, use full quantity
+            qty = item['qty']
             total_cost = p.cost * qty
+            
+            # If we can't afford the full quantity, buy what we can
+            if total_cost > remaining_budget:
+                affordable_qty = int(remaining_budget / p.cost)
+                if affordable_qty < p.min_order_qty:
+                    continue  # Can't afford minimum order
+                qty = affordable_qty
+                total_cost = p.cost * qty
         
         if qty > 0 and total_cost <= remaining_budget:
             expected_revenue = qty * p.price
             # Ensure expected_profit is never negative (clamp to 0)
             expected_profit = max(0.0, qty * (p.price - p.cost))
             days_of_stock = qty / p.avg_daily_sales if p.avg_daily_sales > 0 else 999
+            
+            # Add stockout urgency info to reasoning for critical items
+            urgency_note = ""
+            # Check if this is a critical item that should use emergency quantity
+            has_emergency_qty = 'emergency_qty' in item and item['emergency_qty'] > 0
+            is_emergency_qty = has_emergency_qty and qty == item.get('emergency_qty', 0)
+            if item['current_days_of_stock'] < 1.0:
+                # For critical items, show emergency restock note if we have emergency_qty set
+                # Even if we couldn't afford the full emergency quantity, it's still an emergency restock
+                if has_emergency_qty:
+                    # Determine emergency days used (based on the emergency_qty calculation, not actual qty)
+                    base_demand = p.avg_daily_sales
+                    daily_demand = apply_context_multipliers(
+                        base_demand=base_demand,
+                        product=p,
+                        is_payday=is_payday,
+                        upcoming_holiday=upcoming_holiday
+                    )
+                    if daily_demand > 40:
+                        emergency_days_used = 2
+                    elif daily_demand > 20:
+                        emergency_days_used = 3
+                    else:
+                        emergency_days_used = 5
+                    
+                    if is_emergency_qty:
+                        urgency_note = f", CRITICAL: {item['current_days_of_stock']:.1f} days stock (emergency {emergency_days_used}-day restock)"
+                    else:
+                        # Couldn't afford full emergency quantity, but still critical
+                        urgency_note = f", CRITICAL: {item['current_days_of_stock']:.1f} days stock (partial emergency restock)"
+                else:
+                    # Critical item but no emergency_qty set (shouldn't happen, but handle gracefully)
+                    urgency_note = f", CRITICAL: {item['current_days_of_stock']:.1f} days stock"
+            elif item['current_days_of_stock'] < 3.0:
+                urgency_note = f", urgent: {item['current_days_of_stock']:.1f} days stock"
             
             selected_items.append(RestockItem(
                 product_id=p.product_id,
@@ -462,7 +709,7 @@ def volume_maximization(
                 priority_score=item['score'],
                 reasoning=f"High turnover ({p.avg_daily_sales:.1f} units/day), "
                          f"low cost (₱{p.cost:.2f}), "
-                         f"efficiency: {item['score']:.2f} units/₱"
+                         f"efficiency: {item['score']:.2f} units/₱{urgency_note}"
             ))
             
             remaining_budget -= total_cost
@@ -470,8 +717,16 @@ def volume_maximization(
             if remaining_budget < 1:
                 break
     
-    reasoning.append(f"Selected {len(selected_items)} fast-moving, cost-efficient products")
-    reasoning.append(f"Maximized inventory turnover and shelf replenishment")
+    # Count critical items selected
+    critical_selected = sum(1 for item in selected_items 
+                           for p in sorted_products 
+                           if p['product'].product_id == item.product_id and p.get('current_days_of_stock', 999) < 1.0)
+    
+    if critical_selected > 0:
+        reasoning.append(f"Selected {len(selected_items)} fast-moving products ({critical_selected} critical stockout items prioritized)")
+    else:
+        reasoning.append(f"Selected {len(selected_items)} fast-moving, cost-efficient products")
+    reasoning.append(f"Optimized for stockout prevention and inventory turnover")
     
     return selected_items, reasoning
 
@@ -484,15 +739,18 @@ def balanced_strategy(
     upcoming_holiday: str | None = None
 ) -> Tuple[List[RestockItem], List[str]]:
     """
-    Balanced Growth Strategy.
+    Balanced Growth Strategy with Stockout Prevention.
     
     Algorithm:
-    1. Calculate hybrid score = (profit_score × 0.5) + (volume_score × 0.5)
-    2. Normalize both scores to 0-1 range
-    3. Sort by hybrid score
-    4. Select optimal mix
+    1. Two-phase approach:
+       - Phase 1: Prioritize critical stockout items (< 1 day stock)
+       - Phase 2: Optimize profit + volume for remaining budget
+    2. Calculate hybrid score = (profit_score × 0.5) + (volume_score × 0.5) + stockout_penalty
+    3. Stockout penalty: Higher priority for items about to run out
+    4. Normalize scores and select optimal mix
     
     Balances:
+    - Stockout prevention (critical items first)
     - Profitability (margin × demand)
     - Turnover velocity (sales / cost)
     
@@ -505,7 +763,7 @@ def balanced_strategy(
         Tuple of (selected items, reasoning points)
     """
     reasoning = [
-        f"Strategy: Balanced Growth - 50% profit + 50% volume optimization",
+        f"Strategy: Balanced Growth - 50% profit + 50% volume optimization with stockout prevention",
         f"Budget: ₱{budget:,.2f}",
         f"Target: {restock_days} days of balanced inventory"
     ]
@@ -520,6 +778,7 @@ def balanced_strategy(
     scored_products = []
     profit_scores = []
     volume_scores = []
+    stockout_penalties = []
     
     for p in products:
         # Apply context multipliers to base demand
@@ -532,24 +791,40 @@ def balanced_strategy(
         )
         current_days_of_stock = p.stock / daily_demand if daily_demand > 0 else 999
         
-        # Urgency factor
-        if current_days_of_stock < 3:
-            urgency = 3.0
-        elif current_days_of_stock < 7:
-            urgency = 2.0
-        elif current_days_of_stock < restock_days:
-            urgency = 1.5
+        # Enhanced urgency factor with stronger stockout prevention
+        if current_days_of_stock < 0.5:  # Already out of stock or negative
+            urgency = 10.0  # Critical - must restock
+            stockout_penalty = 1.0  # Maximum penalty
+        elif current_days_of_stock < 1.0:  # Less than 1 day
+            urgency = 8.0  # Very critical
+            stockout_penalty = 0.9
+        elif current_days_of_stock < 2.0:  # Less than 2 days
+            urgency = 5.0  # Critical
+            stockout_penalty = 0.7
+        elif current_days_of_stock < 3.0:  # Less than 3 days
+            urgency = 3.0  # High priority
+            stockout_penalty = 0.5
+        elif current_days_of_stock < 7.0:  # Less than 7 days
+            urgency = 2.0  # Moderate priority
+            stockout_penalty = 0.2
+        elif current_days_of_stock < restock_days:  # Below target
+            urgency = 1.5  # Low priority
+            stockout_penalty = 0.1
         else:
-            urgency = 1.0
+            urgency = 1.0  # Normal
+            stockout_penalty = 0.0
         
         # Profit score (ensure unit_profit is non-negative)
         unit_profit = max(0.0, p.price - p.cost)
         profit_score = unit_profit * daily_demand * urgency
         profit_scores.append(profit_score)
         
-        # Volume score (using adjusted demand)
-        volume_score = daily_demand / p.cost if p.cost > 0 else 0
+        # Volume score with urgency applied (was missing before)
+        volume_score = (daily_demand / p.cost if p.cost > 0 else 0) * urgency
         volume_scores.append(volume_score)
+        
+        # Stockout penalty (separate from urgency multiplier)
+        stockout_penalties.append(stockout_penalty)
         
         needed_qty = max(0, int((daily_demand * restock_days) - p.stock))
         if needed_qty > 0:
@@ -563,7 +838,9 @@ def balanced_strategy(
                 'profit_score': profit_score,
                 'volume_score': volume_score,
                 'qty': needed_qty,
-                'unit_profit': unit_profit
+                'unit_profit': unit_profit,
+                'stockout_penalty': stockout_penalty,
+                'current_days_of_stock': current_days_of_stock
             })
     
     # Normalize scores to 0-1 range
@@ -574,28 +851,103 @@ def balanced_strategy(
         norm_profit = item['profit_score'] / max_profit if max_profit > 0 else 0
         norm_volume = item['volume_score'] / max_volume if max_volume > 0 else 0
         
-        # Hybrid score: 50/50 weighted average
-        item['hybrid_score'] = (norm_profit * 0.5) + (norm_volume * 0.5)
+        # Hybrid score: 50/50 weighted average + stockout penalty boost
+        # Stockout penalty adds directly to score (0.0 to 1.0 boost)
+        base_score = (norm_profit * 0.5) + (norm_volume * 0.5)
+        # Critical items get significant boost to ensure they're selected first
+        item['hybrid_score'] = base_score + (item['stockout_penalty'] * 0.5)
     
-    # Sort by hybrid score (descending)
-    scored_products.sort(key=lambda x: x['hybrid_score'], reverse=True)
+    # Two-phase selection: First cover critical stockouts, then optimize
+    # Phase 1: Separate critical items (< 1 day stock) from others
+    critical_items = []
+    non_critical_items = []
+    
+    for item in scored_products:
+        if item['current_days_of_stock'] < 1.0:
+            p = item['product']
+            base_demand = p.avg_daily_sales
+            daily_demand = apply_context_multipliers(
+                base_demand=base_demand,
+                product=p,
+                is_payday=is_payday,
+                upcoming_holiday=upcoming_holiday
+            )
+            # For critical items, calculate emergency quantity (2-5 days) instead of full restock
+            # Use smaller emergency quantity for high-velocity products to save budget
+            # Prioritize covering more items over larger quantities per item
+            if daily_demand > 40:  # Very high velocity products
+                emergency_days = 2  # Minimal emergency quantity for very fast movers
+            elif daily_demand > 20:  # High velocity products
+                emergency_days = 3  # Smaller emergency quantity for fast movers
+            else:
+                emergency_days = 5  # Standard emergency quantity
+            
+            emergency_qty = max(0, int((daily_demand * emergency_days) - p.stock))
+            # Ensure emergency quantity is at least min_order_qty (critical items must be restocked)
+            if emergency_qty > 0:
+                emergency_qty = max(emergency_qty, p.min_order_qty)
+            else:
+                # If calculated emergency_qty is 0 or negative, use min_order_qty as fallback
+                # This ensures critical items always get restocked
+                emergency_qty = p.min_order_qty
+            
+            if p.max_order_qty:
+                emergency_qty = min(emergency_qty, p.max_order_qty)
+            
+            # Store both emergency and full quantities (always set for critical items)
+            item['emergency_qty'] = emergency_qty
+            item['emergency_cost'] = p.cost * emergency_qty
+            # Calculate efficiency based on emergency quantity (cheaper = can buy more items)
+            efficiency = item['hybrid_score'] / item['emergency_cost'] if item['emergency_cost'] > 0 else 0
+            item['efficiency'] = efficiency
+            critical_items.append(item)
+        else:
+            non_critical_items.append(item)
+    
+    # Sort critical items by efficiency (hybrid score per peso for emergency quantity)
+    critical_items.sort(key=lambda x: x['efficiency'], reverse=True)
+    non_critical_items.sort(key=lambda x: x['hybrid_score'], reverse=True)
+    
+    # Combine: critical items first (with emergency quantities), then non-critical
+    sorted_products = critical_items + non_critical_items
     
     # Greedily select products
     selected_items: List[RestockItem] = []
     remaining_budget = budget
     
-    for item in scored_products:
+    for item in sorted_products:
         p = item['product']
-        qty = item['qty']
         
-        total_cost = p.cost * qty
-        
-        if total_cost > remaining_budget:
-            affordable_qty = int(remaining_budget / p.cost)
-            if affordable_qty < p.min_order_qty:
-                continue
-            qty = affordable_qty
+        # For critical items, ALWAYS use emergency quantity (never buy more, even if budget allows)
+        # This ensures we can cover more critical items instead of one expensive one
+        if 'emergency_qty' in item and item['emergency_qty'] > 0:
+            # Always use emergency quantity for critical items (don't buy full quantity)
+            # This maximizes the number of critical items we can cover
+            qty = item['emergency_qty']
+            total_cost = item['emergency_cost']
+            
+            # If we can't afford emergency quantity, try minimum viable
+            # But NEVER buy more than emergency_qty for critical items (cap it)
+            if total_cost > remaining_budget:
+                affordable_qty = int(remaining_budget / p.cost)
+                if affordable_qty < p.min_order_qty:
+                    continue  # Can't afford minimum order
+                # Cap at emergency_qty to ensure we don't overspend on one item
+                # This saves budget for other critical items
+                qty = min(affordable_qty, item['emergency_qty'])
+                total_cost = p.cost * qty
+        else:
+            # For non-critical items, use full quantity
+            qty = item['qty']
             total_cost = p.cost * qty
+            
+            # If we can't afford the full quantity, buy what we can
+            if total_cost > remaining_budget:
+                affordable_qty = int(remaining_budget / p.cost)
+                if affordable_qty < p.min_order_qty:
+                    continue  # Can't afford minimum order
+                qty = affordable_qty
+                total_cost = p.cost * qty
         
         if qty > 0 and total_cost <= remaining_budget:
             expected_revenue = qty * p.price
@@ -603,6 +955,42 @@ def balanced_strategy(
             # This handles edge cases where cost might exceed price
             expected_profit = max(0.0, qty * item['unit_profit'])
             days_of_stock = qty / p.avg_daily_sales if p.avg_daily_sales > 0 else 999
+            
+            # Add stockout urgency info to reasoning for critical items
+            urgency_note = ""
+            # Check if this is a critical item that should use emergency quantity
+            has_emergency_qty = 'emergency_qty' in item and item['emergency_qty'] > 0
+            is_emergency_qty = has_emergency_qty and qty == item.get('emergency_qty', 0)
+            if item['current_days_of_stock'] < 1.0:
+                # For critical items, show emergency restock note if we have emergency_qty set
+                # Even if we couldn't afford the full emergency quantity, it's still an emergency restock
+                if has_emergency_qty:
+                    # Determine emergency days used (based on the emergency_qty calculation, not actual qty)
+                    p = item['product']
+                    base_demand = p.avg_daily_sales
+                    daily_demand = apply_context_multipliers(
+                        base_demand=base_demand,
+                        product=p,
+                        is_payday=is_payday,
+                        upcoming_holiday=upcoming_holiday
+                    )
+                    if daily_demand > 40:
+                        emergency_days_used = 2
+                    elif daily_demand > 20:
+                        emergency_days_used = 3
+                    else:
+                        emergency_days_used = 5
+                    
+                    if is_emergency_qty:
+                        urgency_note = f", CRITICAL: {item['current_days_of_stock']:.1f} days stock (emergency {emergency_days_used}-day restock)"
+                    else:
+                        # Couldn't afford full emergency quantity, but still critical
+                        urgency_note = f", CRITICAL: {item['current_days_of_stock']:.1f} days stock (partial emergency restock)"
+                else:
+                    # Critical item but no emergency_qty set (shouldn't happen, but handle gracefully)
+                    urgency_note = f", CRITICAL: {item['current_days_of_stock']:.1f} days stock"
+            elif item['current_days_of_stock'] < 3.0:
+                urgency_note = f", urgent: {item['current_days_of_stock']:.1f} days stock"
             
             selected_items.append(RestockItem(
                 product_id=p.product_id,
@@ -616,7 +1004,7 @@ def balanced_strategy(
                 priority_score=item['hybrid_score'],
                 reasoning=f"Balanced score: {item['hybrid_score']:.2f}, "
                          f"margin: {p.profit_margin:.1%}, "
-                         f"velocity: {p.avg_daily_sales:.1f}/day"
+                         f"velocity: {p.avg_daily_sales:.1f}/day{urgency_note}"
             ))
             
             remaining_budget -= total_cost
@@ -624,8 +1012,16 @@ def balanced_strategy(
             if remaining_budget < 1:
                 break
     
-    reasoning.append(f"Selected {len(selected_items)} products balancing profit and turnover")
-    reasoning.append(f"Optimized for sustainable growth and healthy cash flow")
+    # Count critical items selected
+    critical_selected = sum(1 for item in selected_items 
+                           for p in scored_products 
+                           if p['product'].product_id == item.product_id and p['current_days_of_stock'] < 1.0)
+    
+    if critical_selected > 0:
+        reasoning.append(f"Selected {len(selected_items)} products ({critical_selected} critical stockout items prioritized)")
+    else:
+        reasoning.append(f"Selected {len(selected_items)} products balancing profit and turnover")
+    reasoning.append(f"Optimized for stockout prevention and sustainable growth")
     
     return selected_items, reasoning
 
@@ -707,11 +1103,47 @@ def generate_warnings(
     
     # Check if critical low-stock items were missed
     selected_ids = {str(item.product_id) for item in items}
+    low_stock_products = []
+    
     for p in all_products:
         if str(p.product_id) not in selected_ids:
             days_left = p.stock / p.avg_daily_sales if p.avg_daily_sales > 0 else 999
             if days_left < 3 and p.avg_daily_sales > 0:
-                warnings.append(f"{p.name} has only {days_left:.1f} days of stock remaining "
-                               f"but wasn't selected (budget constraints).")
+                low_stock_products.append((p.name, days_left))
+    
+    # Sort by days remaining (most critical first)
+    low_stock_products.sort(key=lambda x: x[1])
+    
+    # Categorize by severity
+    critical_items = [(name, days) for name, days in low_stock_products if days < 1]
+    warning_items = [(name, days) for name, days in low_stock_products if 1 <= days < 2]
+    info_items = [(name, days) for name, days in low_stock_products if 2 <= days < 3]
+    
+    # Show top 10 most critical items individually, then summarize the rest
+    max_individual_warnings = 10
+    items_to_show = low_stock_products[:max_individual_warnings]
+    remaining_count = len(low_stock_products) - max_individual_warnings
+    
+    for name, days_left in items_to_show:
+        warnings.append(f"{name} has only {days_left:.1f} days of stock remaining "
+                       f"but wasn't selected (budget constraints).")
+    
+    # Add summary if there are many low-stock items
+    if remaining_count > 0:
+        warnings.append(f"... and {remaining_count} more product(s) with low stock (< 3 days) "
+                       f"that couldn't be included due to budget constraints.")
+    
+    # Add severity summary at the end
+    if len(low_stock_products) > 0:
+        summary_parts = []
+        if critical_items:
+            summary_parts.append(f"{len(critical_items)} critical (< 1 day)")
+        if warning_items:
+            summary_parts.append(f"{len(warning_items)} warning (1-2 days)")
+        if info_items:
+            summary_parts.append(f"{len(info_items)} info (2-3 days)")
+        
+        if summary_parts:
+            warnings.append(f"Summary: {', '.join(summary_parts)} products need attention but couldn't be included.")
     
     return warnings

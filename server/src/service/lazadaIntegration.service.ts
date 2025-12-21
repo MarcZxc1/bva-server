@@ -154,20 +154,25 @@ class LazadaIntegrationService {
 
       // Map database products to LazadaProduct format
       // Use externalId if available, otherwise use BVA id as externalId
-      const products: LazadaProduct[] = dbProducts.map((p) => ({
-        id: p.externalId || `BVA-${p.id}`, // Use externalId if available, otherwise use BVA id as externalId
-        name: p.name,
-        description: p.description || undefined,
-        price: p.price,
-        cost: p.cost || undefined,
-        sku: p.sku,
-        category: p.category || undefined,
-        image: p.imageUrl || undefined,
-        image_url: p.imageUrl || undefined,
-        stock: p.stock || 0,
-        quantity: p.stock || 0,
-        createdAt: p.createdAt.toISOString(),
-      }));
+      const products: LazadaProduct[] = dbProducts.map((p) => {
+        const product: LazadaProduct = {
+          id: p.externalId || `BVA-${p.id}`, // Use externalId if available, otherwise use BVA id as externalId
+          name: p.name,
+          price: p.price,
+          sku: p.sku,
+          stock: p.stock || 0,
+          quantity: p.stock || 0,
+          createdAt: p.createdAt.toISOString(),
+        };
+        if (p.description) product.description = p.description;
+        if (p.cost) product.cost = p.cost;
+        if (p.category) product.category = p.category;
+        if (p.imageUrl) {
+          product.image = p.imageUrl;
+          product.image_url = p.imageUrl;
+        }
+        return product;
+      });
 
       console.log(`✅ [Lazada Products] Mapped ${products.length} products for sync`);
       console.log(`📦 [Lazada Products] Sample product:`, products[0] ? {
@@ -343,12 +348,11 @@ class LazadaIntegrationService {
       // Since sales are already in the database, we just need to ensure they're properly synced
       const orders: LazadaOrder[] = dbSales.map((sale) => {
         const items = typeof sale.items === "string" ? JSON.parse(sale.items) : sale.items;
-        return {
+        const order: LazadaOrder = {
           id: sale.externalId || sale.platformOrderId || sale.id,
-          orderId: sale.platformOrderId || sale.externalId || sale.id,
           items: Array.isArray(items) ? items.map((item: any) => ({
             productId: item.productId,
-            productName: item.productName || item.name,
+            productName: item.productName || '',
             quantity: item.quantity || 0,
             price: item.price || 0,
           })) : [],
@@ -356,10 +360,14 @@ class LazadaIntegrationService {
           totalPrice: sale.total || sale.revenue || 0,
           total: sale.total || sale.revenue || 0,
           status: sale.status || 'COMPLETED',
-          customerName: sale.customerName || null,
-          customerEmail: sale.customerEmail || null,
           createdAt: sale.createdAt.toISOString(),
         };
+        if (sale.platformOrderId || sale.externalId) {
+          order.orderId = sale.platformOrderId || sale.externalId || sale.id;
+        }
+        if (sale.customerName) order.customerName = sale.customerName;
+        if (sale.customerEmail) order.customerEmail = sale.customerEmail;
+        return order;
       });
 
       console.log(`✅ [Lazada Sales] Mapped ${orders.length} sales for sync`);
@@ -384,7 +392,7 @@ class LazadaIntegrationService {
           // Map items to our format
           const items = order.items?.map((item) => ({
             productId: item.productId,
-            productName: item.productName || item.name,
+            productName: item.productName || '',
             quantity: item.quantity || 0,
             price: item.price || 0,
             subtotal: (item.quantity || 0) * (item.price || 0),

@@ -772,7 +772,7 @@ export function AdGeneratorDialog({
               <div className="grid gap-4 mt-4">
                 <div className="grid gap-2">
                   <div className="flex items-center justify-between">
-                    <Label htmlFor="customImagePrompt">Edit Image with Custom Prompt (Optional)</Label>
+                    <Label htmlFor="customImagePrompt">Custom Image Prompt</Label>
                     <Button
                       type="button"
                       variant="ghost"
@@ -786,19 +786,19 @@ export function AdGeneratorDialog({
                   </div>
                   <Textarea
                     id="customImagePrompt"
-                    placeholder="e.g., Add a blue background, make the product larger, add sparkles around it..."
+                    placeholder="e.g., Add blue background, increase product size, add sparkles..."
                     value={customImagePrompt}
                     onChange={(e) => setCustomImagePrompt(e.target.value)}
                     className="glass-card-sm border-card-glass-border"
                     rows={3}
                   />
                   <p className="text-xs text-muted-foreground">
-                    Provide instructions to modify the generated image
+                    Focus on new modifications only. Product name and playbook are already included.
                   </p>
                 </div>
 
                 <div className="grid gap-2">
-                  <Label>Template Context (Optional)</Label>
+                  <Label>Template Context</Label>
                   
                   {/* Predefined Template Context Buttons */}
                   <div className="flex flex-wrap gap-2">
@@ -839,9 +839,6 @@ export function AdGeneratorDialog({
                       );
                     })}
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    Click buttons to select template context options. Selected options will be applied when regenerating the image.
-                  </p>
                 </div>
 
                 {(customImagePrompt || selectedTemplateContexts.length > 0) && (

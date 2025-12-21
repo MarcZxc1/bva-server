@@ -18,13 +18,14 @@ function ProductsContent() {
     setLoading(true);
     try {
       const response = await productAPI.getAll({ search, category, sort });
-      const fetchedProducts = response.data.data || response.data.products || response.data;
+      const responseData = response.data as any;
+      const fetchedProducts = responseData.data || responseData.products || responseData;
       
       // Deduplicate products by ID to prevent duplicates
       const uniqueProducts = Array.isArray(fetchedProducts)
         ? fetchedProducts.reduce((acc, product) => {
             const productId = product.id || product._id;
-            const exists = acc.some(p => (p.id || p._id) === productId);
+            const exists = acc.some((p: any) => (p.id || p._id) === productId);
             if (!exists) {
               acc.push(product);
             }

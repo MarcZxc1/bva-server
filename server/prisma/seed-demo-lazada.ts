@@ -224,9 +224,33 @@ async function seedLazadaDemoData(userId: string) {
   const oneMonthAgo = new Date(now);
   oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
 
+  // Type definitions for order items and sales
+  type OrderItem = {
+    productId: string;
+    productName: string;
+    quantity: number;
+    price: number;
+    subtotal: number;
+  };
+
+  type SaleData = {
+    shopId: string;
+    platform: typeof Platform.LAZADA;
+    platformOrderId: string;
+    externalId: string;
+    items: OrderItem[];
+    total: number;
+    revenue: number;
+    profit: number;
+    status: typeof OrderStatus.COMPLETED;
+    customerName: string | null;
+    customerEmail: string | null;
+    createdAt: Date;
+  };
+
   // Generate sales for past month (30 days) with patterns
-  const pastMonthSales = [];
-  const currentMonthSales = [];
+  const pastMonthSales: SaleData[] = [];
+  const currentMonthSales: SaleData[] = [];
 
   // Helper to get sales boost for paydays (15th and month-end)
   const getPaydayBoost = (day: number): number => {
@@ -250,7 +274,7 @@ async function seedLazadaDemoData(userId: string) {
       saleDate.setHours(hour, randomInt(0, 59), randomInt(0, 59));
       
       const numItems = randomInt(1, 4);
-      const selectedProducts = [];
+      const selectedProducts: OrderItem[] = [];
       let total = 0;
       const usedProductIds = new Set<string>();
 
@@ -327,7 +351,7 @@ async function seedLazadaDemoData(userId: string) {
       saleDate.setHours(hour, randomInt(0, 59), randomInt(0, 59));
       
       const numItems = randomInt(1, 4);
-      const selectedProducts = [];
+      const selectedProducts: OrderItem[] = [];
       let total = 0;
       const usedProductIds = new Set<string>();
 

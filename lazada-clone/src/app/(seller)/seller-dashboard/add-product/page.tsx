@@ -73,7 +73,8 @@ export default function AddProductPage() {
 
     try {
       const res = await sellerAPI.createProduct(productData);
-      const created = res.data?.data || res.data;
+      const resData = res.data as any;
+      const created = resData?.data || resData;
       
       // Note: Product is already created via API and socket.io will emit real-time update
       // No need to send webhook - webhooks are for external systems, not direct API calls
