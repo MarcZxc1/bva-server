@@ -58,7 +58,7 @@ npm start
 
 For detailed setup guides, see:
 
-- **[🐳 DOCKER_SETUP.md](./DOCKER_SETUP.md)** - Docker setup guide (Recommended for teams)
+- **[🐳 DOCKER_SETUP.md](./DOCKER_SETUP.md)** - Complete Docker setup guide (Recommended - no manual installation needed)
 - **[📘 SETUP.md](./SETUP.md)** - Manual installation guide for Windows and Linux
 
 ## 📁 Project Structure
