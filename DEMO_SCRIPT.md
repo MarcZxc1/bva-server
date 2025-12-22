@@ -47,7 +47,7 @@ Large chains use advanced forecasting systems, but small retailers lack affordab
 ### Problem 3: Manual inventory tracking (Often done on paper or Excel)
 
 **BVA's Solution:**
-- **Settings Integration**: Automatic data synchronization from Shopee, Lazada, and TikTok Shop
+- **Settings Integration**: Automatic data synchronization from Shopee and Lazada
 - **Real-Time Updates**: Inventory changes automatically when sales occur
 - **Automated Stock Tracking**: No manual data entry required - all tracking is automatic
 - **Multi-Platform Aggregation**: Unified view across all platforms in one dashboard
