@@ -15,6 +15,55 @@
 
 BVA is an AI-powered business management platform designed specifically for Filipino SMBs selling on multiple e-commerce platforms like Shopee and Lazada. It provides intelligent inventory management, demand forecasting, and marketing automation to help sellers optimize their business operations.
 
+### Solving the "Lack of Visibility on Purchasing Patterns" Problem
+
+**The Problem:**
+Traditional small businesses struggle with limited visibility into customer purchasing patterns. They can't easily answer questions like:
+- Which products do customers buy most?
+- When do customers buy (time of day, day of week)?
+- What patterns exist around paydays or holidays?
+- Which platform do customers prefer?
+- What products are trending vs. declining?
+
+**BVA's Solution:**
+BVA provides comprehensive purchasing pattern visibility through multiple features:
+
+1. **SmartShelf - Product Performance Analysis**:
+   - Automatically categorizes products by sales velocity (Best Seller, Trending, Slow Moving, Flop)
+   - Shows average daily sales for each product
+   - Identifies which products customers prefer
+   - Tracks sales trends over time
+
+2. **Restock Planner - Demand Pattern Recognition**:
+   - Analyzes historical sales to identify patterns
+   - Recognizes payday cycles (increased demand on 15th and month-end)
+   - Detects holiday shopping patterns
+   - Predicts future demand based on past behavior
+
+3. **MarketMate - Campaign Performance Insights**:
+   - Tracks which campaigns drive sales
+   - Shows which products respond best to marketing
+   - Identifies optimal timing for promotions
+
+4. **Reports Module - Comprehensive Analytics** (covered in Dashboard/Settings/Reports demo):
+   - Sales trends over time (daily, weekly, monthly)
+   - Platform comparison showing customer preferences
+   - Time-based analysis (when customers buy)
+   - Product performance rankings
+
+5. **Dashboard - Real-Time Pattern Visualization**:
+   - Sales forecast showing predicted purchasing patterns
+   - Real-time metrics showing current trends
+   - Stock alerts indicating what customers are buying
+
+**How It Works Together:**
+All these features analyze your sales data to reveal purchasing patterns:
+- **What customers buy**: Best sellers and trending products
+- **When customers buy**: Payday cycles, holiday patterns, time-based trends
+- **Where customers buy**: Platform preferences (Shopee vs Lazada)
+- **How much customers buy**: Sales velocity and quantity patterns
+- **Why patterns exist**: Context-aware analysis (paydays, holidays, weather)
+
 ### The Three Core Features
 
 #### 1. SmartShelf - Intelligent Inventory Management
@@ -100,16 +149,25 @@ MarketMate is an AI-powered marketing automation tool that generates contextual 
 - "Look at this product - it has a Critical risk score of 85. This means it's either running very low on stock or expiring soon."
 - "Here's a product with a High risk score - it needs attention but isn't urgent yet."
 
-### Step 3: Show Product Trends
+### Step 3: Show Product Trends (Purchasing Pattern Visibility)
 1. Point out the trend badges (Best Seller, Trending, Slow Moving, Flop)
 2. Click on a Best Seller product
+3. Show the average daily sales metric
 
 **Talking Point:**
-"SmartShelf also categorizes your products by performance. Best Sellers are your top 20% performers - these are products you want to keep well-stocked. Flop products have zero sales and might need marketing help."
+"SmartShelf also categorizes your products by performance, giving you clear visibility into purchasing patterns. Best Sellers are your top 20% performers - these show you what customers prefer to buy. The system calculates average daily sales, so you can see exactly how fast each product is moving."
+
+**Purchasing Pattern Insights:**
+"This is how BVA solves the lack of visibility problem. Instead of guessing what customers want, you can see:
+- **Best Sellers** (like Premium Cotton T-Shirt with 10 daily sales) - These are what customers buy most
+- **Trending products** (like Tank Top with 8 daily sales) - These are gaining popularity
+- **Slow Moving products** - These show declining interest
+- **Flop products** - These have zero sales, indicating customers aren't interested"
 
 **Example from Demo Data:**
-- "This 'Premium Cotton T-Shirt' is marked as Best Seller - it's one of your top performers."
-- "This product is marked as Flop - it has zero sales. We can use MarketMate to create a bundle campaign for it."
+- "This 'Premium Cotton T-Shirt' is marked as Best Seller with 10 average daily sales - this tells you customers prefer this product."
+- "This 'Chicharon' from Shopee has 15 average daily sales - it's a best seller, showing strong customer demand for Filipino pasalubong."
+- "This product is marked as Flop with zero sales - this purchasing pattern shows customers aren't interested, so we need marketing help."
 
 ### Step 4: Show Product Details
 1. Click on an at-risk product to see details
@@ -168,17 +226,25 @@ MarketMate is an AI-powered marketing automation tool that generates contextual 
 - "It suggests 30 units of 'Premium Cotton T-Shirt' - high sales velocity and profitable."
 - "Notice how it avoids products that are slow-moving or near expiry."
 
-### Step 4: Show Forecast Calendar
+### Step 4: Show Forecast Calendar (Purchasing Pattern Recognition)
 1. Click on the "Forecast Calendar" tab
 2. Show the monthly calendar with demand spikes
 3. Click on a date with high demand
+4. Point out payday and holiday patterns
 
 **Talking Point:**
-"The Forecast Calendar shows you when demand is expected to spike. Paydays and holidays are highlighted. You can click on any date to see detailed forecasts."
+"The Forecast Calendar shows you purchasing patterns over time. This is where BVA really shines in solving the visibility problem - it recognizes patterns you might miss."
+
+**Purchasing Pattern Insights:**
+"The system analyzes your historical sales and identifies clear patterns:
+- **Payday Patterns**: Notice how the 15th and 30th are highlighted? The system detected that demand increases by 20% on these dates - this is a Filipino purchasing pattern where people buy more when they receive their salary.
+- **Holiday Patterns**: Special dates show increased demand - the system recognizes when customers shop more for holidays.
+- **Time-Based Patterns**: You can see which days of the week have higher demand."
 
 **Example:**
-- "See how the 15th and 30th are highlighted? Those are paydays when demand typically increases."
-- "Click on a date to see which products are expected to sell more on that day."
+- "See how the 15th and 30th are highlighted? The system learned from your sales data that customers buy 20% more on paydays - this is a clear purchasing pattern."
+- "Click on a payday date to see which products customers prefer to buy on paydays - you'll see pasalubong items and clothing spike on these days."
+- "The forecast shows predicted purchasing patterns for the next 30 days, helping you prepare inventory based on when customers actually buy."
 
 ### Step 5: Show ROI and Projections
 1. Point out the expected profit, revenue, and ROI
@@ -314,14 +380,107 @@ MarketMate is an AI-powered marketing automation tool that generates contextual 
 
 ---
 
+## Purchasing Pattern Visibility - Complete Solution
+
+### How BVA Solves the "Lack of Visibility" Problem
+
+**Talking Point:**
+"One of the biggest challenges for small businesses is understanding customer purchasing patterns. BVA solves this comprehensively through multiple features working together."
+
+### Pattern 1: Product Preference Patterns
+**Where to Show:**
+- SmartShelf product trends
+- Restock Planner recommendations
+
+**Talking Point:**
+"BVA shows you exactly which products customers prefer:
+- Best Sellers (top 20%) - These are what customers buy most frequently
+- Average daily sales - Shows the exact velocity of customer purchases
+- Trending products - Shows what's gaining popularity
+- Slow movers - Shows what customers are losing interest in"
+
+**Example:**
+- "From our demo data, we can see customers prefer Chicharon (15 daily sales) and Premium Cotton T-Shirt (10 daily sales) - these are clear purchasing patterns."
+- "The system tracks this over time, so you can see if preferences are changing."
+
+### Pattern 2: Time-Based Purchasing Patterns
+**Where to Show:**
+- Restock Planner forecast calendar
+- Dashboard sales forecast
+
+**Talking Point:**
+"BVA recognizes when customers buy:
+- **Payday Cycles**: System detected 20% increase on 15th and 30th - this is a Filipino purchasing pattern
+- **Day of Week**: Some products sell more on weekends
+- **Time of Day**: Sales data shows peak shopping times
+- **Holiday Patterns**: Increased demand during holidays"
+
+**Example:**
+- "The forecast calendar shows payday spikes - this is a purchasing pattern the system learned from your sales data."
+- "You can see which products customers buy on paydays vs regular days - pasalubong items spike on paydays."
+
+### Pattern 3: Platform Preference Patterns
+**Where to Show:**
+- Reports module (Platform Comparison)
+- Dashboard platform filter
+
+**Talking Point:**
+"BVA shows you where customers prefer to buy:
+- Platform comparison reveals if customers prefer Shopee or Lazada
+- Different products perform better on different platforms
+- Profit margins vary by platform"
+
+**Example:**
+- "From our demo data, we see Shopee customers prefer Filipino pasalubong (₱30k revenue), while Lazada customers prefer clothing (₱50k revenue)."
+- "This purchasing pattern helps you decide where to focus inventory and marketing."
+
+### Pattern 4: Quantity and Frequency Patterns
+**Where to Show:**
+- SmartShelf sales velocity
+- Restock Planner demand forecasts
+
+**Talking Point:**
+"BVA tracks how much and how often customers buy:
+- Average daily sales shows purchase frequency
+- Sales velocity indicates customer demand intensity
+- Forecast predictions show expected purchase quantities"
+
+**Example:**
+- "Chicharon has 15 daily sales - this shows customers buy it frequently and in consistent quantities."
+- "The system uses this to predict future purchasing patterns."
+
+### Pattern 5: Seasonal and Contextual Patterns
+**Where to Show:**
+- Restock Planner context adjustments
+- Forecast calendar special events
+
+**Talking Point:**
+"BVA recognizes contextual purchasing patterns:
+- Weather affects seasonal products
+- Holidays create demand spikes for relevant categories
+- Special events (mega sales) show increased purchasing
+- The system adjusts forecasts based on these patterns"
+
+**Example:**
+- "During rainy season, the system might predict higher demand for certain products."
+- "Holiday patterns show customers buy more pasalubong items for gift-giving."
+
 ## Closing Statement
 
-"BVA's three core features - SmartShelf, Restock Planner, and MarketMate - work together to help you:
-- **Stay on top of inventory** with AI-powered risk detection
-- **Make smart restocking decisions** with demand forecasting
-- **Automate marketing** with AI-generated campaigns
+"BVA's three core features - SmartShelf, Restock Planner, and MarketMate - work together to solve the critical problem of lack of visibility on purchasing patterns:
 
-All of this is designed specifically for Filipino SMBs selling on Shopee, Lazada, and other platforms. The system learns from your sales data and gets smarter over time.
+- **SmartShelf** shows you WHAT customers buy (product preferences, best sellers, trends)
+- **Restock Planner** shows you WHEN customers buy (payday patterns, holiday spikes, time-based trends)
+- **MarketMate** helps you capitalize on these patterns with targeted campaigns
+
+All of this is designed specifically for Filipino SMBs selling on Shopee, Lazada, and other platforms. The system learns from your sales data and gets smarter over time, continuously improving its understanding of your customers' purchasing patterns.
+
+Instead of guessing what customers want, you now have complete visibility into:
+- Which products they prefer
+- When they buy (paydays, holidays, time of day)
+- Where they buy (platform preferences)
+- How much they buy (quantity patterns)
+- Why patterns exist (context-aware analysis)
 
 Thank you for watching this demo. Are there any questions?"
 
