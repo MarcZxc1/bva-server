@@ -1,5 +1,89 @@
 # BVA Demo Script: Dashboard, Settings, and Reports
 
+## Problem #12: Small and Medium-Sized Retail Stores Challenges
+
+**Small and medium-sized retail stores often suffer from:**
+
+1. **Overstocking** - Tying up capital, leading to unsold goods
+2. **Stockouts** - Missed sales due to poor demand prediction
+3. **Manual inventory tracking** - Often done on paper or Excel
+4. **Limited visibility** - Into customer purchasing patterns
+
+**Context:**
+Large chains use advanced forecasting systems, but small retailers lack affordable, easy-to-use tools to optimize inventory based on demand trends.
+
+---
+
+## How BVA Solves Problem #12
+
+### Problem 1: Overstocking (Tying up capital, leading to unsold goods)
+
+**BVA's Solution:**
+- **Dashboard**: Real-time stock alerts show which products are overstocked or slow-moving
+- **Reports**: Stock turnover analysis identifies slow-moving products that tie up capital
+- **Settings**: Platform integration ensures accurate inventory tracking to prevent over-ordering
+- **Smart Integration**: Dashboard connects to SmartShelf and Restock Planner to prevent overstocking
+
+**How it works:**
+- Dashboard displays stock alerts from SmartShelf, showing products that need attention
+- Reports module provides stock turnover analysis, identifying products with low turnover (overstocked)
+- Settings ensures all platforms are synced, giving accurate inventory counts
+- Integration with Restock Planner helps optimize restocking to prevent over-purchasing
+- Reports show profit margins, helping identify which overstocked items to discount or bundle
+
+### Problem 2: Stockouts (Missed sales due to poor demand prediction)
+
+**BVA's Solution:**
+- **Dashboard**: Sales forecast chart predicts future demand, helping prevent stockouts
+- **Dashboard**: Stock alerts section shows low stock items before they run out
+- **Reports**: Sales trends analysis reveals demand patterns to predict stockouts
+- **Settings**: Real-time data sync ensures accurate stock levels
+
+**How it works:**
+- Dashboard sales forecast uses AI to predict future sales, showing when you'll need more inventory
+- Stock alerts from SmartShelf notify you when products are running low
+- Reports show sales trends over time, helping identify products at risk of stockout
+- Settings integration ensures real-time inventory updates from all platforms
+- Platform comparison in Reports shows which products need more stock on which platforms
+
+### Problem 3: Manual inventory tracking (Often done on paper or Excel)
+
+**BVA's Solution:**
+- **Settings**: Automatic platform integration eliminates manual data entry
+- **Settings**: Real-time data synchronization from Shopee, Lazada, and TikTok Shop
+- **Dashboard**: Automated metrics calculation - no Excel formulas needed
+- **Reports**: Automated analytics and report generation - no manual compilation
+
+**How it works:**
+- Settings page connects your e-commerce accounts via API integration
+- Once connected, BVA automatically syncs all products, orders, and sales data
+- Dashboard automatically calculates metrics (revenue, profit, orders, products) - no Excel needed
+- Reports module generates comprehensive analytics automatically
+- PDF export eliminates the need to manually create reports
+- All data is stored in a centralized database, accessible from anywhere
+
+### Problem 4: Limited visibility into customer purchasing patterns
+
+**BVA's Solution:**
+- **Dashboard**: Sales forecast chart shows predicted purchasing patterns
+- **Dashboard**: Real-time metrics reveal current purchasing trends
+- **Dashboard**: Platform filtering shows where customers prefer to buy
+- **Reports**: Comprehensive analytics showing what, when, where, and how much customers buy
+- **Reports**: Platform comparison reveals customer preferences across platforms
+- **Reports**: Time-based analysis (daily, weekly, monthly) shows purchasing patterns over time
+
+**How it works:**
+- Dashboard sales forecast visualizes predicted purchasing patterns for the next 14 days
+- Dashboard metrics show real-time purchasing trends (revenue, orders, products)
+- Platform filter reveals where customers buy (Shopee vs Lazada preferences)
+- Reports Sales tab shows purchasing patterns over time (daily, weekly, monthly trends)
+- Reports Platform Comparison shows which platform customers prefer for different products
+- Reports Profit Analysis shows which products customers value most (higher margins)
+- Reports Stock Turnover shows purchase frequency patterns
+- All data is automatically analyzed and visualized - no manual pattern recognition needed
+
+---
+
 ## Table of Contents
 1. [Introduction to BVA Features](#introduction-to-bva-features)
 2. [Dashboard Demo](#dashboard-demo)

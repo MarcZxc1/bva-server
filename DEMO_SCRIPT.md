@@ -1,5 +1,82 @@
 # BVA Demo Script: SmartShelf, Restock Planner, and MarketMate
 
+## Problem #12: Small and Medium-Sized Retail Stores Challenges
+
+**Small and medium-sized retail stores often suffer from:**
+
+1. **Overstocking** - Tying up capital, leading to unsold goods
+2. **Stockouts** - Missed sales due to poor demand prediction
+3. **Manual inventory tracking** - Often done on paper or Excel
+4. **Limited visibility** - Into customer purchasing patterns
+
+**Context:**
+Large chains use advanced forecasting systems, but small retailers lack affordable, easy-to-use tools to optimize inventory based on demand trends.
+
+---
+
+## How BVA Solves Problem #12
+
+### Problem 1: Overstocking (Tying up capital, leading to unsold goods)
+
+**BVA's Solution:**
+- **SmartShelf**: Detects slow-moving products and products near expiry, recommending clearance sales or bundles to move inventory
+- **Restock Planner**: Uses AI-powered demand forecasting to recommend optimal restocking quantities, preventing over-purchasing
+- **Budget Optimization**: Takes your available budget and suggests the most profitable product mix, preventing capital from being tied up in slow-moving items
+- **Expiry Monitoring**: Alerts prevent ordering too much of perishable items that might expire before selling
+
+**How it works:**
+- SmartShelf identifies products with poor sales velocity and recommends discounts or bundles
+- Restock Planner analyzes demand forecasts and only recommends quantities you'll actually sell
+- Budget-aware recommendations ensure you don't over-invest in any single product
+- MarketMate helps create clearance campaigns for overstocked items
+
+### Problem 2: Stockouts (Missed sales due to poor demand prediction)
+
+**BVA's Solution:**
+- **SmartShelf**: Low stock alerts notify you before items run out
+- **Restock Planner**: AI-powered demand forecasting predicts future sales with confidence intervals, ensuring adequate inventory levels
+- **Forecast Calendar**: Shows demand spikes (paydays, holidays) so you can restock in advance
+- **Context-Aware Adjustments**: Considers payday cycles (+20% demand), holidays (+30-50% demand), and weather patterns
+
+**How it works:**
+- SmartShelf monitors stock levels and alerts when products fall below safe thresholds
+- Restock Planner uses machine learning to predict demand, recommending restocking before stockouts occur
+- Forecast calendar highlights high-demand days, allowing proactive restocking
+- Context integration recognizes patterns like payday shopping, ensuring inventory is ready
+
+### Problem 3: Manual inventory tracking (Often done on paper or Excel)
+
+**BVA's Solution:**
+- **Settings Integration**: Automatic data synchronization from Shopee, Lazada, and TikTok Shop
+- **Real-Time Updates**: Inventory changes automatically when sales occur
+- **Automated Stock Tracking**: No manual data entry required - all tracking is automatic
+- **Multi-Platform Aggregation**: Unified view across all platforms in one dashboard
+
+**How it works:**
+- Settings page connects your e-commerce platform accounts via API integration
+- Once connected, BVA automatically syncs products, orders, and sales data
+- Real-time synchronization means inventory updates instantly when sales happen
+- All data is stored in a centralized database, eliminating the need for Excel spreadsheets
+- Dashboard and Reports provide automated analytics without manual calculations
+
+### Problem 4: Limited visibility into customer purchasing patterns
+
+**BVA's Solution:**
+- **SmartShelf**: Product trend analysis (Best Seller, Trending, Slow Moving, Flop) shows what customers buy
+- **Restock Planner**: Forecast calendar and demand patterns reveal when customers buy (paydays, holidays)
+- **Dashboard**: Sales forecast chart and real-time metrics show purchasing trends
+- **Reports**: Comprehensive analytics showing sales trends, platform preferences, and time-based patterns
+- **MarketMate**: Campaign performance tracking shows which marketing drives purchases
+
+**How it works:**
+- SmartShelf categorizes products by sales velocity, revealing customer preferences
+- Restock Planner analyzes historical sales to identify patterns (payday cycles, holiday shopping)
+- Dashboard provides real-time visualization of purchasing patterns through forecasts
+- Reports module offers deep analytics: daily/weekly/monthly trends, platform comparisons, profit analysis
+- All features work together to provide complete visibility: what, when, where, how much, and why customers buy
+
+---
+
 ## Table of Contents
 1. [Introduction to BVA Features](#introduction-to-bva-features)
 2. [SmartShelf Demo](#smartshelf-demo)
