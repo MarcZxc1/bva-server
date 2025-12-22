@@ -2,10 +2,38 @@
  * Lazada Demo Data Seeding Script
  * 
  * Seeds realistic demo data specifically for Lazada shop
- * - Products (Home & Living, Food & Beverages, Health & Wellness)
+ * - Products (Clothing, Hoodies, Apparel)
  * - Sales data (past month + current month)
+ * - Only 1/3 of products have sales (first 7 products)
+ * - Target: 50,000 PHP total sales, 17,000 PHP revenue (34% margin)
  * - Inventory records
  * - Campaigns and notifications
+ * 
+ * BVA FEATURES INTEGRATION:
+ * 
+ * 1. SmartShelf:
+ *    - Low Stock Alerts: Products with "low" or "critical" stock levels
+ *    - Product Trends:
+ *      * Best Seller (top 20%): avgDailySales >= 8 - Premium Cotton T-Shirt, V-Neck T-Shirt, Premium Pullover Hoodie
+ *      * Trending (top 50%): avgDailySales 5-7 - Tank Top, Oversized Hoodie, Zip-Up Hoodie, Jogger Pants
+ *      * Normal: avgDailySales 3-6 - Long Sleeve T-Shirt, Graphic Print Hoodie, Polo Shirt, etc.
+ *      * Slow Moving (bottom 20%): avgDailySales <= 4 - Fleece-Lined Hoodie, Henley Shirt, Slim Fit Jeans, etc.
+ *      * Flop (zero sales): Remaining 14 products without sales - for MarketMate "Bundle Up!" campaigns
+ * 
+ * 2. Restock Planner:
+ *    - Uses avgDailySales for demand forecasting
+ *    - Profit margins calculated from basePrice - baseCost
+ *    - Best sellers prioritized for restocking recommendations
+ * 
+ * 3. MarketMate:
+ *    - Best Seller Spotlight: Premium Cotton T-Shirt, V-Neck T-Shirt, Premium Pullover Hoodie
+ *    - Bundle Up!: Products with zero sales (14 products)
+ *    - Flash Sale: Low stock items
+ * 
+ * 4. Analytics/Reports:
+ *    - Revenue tracking: 17,000 PHP target
+ *    - Sales velocity from avgDailySales
+ *    - Profit margins: ~34% (17k revenue / 50k sales)
  * 
  * Usage:
  *   npm run db:seed-demo-lazada <userId>
@@ -24,36 +52,61 @@ dotenv.config({ path: path.join(__dirname, "../.env") });
 // Type alias for Product
 type Product = Awaited<ReturnType<typeof prisma.product.create>>;
 
-// Lazada-specific product templates - Home & Living, Food & Beverages, Health focus
+// Lazada-specific product templates - Clothing & Apparel focus
 // NOTE: These products are unique to Lazada and do NOT overlap with Shopee products.
-// Shopee uses: Electronics, Fashion, Beauty categories
-// Lazada uses: Home & Living, Food & Beverages, Health & Wellness categories
+// Shopee uses: Filipino Pasalubong (Food & Beverages)
+// Lazada uses: Clothing, Hoodies, and Apparel categories
+//
+// PRODUCT PERFORMANCE CATEGORIZATION (for BVA features):
+// - Best Seller: Top 20% by sales velocity (avgDailySales >= 8) - Used in MarketMate "Best Seller Spotlight"
+// - Trending: Top 50% by sales velocity (avgDailySales >= 5) - Good performance, steady sales
+// - Normal: Middle range (avgDailySales 3-4) - Average performance
+// - Slow Moving: Bottom 20% by sales velocity (avgDailySales <= 2) - Needs promotion
+// - Flop: Zero sales (not included in sales generation) - Used in MarketMate "Bundle Up!"
+//
+// STOCK LEVELS (for SmartShelf alerts):
+// - high: 60-150 units (above threshold, no alerts)
+// - medium: 20-50 units (near threshold, watch)
+// - low: 6-15 units (below threshold, restock needed)
+// - critical: 1-5 units (urgent restock, high risk)
+//
+// Only 1/3 of products will have sales (first 7 products) to demonstrate:
+// - Best Sellers with sales
+// - Flop products without sales (for MarketMate bundle campaigns)
 const lazadaProductTemplates = [
-  // Home & Living - Various stock levels
-  { name: "Stainless Steel Kitchen Knife Set (7pc)", category: "Home & Living", basePrice: 1299, baseCost: 550, avgDailySales: 2, hasExpiry: false, stockLevel: "medium" },
-  { name: "Premium Bed Sheet Set Queen Size", category: "Home & Living", basePrice: 899, baseCost: 380, avgDailySales: 4, hasExpiry: false, stockLevel: "high" },
-  { name: "Storage Baskets Set of 3 (Large)", category: "Home & Living", basePrice: 599, baseCost: 250, avgDailySales: 5, hasExpiry: false, stockLevel: "low" },
-  { name: "LED Desk Lamp with USB Charging", category: "Home & Living", basePrice: 699, baseCost: 280, avgDailySales: 3, hasExpiry: false, stockLevel: "medium" },
-  { name: "Non-Stick Cookware Set (5pc)", category: "Home & Living", basePrice: 1499, baseCost: 650, avgDailySales: 2, hasExpiry: false, stockLevel: "medium" },
-  { name: "Vacuum Storage Bags (10pc)", category: "Home & Living", basePrice: 399, baseCost: 160, avgDailySales: 6, hasExpiry: false, stockLevel: "high" },
-  { name: "Yoga Mat Premium Non-Slip", category: "Home & Living", basePrice: 499, baseCost: 200, avgDailySales: 4, hasExpiry: false, stockLevel: "critical" },
-  { name: "Air Purifier HEPA Filter", category: "Home & Living", basePrice: 2999, baseCost: 1300, avgDailySales: 1, hasExpiry: false, stockLevel: "low" },
+  // ========== PRODUCTS WITH SALES (1/3 - First 7 products) ==========
   
-  // Food & Beverages - WITH EXPIRY DATES (critical for SmartShelf)
-  { name: "Premium Instant Coffee (Pack of 12)", category: "Food & Beverages", basePrice: 299, baseCost: 120, avgDailySales: 15, hasExpiry: true, stockLevel: "high", expiryDays: 365 },
-  { name: "Gourmet Snack Mix Variety Pack (500g)", category: "Food & Beverages", basePrice: 249, baseCost: 100, avgDailySales: 18, hasExpiry: true, stockLevel: "high", expiryDays: 180 },
-  { name: "Organic Green Tea (100 tea bags)", category: "Food & Beverages", basePrice: 399, baseCost: 160, avgDailySales: 5, hasExpiry: true, stockLevel: "medium", expiryDays: 730 },
-  { name: "Protein Energy Bars (Pack of 12)", category: "Food & Beverages", basePrice: 349, baseCost: 140, avgDailySales: 10, hasExpiry: true, stockLevel: "low", expiryDays: 30 },
-  { name: "Chocolate Gift Box (500g)", category: "Food & Beverages", basePrice: 599, baseCost: 240, avgDailySales: 4, hasExpiry: true, stockLevel: "critical", expiryDays: -10 },
-  { name: "Canned Goods Variety Pack (6 cans)", category: "Food & Beverages", basePrice: 449, baseCost: 180, avgDailySales: 7, hasExpiry: true, stockLevel: "medium", expiryDays: 365 },
-  { name: "Organic Honey Raw (500g)", category: "Food & Beverages", basePrice: 699, baseCost: 280, avgDailySales: 3, hasExpiry: true, stockLevel: "medium", expiryDays: 730 },
-  { name: "Dried Fruits Assorted (1kg)", category: "Food & Beverages", basePrice: 549, baseCost: 220, avgDailySales: 5, hasExpiry: true, stockLevel: "low", expiryDays: 90 },
+  // BEST SELLERS (Top 20% - avgDailySales >= 8) - MarketMate "Best Seller Spotlight"
+  { name: "Premium Cotton T-Shirt (Pack of 3)", category: "Clothing", basePrice: 599, baseCost: 250, avgDailySales: 10, hasExpiry: false, stockLevel: "high" },
+  { name: "V-Neck T-Shirt (Basic)", category: "Clothing", basePrice: 349, baseCost: 150, avgDailySales: 9, hasExpiry: false, stockLevel: "high" },
+  { name: "Premium Pullover Hoodie (Unisex)", category: "Clothing", basePrice: 899, baseCost: 380, avgDailySales: 8, hasExpiry: false, stockLevel: "high" },
   
-  // Health & Wellness - WITH EXPIRY DATES
-  { name: "Multivitamin Supplements (60 tablets)", category: "Health & Wellness", basePrice: 799, baseCost: 320, avgDailySales: 6, hasExpiry: true, stockLevel: "high", expiryDays: 365 },
-  { name: "Omega-3 Fish Oil Capsules (120pc)", category: "Health & Wellness", basePrice: 999, baseCost: 400, avgDailySales: 4, hasExpiry: true, stockLevel: "medium", expiryDays: 730 },
-  { name: "Probiotic Supplements (30 capsules)", category: "Health & Wellness", basePrice: 649, baseCost: 260, avgDailySales: 5, hasExpiry: true, stockLevel: "low", expiryDays: 180 },
-  { name: "Vitamin D3 1000IU (90 tablets)", category: "Health & Wellness", basePrice: 449, baseCost: 180, avgDailySales: 7, hasExpiry: true, stockLevel: "medium", expiryDays: 365 },
+  // TRENDING (Top 50% - avgDailySales 5-7) - Good performance
+  { name: "Tank Top (Sleeveless)", category: "Clothing", basePrice: 299, baseCost: 130, avgDailySales: 8, hasExpiry: false, stockLevel: "low" },
+  { name: "Oversized Hoodie (Streetwear Style)", category: "Clothing", basePrice: 799, baseCost: 340, avgDailySales: 7, hasExpiry: false, stockLevel: "medium" },
+  { name: "Zip-Up Hoodie with Pockets", category: "Clothing", basePrice: 1099, baseCost: 460, avgDailySales: 6, hasExpiry: false, stockLevel: "high" },
+  { name: "Jogger Pants (Athletic)", category: "Clothing", basePrice: 799, baseCost: 340, avgDailySales: 6, hasExpiry: false, stockLevel: "high" },
+  
+  // ========== PRODUCTS WITHOUT SALES (2/3 - Remaining 14 products) ==========
+  
+  // NORMAL PERFORMANCE (avgDailySales 3-4) - Will be FLOP (no sales)
+  { name: "Long Sleeve T-Shirt", category: "Clothing", basePrice: 499, baseCost: 210, avgDailySales: 6, hasExpiry: false, stockLevel: "medium" },
+  { name: "Graphic Print Hoodie", category: "Clothing", basePrice: 949, baseCost: 400, avgDailySales: 5, hasExpiry: false, stockLevel: "low" },
+  { name: "Polo Shirt (Classic)", category: "Clothing", basePrice: 699, baseCost: 290, avgDailySales: 5, hasExpiry: false, stockLevel: "medium" },
+  { name: "Cargo Pants (Multi-Pocket)", category: "Clothing", basePrice: 999, baseCost: 420, avgDailySales: 5, hasExpiry: false, stockLevel: "high" },
+  { name: "Sweatpants (Comfort Fit)", category: "Clothing", basePrice: 749, baseCost: 320, avgDailySales: 5, hasExpiry: false, stockLevel: "medium" },
+  { name: "Windbreaker Jacket", category: "Clothing", basePrice: 999, baseCost: 420, avgDailySales: 5, hasExpiry: false, stockLevel: "high" },
+  
+  // SLOW MOVING / FLOP (avgDailySales <= 4) - MarketMate "Bundle Up!" campaigns
+  { name: "Fleece-Lined Hoodie (Winter)", category: "Clothing", basePrice: 1299, baseCost: 550, avgDailySales: 4, hasExpiry: false, stockLevel: "medium" },
+  { name: "Henley Shirt (Button Placket)", category: "Clothing", basePrice: 649, baseCost: 270, avgDailySales: 4, hasExpiry: false, stockLevel: "medium" },
+  { name: "Slim Fit Denim Jeans", category: "Clothing", basePrice: 1299, baseCost: 550, avgDailySales: 4, hasExpiry: false, stockLevel: "medium" },
+  { name: "Bomber Jacket (Lightweight)", category: "Clothing", basePrice: 1199, baseCost: 500, avgDailySales: 4, hasExpiry: false, stockLevel: "low" },
+  { name: "Chino Pants (Casual)", category: "Clothing", basePrice: 899, baseCost: 380, avgDailySales: 3, hasExpiry: false, stockLevel: "low" },
+  { name: "Denim Jacket (Classic)", category: "Clothing", basePrice: 1499, baseCost: 650, avgDailySales: 3, hasExpiry: false, stockLevel: "medium" },
+  
+  // CRITICAL STOCK - FLOP (for SmartShelf low stock alerts)
+  { name: "Athletic Hoodie (Sports)", category: "Clothing", basePrice: 849, baseCost: 360, avgDailySales: 6, hasExpiry: false, stockLevel: "critical" },
 ];
 
 // Customer names for demo
@@ -128,8 +181,8 @@ async function seedLazadaDemoData(userId: string) {
 
   console.log(`✅ Lazada Shop: ${lazadaShop.id}\n`);
 
-  // Create products for Lazada - optimized for BVA features
-  console.log("📦 Creating Lazada products (Home & Living, Food & Beverages, Health & Wellness)...");
+  // Create products for Lazada - Clothing & Apparel
+  console.log("📦 Creating Lazada products (Clothing, Hoodies, Apparel)...");
   const lazadaProducts: Product[] = [];
   
   // Get current date for expiry calculations
@@ -161,22 +214,17 @@ async function seedLazadaDemoData(userId: string) {
         threshold = 20;
     }
 
-    // Calculate expiry date if product has expiry
+    // Calculate expiry date if product has expiry (clothing typically doesn't expire)
     let expiryDate: Date | null = null;
-    if (template.hasExpiry && template.expiryDays !== undefined) {
-      expiryDate = new Date(productNow);
-      expiryDate.setDate(expiryDate.getDate() + template.expiryDays);
-    }
+    // Clothing products don't have expiry dates
 
     // Generate realistic image URL based on category and product name
     const getImageUrl = (category: string, productName: string): string => {
       const categoryKeywords: Record<string, string> = {
-        "Home & Living": "home-decor",
-        "Food & Beverages": "food-product",
-        "Health & Wellness": "health-supplement",
+        "Clothing": "clothing-apparel-fashion",
       };
       
-      const keyword = categoryKeywords[category] || "product";
+      const keyword = categoryKeywords[category] || "clothing";
       const productSlug = productName.toLowerCase().replace(/\s+/g, "-").substring(0, 30);
       
       // Use Unsplash Source API for realistic product images
@@ -191,7 +239,7 @@ async function seedLazadaDemoData(userId: string) {
         shopId: lazadaShop.id,
         sku: `LAZADA-${template.name.substring(0, 5).toUpperCase().replace(/\s/g, '')}-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
         name: template.name,
-        description: `Premium ${template.name.toLowerCase()}. ${template.hasExpiry ? 'Check expiry date before purchase.' : 'Top-quality product.'} Excellent value and customer satisfaction guaranteed.`,
+        description: `Premium quality ${template.name.toLowerCase()}. Made with comfortable materials and excellent craftsmanship. Perfect for everyday wear with great value and style.`,
         price: template.basePrice + randomInt(-30, 80),
         cost: template.baseCost + randomInt(-15, 40),
         category: template.category,
@@ -217,8 +265,9 @@ async function seedLazadaDemoData(userId: string) {
 
   console.log(`✅ Created ${lazadaProducts.length} Lazada products\n`);
 
-  // Generate sales data with patterns for Restock Planner and Analytics
-  console.log("💰 Generating Lazada sales data with realistic patterns...");
+  // Generate sales data - Only 1/3 of products should have sales
+  // Target: 50,000 PHP total sales, 17,000 PHP revenue
+  console.log("💰 Generating Lazada sales data (1/3 of products only)...");
 
   const now = new Date();
   const oneMonthAgo = new Date(now);
@@ -248,169 +297,112 @@ async function seedLazadaDemoData(userId: string) {
     createdAt: Date;
   };
 
-  // Generate sales for past month (30 days) with patterns
-  const pastMonthSales: SaleData[] = [];
-  const currentMonthSales: SaleData[] = [];
+  // Select only 1/3 of products to have sales
+  const productsWithSales = lazadaProducts.slice(0, Math.ceil(lazadaProducts.length / 3));
+  console.log(`   Selected ${productsWithSales.length} products (out of ${lazadaProducts.length}) to have sales\n`);
 
-  // Helper to get sales boost for paydays (15th and month-end)
-  const getPaydayBoost = (day: number): number => {
-    if (day === 14 || day === 15 || day === 29 || day === 30) return 1.5;
-    if (day === 0 || day === 6) return 1.2;
-    return 1.0;
-  };
+  // Target values
+  const TARGET_TOTAL = 50000; // 50k PHP total sales
+  const TARGET_REVENUE = 17000; // 17k PHP revenue (profit)
+  
+  const allSales: SaleData[] = [];
+  let currentTotal = 0;
+  let currentRevenue = 0;
 
-  // Past month: Variable sales with patterns (2-8 sales per day)
-  for (let day = 0; day < 30; day++) {
-    const saleDate = new Date(oneMonthAgo);
-    saleDate.setDate(saleDate.getDate() + day);
+  // Generate sales until we reach targets
+  const startDate = new Date(oneMonthAgo);
+  let dayOffset = 0;
+  const maxDays = 60; // Allow up to 60 days to generate sales
+
+  while ((currentTotal < TARGET_TOTAL || currentRevenue < TARGET_REVENUE) && dayOffset < maxDays) {
+    const saleDate = new Date(startDate);
+    saleDate.setDate(saleDate.getDate() + dayOffset);
+    saleDate.setHours(randomInt(9, 20), randomInt(0, 59), randomInt(0, 59));
     
-    const dayOfMonth = saleDate.getDate();
-    const boost = getPaydayBoost(dayOfMonth);
-    const baseSales = randomInt(2, 5);
-    const salesPerDay = Math.floor(baseSales * boost);
+    // Determine how much we still need
+    const remainingTotal = TARGET_TOTAL - currentTotal;
+    const remainingRevenue = TARGET_REVENUE - currentRevenue;
+    
+    // Calculate target order value (aim for remaining total, but ensure we get revenue)
+    const targetOrderValue = Math.min(remainingTotal, randomInt(800, 2500));
+    
+    const selectedProducts: OrderItem[] = [];
+    let orderTotal = 0;
+    const usedProductIds = new Set<string>();
+    const numItems = randomInt(1, 3);
 
-    for (let i = 0; i < salesPerDay; i++) {
-      const hour = randomInt(0, 100) < 60 ? randomInt(14, 20) : randomInt(9, 13);
-      saleDate.setHours(hour, randomInt(0, 59), randomInt(0, 59));
+    for (let j = 0; j < numItems && orderTotal < targetOrderValue; j++) {
+      const product = productsWithSales[randomInt(0, productsWithSales.length - 1)];
+      if (!product || usedProductIds.has(product.id)) continue;
+      usedProductIds.add(product.id);
       
-      const numItems = randomInt(1, 4);
-      const selectedProducts: OrderItem[] = [];
-      let total = 0;
-      const usedProductIds = new Set<string>();
+      // Calculate quantity to reach target
+      const remaining = targetOrderValue - orderTotal;
+      const maxQty = Math.min(Math.ceil(remaining / product.price), 5);
+      const quantity = maxQty > 0 ? randomInt(1, maxQty) : 1;
+      const price = product.price;
+      const subtotal = price * quantity;
+      
+      if (orderTotal + subtotal > targetOrderValue * 1.2) break; // Don't exceed too much
+      
+      orderTotal += subtotal;
+      selectedProducts.push({
+        productId: product.id,
+        productName: product.name,
+        quantity,
+        price,
+        subtotal,
+      });
+    }
 
-      for (let j = 0; j < numItems; j++) {
-        let product = lazadaProducts[randomInt(0, lazadaProducts.length - 1)];
-        if (!product) continue;
-        let attempts = 0;
-        while (usedProductIds.has(product.id) && attempts < 3) {
-          product = lazadaProducts[randomInt(0, lazadaProducts.length - 1)];
-          attempts++;
-          if (!product) break;
-        }
-        if (!product || usedProductIds.has(product.id)) continue;
-        usedProductIds.add(product.id);
-        
-        const template = lazadaProductTemplates.find(t => {
-          if (!product || !product.name || !t || !t.name) return false;
-          const productFirstWord = product.name.split(' ')[0];
-          const templateFirstWord = t.name.split(' ')[0];
-          if (!productFirstWord || !templateFirstWord) return false;
-          return product.name.includes(templateFirstWord) || t.name.includes(productFirstWord);
-        });
-        const isBestSeller = template && template.avgDailySales >= 8;
-        const quantity = isBestSeller ? randomInt(1, 4) : randomInt(1, 2);
-        const price = product.price;
-        const subtotal = price * quantity;
-        total += subtotal;
-
-        selectedProducts.push({
-          productId: product.id,
-          productName: product.name,
-          quantity,
-          price,
-          subtotal,
-        });
+    // Calculate profit (revenue)
+    const profit = selectedProducts.reduce((sum, item) => {
+      const product = productsWithSales.find(p => p.id === item.productId);
+      if (product && product.cost) {
+        return sum + ((item.price - product.cost) * item.quantity);
       }
+      return sum + (item.subtotal * 0.34); // 34% margin to reach 17k revenue from 50k total
+    }, 0);
 
-      const profit = selectedProducts.reduce((sum, item) => {
-        const product = lazadaProducts.find(p => p.id === item.productId);
-        if (product && product.cost) {
-          return sum + ((item.price - product.cost) * item.quantity);
-        }
-        return sum + (item.subtotal * 0.2);
-      }, 0);
-
-      pastMonthSales.push({
+    // Only add if we haven't exceeded targets too much
+    if (currentTotal + orderTotal <= TARGET_TOTAL * 1.1 && currentRevenue + profit <= TARGET_REVENUE * 1.1) {
+      allSales.push({
         shopId: lazadaShop.id,
         platform: Platform.LAZADA,
         platformOrderId: `ORDER-LAZADA-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         externalId: `EXT-LAZADA-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         items: selectedProducts,
-        total,
-        revenue: total,
+        total: orderTotal,
+        revenue: orderTotal,
         profit,
         status: OrderStatus.COMPLETED,
         customerName: customerNames[randomInt(0, customerNames.length - 1)] || null,
         customerEmail: customerEmails[randomInt(0, customerEmails.length - 1)] || null,
         createdAt: new Date(saleDate),
       });
+
+      currentTotal += orderTotal;
+      currentRevenue += profit;
+    }
+
+    dayOffset++;
+    
+    // If we're close to targets, add one more order to finish
+    if (currentTotal >= TARGET_TOTAL * 0.95 && currentRevenue >= TARGET_REVENUE * 0.95) {
+      break;
     }
   }
 
-  // Current month: Variable sales with patterns (1-6 sales per day)
-  const daysInCurrentMonth = now.getDate();
-  for (let day = 0; day < daysInCurrentMonth; day++) {
-    const saleDate = new Date(now.getFullYear(), now.getMonth(), day + 1);
-    const dayOfMonth = saleDate.getDate();
-    const boost = getPaydayBoost(dayOfMonth);
-    const baseSales = randomInt(1, 4);
-    const salesPerDay = Math.floor(baseSales * boost);
+  // Split sales into past month and current month
+  const pastMonthSales: SaleData[] = [];
+  const currentMonthSales: SaleData[] = [];
+  const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
-    for (let i = 0; i < salesPerDay; i++) {
-      const hour = randomInt(0, 100) < 60 ? randomInt(14, 20) : randomInt(9, 13);
-      saleDate.setHours(hour, randomInt(0, 59), randomInt(0, 59));
-      
-      const numItems = randomInt(1, 4);
-      const selectedProducts: OrderItem[] = [];
-      let total = 0;
-      const usedProductIds = new Set<string>();
-
-      for (let j = 0; j < numItems; j++) {
-        let product = lazadaProducts[randomInt(0, lazadaProducts.length - 1)];
-        if (!product) continue;
-        let attempts = 0;
-        while (usedProductIds.has(product.id) && attempts < 3) {
-          product = lazadaProducts[randomInt(0, lazadaProducts.length - 1)];
-          attempts++;
-          if (!product) break;
-        }
-        if (!product || usedProductIds.has(product.id)) continue;
-        usedProductIds.add(product.id);
-        
-        const template = lazadaProductTemplates.find(t => {
-          if (!product || !product.name || !t || !t.name) return false;
-          const productFirstWord = product.name.split(' ')[0];
-          const templateFirstWord = t.name.split(' ')[0];
-          if (!productFirstWord || !templateFirstWord) return false;
-          return product.name.includes(templateFirstWord) || t.name.includes(productFirstWord);
-        });
-        const isBestSeller = template && template.avgDailySales >= 8;
-        const quantity = isBestSeller ? randomInt(1, 4) : randomInt(1, 2);
-        const price = product.price;
-        const subtotal = price * quantity;
-        total += subtotal;
-
-        selectedProducts.push({
-          productId: product.id,
-          productName: product.name,
-          quantity,
-          price,
-          subtotal,
-        });
-      }
-
-      const profit = selectedProducts.reduce((sum, item) => {
-        const product = lazadaProducts.find(p => p.id === item.productId);
-        if (product && product.cost) {
-          return sum + ((item.price - product.cost) * item.quantity);
-        }
-        return sum + (item.subtotal * 0.2);
-      }, 0);
-
-      currentMonthSales.push({
-        shopId: lazadaShop.id,
-        platform: Platform.LAZADA,
-        platformOrderId: `ORDER-LAZADA-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        externalId: `EXT-LAZADA-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        items: selectedProducts,
-        total,
-        revenue: total,
-        profit,
-        status: OrderStatus.COMPLETED,
-        customerName: customerNames[randomInt(0, customerNames.length - 1)] || null,
-        customerEmail: customerEmails[randomInt(0, customerEmails.length - 1)] || null,
-        createdAt: new Date(saleDate),
-      });
+  for (const sale of allSales) {
+    if (new Date(sale.createdAt) < currentMonthStart) {
+      pastMonthSales.push(sale);
+    } else {
+      currentMonthSales.push(sale);
     }
   }
 
@@ -430,9 +422,8 @@ async function seedLazadaDemoData(userId: string) {
   // Create demo campaigns optimized for MarketMate
   console.log("📢 Creating demo campaigns for MarketMate...");
   
-  const bestSellerProduct = lazadaProducts.find(p => p.name.includes("Coffee")) || lazadaProducts[0];
+  const bestSellerProduct = lazadaProducts.find(p => p.name.includes("Hoodie") || p.name.includes("T-Shirt")) || lazadaProducts[0];
   const campaignLowStockProduct = lazadaProducts.find(p => p.stock < 15) || lazadaProducts[1];
-  const campaignExpiredProduct = lazadaProducts.find(p => p.expiryDate && new Date(p.expiryDate) < now) || null;
   
   if (!bestSellerProduct) {
     console.error("❌ No products found for campaigns!");
@@ -453,36 +444,36 @@ async function seedLazadaDemoData(userId: string) {
   }> = [
     {
       shopId: lazadaShop.id,
-      name: "New Arrival - Home Essentials",
+      name: "New Arrival - Premium Hoodies",
       content: {
         playbook: "New Arrival",
-        product_name: "Premium Bed Sheet Set Queen Size",
-        ad_copy: "✨ Brand New Home Collection! Comfortable and stylish bed sheets now available. Limited stock!",
+        product_name: "Premium Pullover Hoodie (Unisex)",
+        ad_copy: "✨ Brand New Clothing Collection! Comfortable and stylish hoodies now available. Limited stock!",
       },
       status: CampaignStatus.SCHEDULED,
       scheduledAt: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000), // 2 days from now
     },
     {
       shopId: lazadaShop.id,
-      name: "Best Seller - Premium Coffee",
+      name: "Best Seller - Premium Hoodie",
       content: {
         playbook: "Best Seller Spotlight",
         product_name: bestSellerProduct.name,
-        ad_copy: "☕ BEST SELLER! Our most popular premium coffee - trusted by thousands! Get yours today!",
+        ad_copy: "🔥 BEST SELLER! Our most popular hoodie - trusted by thousands! Get yours today!",
       },
       status: CampaignStatus.PUBLISHED,
     },
   ];
   
-  if (campaignExpiredProduct) {
+  if (campaignLowStockProduct) {
     campaigns.push({
       shopId: lazadaShop.id,
-      name: "Clearance Sale - Expiring Soon",
+      name: "Flash Sale - Low Stock Items",
       content: {
         playbook: "Flash Sale",
-        product_name: campaignExpiredProduct.name,
-        ad_copy: `⚠️ CLEARANCE SALE! ${campaignExpiredProduct.name} - Limited time offer! Get it before it's gone!`,
-        discount: "50% OFF",
+        product_name: campaignLowStockProduct.name,
+        ad_copy: `⚡ FLASH SALE! ${campaignLowStockProduct.name} - Limited stock available! Get it before it's gone!`,
+        discount: "30% OFF",
       },
       status: CampaignStatus.DRAFT,
     });
@@ -498,13 +489,6 @@ async function seedLazadaDemoData(userId: string) {
   console.log("🔔 Creating demo notifications...");
   
   const notifLowStockProduct = lazadaProducts.find(p => p.stock < 15);
-  const notifExpiredProduct = lazadaProducts.find(p => p.expiryDate && new Date(p.expiryDate) < now);
-  const expiringSoonProduct = lazadaProducts.find(p => {
-    if (!p.expiryDate) return false;
-    const expiry = new Date(p.expiryDate);
-    const daysUntilExpiry = Math.floor((expiry.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-    return daysUntilExpiry > 0 && daysUntilExpiry <= 30;
-  });
   
   const notifications = [
     {
@@ -522,26 +506,6 @@ async function seedLazadaDemoData(userId: string) {
       type: "success",
     },
   ];
-  
-  if (notifExpiredProduct) {
-    notifications.push({
-      userId,
-      title: "⚠️ Expired Product Detected",
-      message: `${notifExpiredProduct.name} has expired. Create a clearance sale in MarketMate to move inventory.`,
-      type: "warning",
-    });
-  }
-  
-  if (expiringSoonProduct) {
-    const expiry = new Date(expiringSoonProduct.expiryDate!);
-    const daysUntilExpiry = Math.floor((expiry.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-    notifications.push({
-      userId,
-      title: "⏰ Product Expiring Soon",
-      message: `${expiringSoonProduct.name} will expire in ${daysUntilExpiry} days. Consider creating a promotion.`,
-      type: "warning",
-    });
-  }
 
   for (const notifData of notifications) {
     await prisma.notification.create({ data: notifData });
@@ -549,14 +513,20 @@ async function seedLazadaDemoData(userId: string) {
 
   console.log(`✅ Created ${notifications.length} notifications\n`);
 
+  // Calculate totals
+  const totalSalesValue = allSales.reduce((sum, s) => sum + s.total, 0);
+  const totalRevenue = allSales.reduce((sum, s) => sum + s.profit, 0);
+
   // Summary
   console.log("✨ Lazada demo data seeding completed!\n");
   console.log("📊 Summary:");
   console.log(`   - Shop: 1 (Lazada)`);
-  console.log(`   - Products: ${lazadaProducts.length} (Home & Living, Food & Beverages, Health & Wellness)`);
-  console.log(`     • With expiry dates: ${lazadaProducts.filter(p => p.expiryDate).length}`);
+  console.log(`   - Products: ${lazadaProducts.length} (Clothing, Hoodies, Apparel)`);
+  console.log(`     • Products with sales: ${productsWithSales.length} (1/3 of total)`);
   console.log(`     • Low/Critical stock: ${lazadaProducts.filter(p => p.stock < 15).length}`);
-  console.log(`   - Sales: ${pastMonthSales.length + currentMonthSales.length} (${pastMonthSales.length} past month + ${currentMonthSales.length} current month)`);
+  console.log(`   - Sales: ${allSales.length} (${pastMonthSales.length} past month + ${currentMonthSales.length} current month)`);
+  console.log(`   - Total Sales Value: ₱${totalSalesValue.toLocaleString()}.00`);
+  console.log(`   - Total Revenue: ₱${totalRevenue.toLocaleString()}.00`);
   console.log(`   - Campaigns: ${campaigns.length}`);
   console.log(`   - Notifications: ${notifications.length}\n`);
 }

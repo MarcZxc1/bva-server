@@ -175,6 +175,19 @@ export default function Dashboard() {
     status: item.score >= 80 ? "critical" : item.score >= 60 ? "low" : "medium"
   })) || [];
 
+  // Calculate stock alerts count - use array length if meta.flagged_count is not available or 0
+  // This ensures "ALL" platform shows correct count by using actual at_risk array length
+  const stockAlertsCount = useMemo(() => {
+    if (!atRiskData?.at_risk) return 0;
+    // When platform is "ALL", use the actual array length as it aggregates all platforms
+    // When platform is specific, use meta.flagged_count if available, otherwise array length
+    if (selectedPlatform === 'ALL') {
+      return atRiskData.at_risk.length;
+    }
+    // For specific platforms, prefer meta.flagged_count but fallback to array length
+    return atRiskData.meta?.flagged_count ?? atRiskData.at_risk.length;
+  }, [atRiskData, selectedPlatform]);
+
   // Check for empty states
   const hasNoShop = !hasShop;
   const hasNoIntegration = !isPlatformConnected;
@@ -420,7 +433,7 @@ export default function Dashboard() {
                 </CardHeader>
                 <CardContent>
                   <div className="text-3xl font-bold text-warning">
-                    {atRiskData?.meta?.flagged_count || 0}
+                    {stockAlertsCount}
                   </div>
                   <p className="text-xs text-muted-foreground mt-1">
                     Items need attention

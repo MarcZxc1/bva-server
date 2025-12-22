@@ -2,10 +2,43 @@
  * Shopee Demo Data Seeding Script
  * 
  * Seeds realistic demo data specifically for Shopee shop
- * - Products (Electronics, Fashion, Beauty)
+ * - Products (Filipino Pasalubong - Homecoming Gifts)
  * - Sales data (past month + current month)
+ * - All products have sales to reach targets
+ * - Target: 30,000 PHP total sales, 15,000 PHP revenue (50% margin)
  * - Inventory records
  * - Campaigns and notifications
+ * 
+ * BVA FEATURES INTEGRATION:
+ * 
+ * 1. SmartShelf:
+ *    - Low Stock Alerts: Products with "low" or "critical" stock levels
+ *    - Expiry Alerts: All products have expiry dates
+ *      * Expired: Buko Pie (expired 2 days ago) - triggers urgent alert
+ *      * Expiring Soon: Pastillas, Yema, Tocino (30 days) - triggers warning
+ *    - Product Trends:
+ *      * Best Seller (top 20%): avgDailySales >= 12 - Banana Chips, Chicharon, Dried Mangoes, Polvoron
+ *      * Trending (top 50%): avgDailySales 7-11 - Pancit Canton, Pastillas, Bagoong, Calamansi Juice, etc.
+ *      * Normal: avgDailySales 5-6 - Tocino, Patis, Champorado, Adobo Mix, Buko Pandan
+ *      * Slow Moving (bottom 20%): avgDailySales <= 4 - Sago't Gulaman, Buko Pie
+ * 
+ * 2. Restock Planner:
+ *    - Uses avgDailySales for demand forecasting
+ *    - Profit margins calculated from basePrice - baseCost (50% margin)
+ *    - Best sellers prioritized for restocking recommendations
+ *    - Expiry dates considered for perishable items
+ * 
+ * 3. MarketMate:
+ *    - Best Seller Spotlight: Chicharon, Dried Mangoes, Banana Chips
+ *    - Flash Sale: Low stock items
+ *    - Clearance Sale: Expired items (Buko Pie)
+ *    - Bundle Up!: Slow moving products
+ * 
+ * 4. Analytics/Reports:
+ *    - Revenue tracking: 15,000 PHP target
+ *    - Sales velocity from avgDailySales
+ *    - Profit margins: 50% (15k revenue / 30k sales)
+ *    - Expiry tracking for food safety
  * 
  * Usage:
  *   npm run db:seed-demo-shopee <userId>
@@ -21,33 +54,57 @@ import { Platform, OrderStatus, CampaignStatus } from "../src/generated/prisma";
 
 dotenv.config({ path: path.join(__dirname, "../.env") });
 
-// Shopee-specific product templates - Electronics, Fashion, Beauty focus
+// Shopee-specific product templates - Filipino Pasalubong (Homecoming Gifts) focus
+//
+// PRODUCT PERFORMANCE CATEGORIZATION (for BVA features):
+// - Best Seller: Top 20% by sales velocity (avgDailySales >= 12) - Used in MarketMate "Best Seller Spotlight"
+// - Trending: Top 50% by sales velocity (avgDailySales >= 7) - Good performance, steady sales
+// - Normal: Middle range (avgDailySales 5-6) - Average performance
+// - Slow Moving: Bottom 20% by sales velocity (avgDailySales <= 4) - Needs promotion
+// - Flop: Zero sales (not included in sales generation) - Used in MarketMate "Bundle Up!"
+//
+// STOCK LEVELS (for SmartShelf alerts):
+// - high: 60-150 units (above threshold, no alerts)
+// - medium: 20-50 units (near threshold, watch)
+// - low: 6-15 units (below threshold, restock needed)
+// - critical: 1-5 units (urgent restock, high risk)
+//
+// EXPIRY DATES (for SmartShelf expiry alerts):
+// - Positive days: Future expiry (e.g., 90 = expires in 90 days)
+// - Negative days: Already expired (e.g., -2 = expired 2 days ago) - Used in MarketMate "Clearance Sale"
+// - Long expiry: Non-perishable items (365+ days)
+//
+// All products have sales to reach 30k total / 15k revenue target
 const shopeeProductTemplates = [
-  // Electronics - Best Sellers (High volume, good margins)
-  { name: "Wireless Bluetooth Earbuds Pro", category: "Electronics", basePrice: 1299, baseCost: 550, avgDailySales: 8, hasExpiry: false, stockLevel: "high" },
-  { name: "USB-C Fast Charging Cable 2m", category: "Electronics", basePrice: 199, baseCost: 80, avgDailySales: 12, hasExpiry: false, stockLevel: "high" },
-  { name: "Phone Case with Stand & Card Holder", category: "Electronics", basePrice: 399, baseCost: 150, avgDailySales: 6, hasExpiry: false, stockLevel: "medium" },
-  { name: "Portable Power Bank 20000mAh", category: "Electronics", basePrice: 899, baseCost: 400, avgDailySales: 5, hasExpiry: false, stockLevel: "medium" },
-  { name: "Wireless Mouse Ergonomic", category: "Electronics", basePrice: 499, baseCost: 200, avgDailySales: 4, hasExpiry: false, stockLevel: "low" },
-  { name: "Smart Watch Fitness Tracker", category: "Electronics", basePrice: 2499, baseCost: 1100, avgDailySales: 3, hasExpiry: false, stockLevel: "medium" },
-  { name: "Bluetooth Speaker Portable", category: "Electronics", basePrice: 799, baseCost: 350, avgDailySales: 4, hasExpiry: false, stockLevel: "high" },
-  { name: "Laptop Stand Adjustable", category: "Electronics", basePrice: 599, baseCost: 250, avgDailySales: 2, hasExpiry: false, stockLevel: "critical" },
+  // BEST SELLERS (Top 20% - avgDailySales >= 12) - MarketMate "Best Seller Spotlight"
+  { name: "Banana Chips (Sweet) 250g", category: "Food & Beverages", basePrice: 129, baseCost: 65, avgDailySales: 14, hasExpiry: true, stockLevel: "medium", expiryDays: 90 },
+  { name: "Chicharon (Pork Cracklings) 200g", category: "Food & Beverages", basePrice: 149, baseCost: 75, avgDailySales: 15, hasExpiry: true, stockLevel: "high", expiryDays: 90 },
+  { name: "Dried Mangoes (Philippine Brand) 200g", category: "Food & Beverages", basePrice: 199, baseCost: 100, avgDailySales: 12, hasExpiry: true, stockLevel: "high", expiryDays: 180 },
+  { name: "Polvoron (Milk Candy) Assorted 12pcs", category: "Food & Beverages", basePrice: 179, baseCost: 90, avgDailySales: 10, hasExpiry: true, stockLevel: "high", expiryDays: 60 },
   
-  // Fashion - Seasonal & Trending
-  { name: "Premium Cotton T-Shirt (Pack of 3)", category: "Fashion", basePrice: 599, baseCost: 250, avgDailySales: 10, hasExpiry: false, stockLevel: "high" },
-  { name: "Slim Fit Denim Jeans", category: "Fashion", basePrice: 1299, baseCost: 550, avgDailySales: 4, hasExpiry: false, stockLevel: "medium" },
-  { name: "Running Shoes Air Cushion", category: "Fashion", basePrice: 1999, baseCost: 900, avgDailySales: 3, hasExpiry: false, stockLevel: "low" },
-  { name: "Genuine Leather Wallet", category: "Fashion", basePrice: 599, baseCost: 250, avgDailySales: 5, hasExpiry: false, stockLevel: "medium" },
-  { name: "Summer Dress Floral Print", category: "Fashion", basePrice: 799, baseCost: 320, avgDailySales: 2, hasExpiry: false, stockLevel: "critical" },
-  { name: "Backpack Laptop 15.6 inch", category: "Fashion", basePrice: 899, baseCost: 380, avgDailySales: 3, hasExpiry: false, stockLevel: "medium" },
+  // TRENDING (Top 50% - avgDailySales 7-11) - Good performance
+  { name: "Pancit Canton (Instant Noodles) Pack of 10", category: "Food & Beverages", basePrice: 199, baseCost: 100, avgDailySales: 11, hasExpiry: true, stockLevel: "high", expiryDays: 180 },
+  { name: "Pastillas de Leche (Milk Candy) 20pcs", category: "Food & Beverages", basePrice: 249, baseCost: 125, avgDailySales: 9, hasExpiry: true, stockLevel: "high", expiryDays: 30 },
+  { name: "Bagoong (Shrimp Paste) 250ml", category: "Food & Beverages", basePrice: 99, baseCost: 50, avgDailySales: 9, hasExpiry: true, stockLevel: "high", expiryDays: 365 },
+  { name: "Calamansi Juice Concentrate 500ml", category: "Food & Beverages", basePrice: 199, baseCost: 100, avgDailySales: 8, hasExpiry: true, stockLevel: "high", expiryDays: 90 },
+  { name: "Vinegar (Cane) 1L", category: "Food & Beverages", basePrice: 79, baseCost: 40, avgDailySales: 8, hasExpiry: true, stockLevel: "medium", expiryDays: 730 },
+  { name: "Bibingka Mix (Rice Cake) 500g", category: "Food & Beverages", basePrice: 149, baseCost: 75, avgDailySales: 8, hasExpiry: true, stockLevel: "medium", expiryDays: 365 },
+  { name: "Yema (Custard Candy) 15pcs", category: "Food & Beverages", basePrice: 199, baseCost: 100, avgDailySales: 7, hasExpiry: true, stockLevel: "medium", expiryDays: 30 },
+  { name: "Soy Sauce (Premium Filipino Brand) 1L", category: "Food & Beverages", basePrice: 149, baseCost: 75, avgDailySales: 7, hasExpiry: true, stockLevel: "high", expiryDays: 730 },
+  { name: "Sinigang Mix (Sour Soup) Assorted 10pcs", category: "Food & Beverages", basePrice: 179, baseCost: 90, avgDailySales: 7, hasExpiry: true, stockLevel: "medium", expiryDays: 365 },
   
-  // Beauty & Personal Care - WITH EXPIRY DATES (for SmartShelf expiry detection)
-  { name: "Face Moisturizer SPF 30 (50ml)", category: "Beauty", basePrice: 399, baseCost: 160, avgDailySales: 9, hasExpiry: true, stockLevel: "high", expiryDays: 180 },
-  { name: "Shampoo & Conditioner Set (500ml each)", category: "Beauty", basePrice: 499, baseCost: 200, avgDailySales: 7, hasExpiry: true, stockLevel: "medium", expiryDays: 365 },
-  { name: "Professional Makeup Brush Set (12pc)", category: "Beauty", basePrice: 799, baseCost: 320, avgDailySales: 4, hasExpiry: false, stockLevel: "medium" },
-  { name: "Vitamin C Serum 30ml", category: "Beauty", basePrice: 599, baseCost: 240, avgDailySales: 6, hasExpiry: true, stockLevel: "low", expiryDays: 90 },
-  { name: "Sunscreen SPF 50+ (100ml)", category: "Beauty", basePrice: 349, baseCost: 140, avgDailySales: 8, hasExpiry: true, stockLevel: "critical", expiryDays: -5 },
-  { name: "Lipstick Set (6 Colors)", category: "Beauty", basePrice: 449, baseCost: 180, avgDailySales: 5, hasExpiry: true, stockLevel: "medium", expiryDays: 730 },
+  // NORMAL PERFORMANCE (avgDailySales 5-6) - Average sales
+  { name: "Tocino (Sweet Cured Meat) 500g", category: "Food & Beverages", basePrice: 249, baseCost: 125, avgDailySales: 6, hasExpiry: true, stockLevel: "medium", expiryDays: 30 },
+  { name: "Patis (Fish Sauce) 500ml", category: "Food & Beverages", basePrice: 119, baseCost: 60, avgDailySales: 6, hasExpiry: true, stockLevel: "medium", expiryDays: 365 },
+  { name: "Champorado (Chocolate Rice) Mix 200g", category: "Food & Beverages", basePrice: 129, baseCost: 65, avgDailySales: 6, hasExpiry: true, stockLevel: "medium", expiryDays: 180 },
+  { name: "Adobo Mix (Marinade) 10pcs", category: "Food & Beverages", basePrice: 149, baseCost: 75, avgDailySales: 5, hasExpiry: true, stockLevel: "low", expiryDays: 365 },
+  { name: "Buko Pandan Drink Mix 200g", category: "Food & Beverages", basePrice: 149, baseCost: 75, avgDailySales: 5, hasExpiry: true, stockLevel: "medium", expiryDays: 180 },
+  
+  // SLOW MOVING (Bottom 20% - avgDailySales <= 4) - Needs promotion
+  { name: "Sago't Gulaman (Jelly Drink) Mix 500g", category: "Food & Beverages", basePrice: 179, baseCost: 90, avgDailySales: 4, hasExpiry: true, stockLevel: "low", expiryDays: 365 },
+  
+  // EXPIRED ITEM (for SmartShelf expiry alerts & MarketMate "Clearance Sale")
+  { name: "Buko Pie (Coconut Pie) 1 whole", category: "Food & Beverages", basePrice: 349, baseCost: 175, avgDailySales: 3, hasExpiry: true, stockLevel: "critical", expiryDays: -2 },
 ];
 
 // Customer names for demo
@@ -122,8 +179,8 @@ async function seedShopeeDemoData(userId: string) {
 
   console.log(`✅ Shopee Shop: ${shopeeShop.id}\n`);
 
-  // Create products for Shopee - optimized for BVA features
-  console.log("📦 Creating Shopee products (Electronics, Fashion, Beauty)...");
+  // Create products for Shopee - Filipino Pasalubong items
+  console.log("📦 Creating Shopee products (Filipino Pasalubong - Homecoming Gifts)...");
   const shopeeProducts: Awaited<ReturnType<typeof prisma.product.create>>[] = [];
   
   // Get current date for expiry calculations
@@ -165,12 +222,10 @@ async function seedShopeeDemoData(userId: string) {
     // Generate realistic image URL based on category and product name
     const getImageUrl = (category: string, productName: string): string => {
       const categoryKeywords: Record<string, string> = {
-        "Electronics": "electronics-gadget",
-        "Fashion": "fashion-clothing",
-        "Beauty": "beauty-cosmetics",
+        "Food & Beverages": "filipino-food-snacks",
       };
       
-      const keyword = categoryKeywords[category] || "product";
+      const keyword = categoryKeywords[category] || "filipino-product";
       const productSlug = productName.toLowerCase().replace(/\s+/g, "-").substring(0, 30);
       
       // Use Unsplash Source API for realistic product images
@@ -185,9 +240,9 @@ async function seedShopeeDemoData(userId: string) {
         shopId: shopeeShop.id,
         sku: `SHOPEE-${template.name.substring(0, 5).toUpperCase().replace(/\s/g, '')}-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
         name: template.name,
-        description: `High-quality ${template.name.toLowerCase()}. ${template.hasExpiry ? 'Check expiry date before purchase.' : 'Durable and reliable product.'} Perfect for your needs with excellent value.`,
-        price: template.basePrice + randomInt(-50, 100),
-        cost: template.baseCost + randomInt(-20, 50),
+        description: `Authentic Filipino ${template.name.toLowerCase()}. ${template.hasExpiry ? 'Check expiry date before purchase.' : 'Perfect pasalubong (homecoming gift) from the Philippines.'} Made with quality ingredients.`,
+        price: template.basePrice + randomInt(-20, 50),
+        cost: template.baseCost + randomInt(-10, 25),
         category: template.category,
         stock: stock,
         expiryDate: expiryDate,
@@ -211,8 +266,8 @@ async function seedShopeeDemoData(userId: string) {
 
   console.log(`✅ Created ${shopeeProducts.length} Shopee products\n`);
 
-  // Generate sales data with patterns for Restock Planner and Analytics
-  console.log("💰 Generating Shopee sales data with realistic patterns...");
+  // Generate sales data - Target: 30,000 PHP total sales, 15,000 PHP revenue
+  console.log("💰 Generating Shopee sales data (Filipino Pasalubong)...");
 
   const now = new Date();
   const oneMonthAgo = new Date(now);
@@ -242,169 +297,108 @@ async function seedShopeeDemoData(userId: string) {
     createdAt: Date;
   };
 
-  // Generate sales for past month (30 days) with patterns
-  const pastMonthSales: SaleData[] = [];
-  const currentMonthSales: SaleData[] = [];
+  // Target values
+  const TARGET_TOTAL = 30000; // 30k PHP total sales
+  const TARGET_REVENUE = 15000; // 15k PHP revenue (50% margin)
+  
+  const allSales: SaleData[] = [];
+  let currentTotal = 0;
+  let currentRevenue = 0;
 
-  // Helper to get sales boost for paydays (15th and month-end)
-  const getPaydayBoost = (day: number): number => {
-    if (day === 14 || day === 15 || day === 29 || day === 30) return 1.5;
-    if (day === 0 || day === 6) return 1.2;
-    return 1.0;
-  };
+  // Generate sales until we reach targets
+  const startDate = new Date(oneMonthAgo);
+  let dayOffset = 0;
+  const maxDays = 60; // Allow up to 60 days to generate sales
 
-  // Past month: Variable sales with patterns (2-8 sales per day)
-  for (let day = 0; day < 30; day++) {
-    const saleDate = new Date(oneMonthAgo);
-    saleDate.setDate(saleDate.getDate() + day);
+  while ((currentTotal < TARGET_TOTAL || currentRevenue < TARGET_REVENUE) && dayOffset < maxDays) {
+    const saleDate = new Date(startDate);
+    saleDate.setDate(saleDate.getDate() + dayOffset);
+    saleDate.setHours(randomInt(9, 20), randomInt(0, 59), randomInt(0, 59));
     
-    const dayOfMonth = saleDate.getDate();
-    const boost = getPaydayBoost(dayOfMonth);
-    const baseSales = randomInt(2, 5);
-    const salesPerDay = Math.floor(baseSales * boost);
+    // Determine how much we still need
+    const remainingTotal = TARGET_TOTAL - currentTotal;
+    const remainingRevenue = TARGET_REVENUE - currentRevenue;
+    
+    // Calculate target order value (aim for remaining total, but ensure we get revenue)
+    const targetOrderValue = Math.min(remainingTotal, randomInt(500, 1500));
+    
+    const selectedProducts: OrderItem[] = [];
+    let orderTotal = 0;
+    const usedProductIds = new Set<string>();
+    const numItems = randomInt(1, 3);
 
-    for (let i = 0; i < salesPerDay; i++) {
-      const hour = randomInt(0, 100) < 60 ? randomInt(14, 20) : randomInt(9, 13);
-      saleDate.setHours(hour, randomInt(0, 59), randomInt(0, 59));
+    for (let j = 0; j < numItems && orderTotal < targetOrderValue; j++) {
+      const product = shopeeProducts[randomInt(0, shopeeProducts.length - 1)];
+      if (!product || usedProductIds.has(product.id)) continue;
+      usedProductIds.add(product.id);
       
-      const numItems = randomInt(1, 4);
-      const selectedProducts: OrderItem[] = [];
-      let total = 0;
-      const usedProductIds = new Set<string>();
+      // Calculate quantity to reach target
+      const remaining = targetOrderValue - orderTotal;
+      const maxQty = Math.min(Math.ceil(remaining / product.price), 4);
+      const quantity = maxQty > 0 ? randomInt(1, maxQty) : 1;
+      const price = product.price;
+      const subtotal = price * quantity;
+      
+      if (orderTotal + subtotal > targetOrderValue * 1.2) break; // Don't exceed too much
+      
+      orderTotal += subtotal;
+      selectedProducts.push({
+        productId: product.id,
+        productName: product.name,
+        quantity,
+        price,
+        subtotal,
+      });
+    }
 
-      for (let j = 0; j < numItems; j++) {
-        let product = shopeeProducts[randomInt(0, shopeeProducts.length - 1)];
-        if (!product) continue;
-        let attempts = 0;
-        while (usedProductIds.has(product.id) && attempts < 3) {
-          product = shopeeProducts[randomInt(0, shopeeProducts.length - 1)];
-          attempts++;
-          if (!product) break;
-        }
-        if (!product || usedProductIds.has(product.id)) continue;
-        usedProductIds.add(product.id);
-        
-        const template = shopeeProductTemplates.find(t => {
-          if (!product || !product.name || !t || !t.name) return false;
-          const productFirstWord = product.name.split(' ')[0];
-          const templateFirstWord = t.name.split(' ')[0];
-          if (!productFirstWord || !templateFirstWord) return false;
-          return product.name.includes(templateFirstWord) || t.name.includes(productFirstWord);
-        });
-        const isBestSeller = template && template.avgDailySales >= 8;
-        const quantity = isBestSeller ? randomInt(1, 4) : randomInt(1, 2);
-        const price = product.price;
-        const subtotal = price * quantity;
-        total += subtotal;
-
-        selectedProducts.push({
-          productId: product.id,
-          productName: product.name,
-          quantity,
-          price,
-          subtotal,
-        });
+    // Calculate profit (revenue) - 50% margin
+    const profit = selectedProducts.reduce((sum, item) => {
+      const product = shopeeProducts.find(p => p.id === item.productId);
+      if (product && product.cost) {
+        return sum + ((item.price - product.cost) * item.quantity);
       }
+      return sum + (item.subtotal * 0.5); // 50% margin
+    }, 0);
 
-      const profit = selectedProducts.reduce((sum, item) => {
-        const product = shopeeProducts.find(p => p.id === item.productId);
-        if (product && product.cost) {
-          return sum + ((item.price - product.cost) * item.quantity);
-        }
-        return sum + (item.subtotal * 0.2);
-      }, 0);
-
-      pastMonthSales.push({
+    // Only add if we haven't exceeded targets too much
+    if (currentTotal + orderTotal <= TARGET_TOTAL * 1.1 && currentRevenue + profit <= TARGET_REVENUE * 1.1) {
+      allSales.push({
         shopId: shopeeShop.id,
         platform: Platform.SHOPEE,
         platformOrderId: `ORDER-SHOPEE-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         externalId: `EXT-SHOPEE-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         items: selectedProducts,
-        total,
-        revenue: total,
+        total: orderTotal,
+        revenue: orderTotal,
         profit,
         status: OrderStatus.COMPLETED,
         customerName: customerNames[randomInt(0, customerNames.length - 1)] || null,
         customerEmail: customerEmails[randomInt(0, customerEmails.length - 1)] || null,
         createdAt: new Date(saleDate),
       });
+
+      currentTotal += orderTotal;
+      currentRevenue += profit;
+    }
+
+    dayOffset++;
+    
+    // If we're close to targets, add one more order to finish
+    if (currentTotal >= TARGET_TOTAL * 0.95 && currentRevenue >= TARGET_REVENUE * 0.95) {
+      break;
     }
   }
 
-  // Current month: Variable sales with patterns (1-6 sales per day)
-  const daysInCurrentMonth = now.getDate();
-  for (let day = 0; day < daysInCurrentMonth; day++) {
-    const saleDate = new Date(now.getFullYear(), now.getMonth(), day + 1);
-    const dayOfMonth = saleDate.getDate();
-    const boost = getPaydayBoost(dayOfMonth);
-    const baseSales = randomInt(1, 4);
-    const salesPerDay = Math.floor(baseSales * boost);
+  // Split sales into past month and current month
+  const pastMonthSales: SaleData[] = [];
+  const currentMonthSales: SaleData[] = [];
+  const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
-    for (let i = 0; i < salesPerDay; i++) {
-      const hour = randomInt(0, 100) < 60 ? randomInt(14, 20) : randomInt(9, 13);
-      saleDate.setHours(hour, randomInt(0, 59), randomInt(0, 59));
-      
-      const numItems = randomInt(1, 4);
-      const selectedProducts: OrderItem[] = [];
-      let total = 0;
-      const usedProductIds = new Set<string>();
-
-      for (let j = 0; j < numItems; j++) {
-        let product = shopeeProducts[randomInt(0, shopeeProducts.length - 1)];
-        if (!product) continue;
-        let attempts = 0;
-        while (usedProductIds.has(product.id) && attempts < 3) {
-          product = shopeeProducts[randomInt(0, shopeeProducts.length - 1)];
-          attempts++;
-          if (!product) break;
-        }
-        if (!product || usedProductIds.has(product.id)) continue;
-        usedProductIds.add(product.id);
-        
-        const template = shopeeProductTemplates.find(t => {
-          if (!product || !product.name || !t || !t.name) return false;
-          const productFirstWord = product.name.split(' ')[0];
-          const templateFirstWord = t.name.split(' ')[0];
-          if (!productFirstWord || !templateFirstWord) return false;
-          return product.name.includes(templateFirstWord) || t.name.includes(productFirstWord);
-        });
-        const isBestSeller = template && template.avgDailySales >= 8;
-        const quantity = isBestSeller ? randomInt(1, 4) : randomInt(1, 2);
-        const price = product.price;
-        const subtotal = price * quantity;
-        total += subtotal;
-
-        selectedProducts.push({
-          productId: product.id,
-          productName: product.name,
-          quantity,
-          price,
-          subtotal,
-        });
-      }
-
-      const profit = selectedProducts.reduce((sum, item) => {
-        const product = shopeeProducts.find(p => p.id === item.productId);
-        if (product && product.cost) {
-          return sum + ((item.price - product.cost) * item.quantity);
-        }
-        return sum + (item.subtotal * 0.2);
-      }, 0);
-
-      currentMonthSales.push({
-        shopId: shopeeShop.id,
-        platform: Platform.SHOPEE,
-        platformOrderId: `ORDER-SHOPEE-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        externalId: `EXT-SHOPEE-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        items: selectedProducts,
-        total,
-        revenue: total,
-        profit,
-        status: OrderStatus.COMPLETED,
-        customerName: customerNames[randomInt(0, customerNames.length - 1)] || null,
-        customerEmail: customerEmails[randomInt(0, customerEmails.length - 1)] || null,
-        createdAt: new Date(saleDate),
-      });
+  for (const sale of allSales) {
+    if (new Date(sale.createdAt) < currentMonthStart) {
+      pastMonthSales.push(sale);
+    } else {
+      currentMonthSales.push(sale);
     }
   }
 
@@ -424,7 +418,7 @@ async function seedShopeeDemoData(userId: string) {
   // Create demo campaigns optimized for MarketMate
   console.log("📢 Creating demo campaigns for MarketMate...");
   
-  const bestSellerProduct = shopeeProducts.find(p => p.name.includes("Earbuds")) || shopeeProducts[0];
+  const bestSellerProduct = shopeeProducts.find(p => p.name.includes("Chicharon") || p.name.includes("Mangoes")) || shopeeProducts[0];
   const campaignLowStockProduct = shopeeProducts.find(p => p.stock < 15) || shopeeProducts[1];
   const campaignExpiredProduct = shopeeProducts.find(p => p.expiryDate && new Date(p.expiryDate) < now) || null;
   
@@ -436,22 +430,22 @@ async function seedShopeeDemoData(userId: string) {
   const campaigns = [
     {
       shopId: shopeeShop.id,
-      name: "Flash Sale - Premium Electronics",
+      name: "Flash Sale - Filipino Pasalubong",
       content: {
         playbook: "Flash Sale",
         product_name: bestSellerProduct.name,
-        ad_copy: "🎧 LIMITED TIME OFFER! Premium wireless earbuds at unbeatable price! Don't miss out - stock is limited!",
-        discount: "30% OFF",
+        ad_copy: "🇵🇭 LIMITED TIME OFFER! Authentic Filipino pasalubong at unbeatable price! Perfect for homecoming gifts!",
+        discount: "25% OFF",
       },
       status: CampaignStatus.DRAFT,
     },
     {
       shopId: shopeeShop.id,
-      name: "Best Seller Spotlight - Power Bank",
+      name: "Best Seller Spotlight - Dried Mangoes",
       content: {
         playbook: "Best Seller Spotlight",
-        product_name: "Portable Power Bank 20000mAh",
-        ad_copy: "🔥 BEST SELLER! Our most popular power bank - trusted by thousands! Get yours today!",
+        product_name: "Dried Mangoes (Philippine Brand) 200g",
+        ad_copy: "🔥 BEST SELLER! Our most popular Filipino snack - trusted by thousands! Perfect pasalubong!",
       },
       status: CampaignStatus.PUBLISHED,
     },
@@ -532,14 +526,20 @@ async function seedShopeeDemoData(userId: string) {
 
   console.log(`✅ Created ${notifications.length} notifications\n`);
 
+  // Calculate totals
+  const totalSalesValue = allSales.reduce((sum, s) => sum + s.total, 0);
+  const totalRevenue = allSales.reduce((sum, s) => sum + s.profit, 0);
+
   // Summary
   console.log("✨ Shopee demo data seeding completed!\n");
   console.log("📊 Summary:");
   console.log(`   - Shop: 1 (Shopee)`);
-  console.log(`   - Products: ${shopeeProducts.length} (Electronics, Fashion, Beauty)`);
+  console.log(`   - Products: ${shopeeProducts.length} (Filipino Pasalubong - Homecoming Gifts)`);
   console.log(`     • With expiry dates: ${shopeeProducts.filter(p => p.expiryDate).length}`);
   console.log(`     • Low/Critical stock: ${shopeeProducts.filter(p => p.stock < 15).length}`);
-  console.log(`   - Sales: ${pastMonthSales.length + currentMonthSales.length} (${pastMonthSales.length} past month + ${currentMonthSales.length} current month)`);
+  console.log(`   - Sales: ${allSales.length} (${pastMonthSales.length} past month + ${currentMonthSales.length} current month)`);
+  console.log(`   - Total Sales Value: ₱${totalSalesValue.toLocaleString()}.00`);
+  console.log(`   - Total Revenue: ₱${totalRevenue.toLocaleString()}.00`);
   console.log(`   - Campaigns: ${campaigns.length}`);
   console.log(`   - Notifications: ${notifications.length}\n`);
 }
